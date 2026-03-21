@@ -87,7 +87,7 @@ export type StocktakeStatus =
 export type ReservedStockStatus = 'Active' | 'Released' | 'Expired';
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
-export type NotificationType = 'install' | 'relocation';
+export type NotificationType = 'install' | 'relocation' | 'inventory';
 
 export type GoodsReceiptStatus =
 'Pending' |
