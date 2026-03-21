@@ -1,0 +1,133 @@
+import React, { useState } from 'react';
+import { useStore } from '../store/useStore';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle } from
+'../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
+import { Label } from '../components/ui/Label';
+import { Alert, AlertDescription } from '../components/ui/Alert';
+import { Server, AlertCircle, Loader2 } from 'lucide-react';
+export function LoginPage() {
+  const login = useStore((state) => state.login);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+    // Simulate network delay
+    setTimeout(() => {
+      const success = login(username, password);
+      if (!success) {
+        setError('Invalid username or password');
+      }
+      setIsLoading(false);
+    }, 600);
+  };
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 p-4">
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex flex-col items-center justify-center text-center space-y-2">
+          <div className="bg-primary text-primary-foreground p-3 rounded-xl mb-2 shadow-sm">
+            <Server className="w-8 h-8" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight font-heading text-foreground">
+            1CNG
+          </h1>
+          <p className="text-muted-foreground">Inventory Management System</p>
+        </div>
+
+        <Card className="border-border/50 shadow-lg">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-heading">Sign in</CardTitle>
+            <CardDescription>
+              Enter your credentials to access the system
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              {error &&
+              <Alert variant="destructive" className="py-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="ml-2">{error}</AlertDescription>
+                </Alert>
+              }
+
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Enter your username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isLoading}
+                  required />
+                
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  required />
+                
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ?
+                <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </> :
+
+                'Sign in'
+                }
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="flex flex-col items-start border-t bg-muted/20 px-6 py-4 mt-2">
+            <p className="text-sm font-medium mb-2 text-foreground">
+              Demo Credentials:
+            </p>
+            <div className="text-xs text-muted-foreground space-y-1.5 w-full">
+              <div className="flex justify-between items-center bg-background p-2 rounded border border-border/50">
+                <span className="font-medium text-foreground">Admin:</span>
+                <code className="bg-muted px-1.5 py-0.5 rounded">
+                  admin / admin123
+                </code>
+              </div>
+              <div className="flex justify-between items-center bg-background p-2 rounded border border-border/50">
+                <span className="font-medium text-foreground">PM:</span>
+                <code className="bg-muted px-1.5 py-0.5 rounded">
+                  pm_yangon / pm123
+                </code>
+              </div>
+              <div className="flex justify-between items-center bg-background p-2 rounded border border-border/50">
+                <span className="font-medium text-foreground">Engineer:</span>
+                <code className="bg-muted px-1.5 py-0.5 rounded">
+                  eng_kaung / eng123
+                </code>
+              </div>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+    </div>);
+
+}
