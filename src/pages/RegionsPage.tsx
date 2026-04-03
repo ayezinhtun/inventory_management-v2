@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useStore } from '../store/useStore';
+import React, { useEffect, useState } from 'react';
+import { useRegionStore } from '../store/useRegionStore';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -7,8 +7,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow } from
-'../components/ui/Table';
+  TableRow
+} from
+  '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import {
@@ -17,8 +18,9 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle } from
-'../components/ui/Dialog';
+  DialogTitle
+} from
+  '../components/ui/Dialog';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Textarea } from '../components/ui/Textarea';
@@ -30,76 +32,44 @@ import type { Region } from '../lib/types';
 export function RegionsPage() {
   const {
     regions,
-    warehouses,
-    currentUser,
-    addRegion,
-    updateRegion,
-    deleteRegion
-  } = useStore();
+    isLoading,
+    fetchRegions,
+    addRegion
+  } = useRegionStore();
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    is_active: true
+    status: 'active'
   });
-  if (currentUser?.role !== 'Admin') {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-destructive">
-          You do not have permission to view this page.
-        </p>
-      </div>);
 
-  }
-  const handleOpenDialog = (region?: Region) => {
-    if (region) {
-      setEditingRegion(region);
-      setFormData({
-        name: region.name,
-        description: region.description || '',
-        is_active: region.is_active
-      });
-    } else {
-      setEditingRegion(null);
-      setFormData({
-        name: '',
-        description: '',
-        is_active: true
-      });
-    }
-    setIsDialogOpen(true);
-  };
-  const handleSave = () => {
+  useEffect(() => {
+    fetchRegions();
+  }, [fetchRegions]);
+
+  const handleAddRegion = async () => {
     if (!formData.name.trim()) {
       toast.error('Region name is required');
       return;
     }
-    if (editingRegion) {
-      updateRegion(editingRegion.id, formData);
-      toast.success('Region updated successfully');
-    } else {
-      addRegion(formData);
+
+    try {
+      await addRegion(formData);
+      setFormData({ name: '', description: '', status: 'active' });
+      setIsDialogOpen(false);
       toast.success('Region added successfully');
+    } catch (error) {
+      toast.error('Failed to add region');
+      console.error('Error adding region:', error);
     }
+  }
+
+  const resetForm = () => {
+    setFormData({ name: '', description: '', status: 'active' });
     setIsDialogOpen(false);
-  };
-  const handleDelete = (id: string) => {
-    const hasWarehouses = warehouses.some((w) => w.region_id === id);
-    if (hasWarehouses) {
-      toast.error(
-        'Cannot delete region: It contains warehouses. Please reassign or delete them first.'
-      );
-      return;
-    }
-    if (window.confirm('Are you sure you want to delete this region?')) {
-      deleteRegion(id);
-      toast.success('Region deleted successfully');
-    }
-  };
-  const getWarehouseCount = (regionId: string) => {
-    return warehouses.filter((w) => w.region_id === regionId).length;
-  };
+  }
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -112,7 +82,7 @@ export function RegionsPage() {
           </p>
         </div>
 
-        <Button onClick={() => handleOpenDialog()}>
+        <Button onClick={() => setIsDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Region
         </Button>
@@ -120,94 +90,59 @@ export function RegionsPage() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Warehouses</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {regions.length > 0 ?
-              regions.map((region) =>
-              <TableRow key={region.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center">
-                        <Globe className="h-4 w-4 mr-2 text-muted-foreground" />
-                        {region.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {region.description || '—'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {getWarehouseCount(region.id)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                    variant={region.is_active ? 'default' : 'secondary'}
-                    className={
-                    region.is_active ?
-                    'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' :
-                    ''
-                    }>
-                    
-                        {region.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(region.updated_at)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleOpenDialog(region)}>
-                      
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => handleDelete(region.id)}>
-                      
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-32">
+              <div className="text-sm text-muted-foreground">Loading regions...</div>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Updated</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {regions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8">
+                      <div className="text-muted-foreground">
+                        No regions found.
                       </div>
                     </TableCell>
                   </TableRow>
-              ) :
-
-              <TableRow>
-                  <TableCell
-                  colSpan={6}
-                  className="h-32 text-center text-muted-foreground">
-                  
-                    No regions found.
-                  </TableCell>
-                </TableRow>
-              }
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ) : (
+                  regions.map((region) => (
+                    <TableRow key={region.id}>
+                      <TableCell className="font-medium">{region.name}</TableCell>
+                      <TableCell>{region.description || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={region.status === 'active' ? 'default' : 'secondary'}>
+                          {region.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(region.updated_at)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table >
+          )
+          }
+        </CardContent >
+      </Card >
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingRegion ? 'Edit Region' : 'Add Region'}
+              Add Region
             </DialogTitle>
             <DialogDescription>
-              {editingRegion ?
-              'Update region details below.' :
-              'Enter details for the new region.'}
+              Enter details for the new region.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -219,13 +154,13 @@ export function RegionsPage() {
                 id="name"
                 value={formData.name}
                 onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  name: e.target.value
-                })
+                  setFormData({
+                    ...formData,
+                    name: e.target.value
+                  })
                 }
                 placeholder="e.g., Yangon" />
-              
+
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
@@ -233,42 +168,36 @@ export function RegionsPage() {
                 id="description"
                 value={formData.description}
                 onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  description: e.target.value
-                })
+                  setFormData({
+                    ...formData,
+                    description: e.target.value
+                  })
                 }
                 placeholder="Brief description of this region..."
                 rows={3} />
-              
+
             </div>
-            <div className="flex items-center justify-between pt-2">
-              <div className="space-y-0.5">
-                <Label htmlFor="active">Active Status</Label>
-                <p className="text-sm text-muted-foreground">
-                  Inactive regions won't appear in dropdowns
-                </p>
-              </div>
-              <Switch
-                id="active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) =>
-                setFormData({
-                  ...formData,
-                  is_active: checked
-                })
-                } />
-              
+            <div className="grid gap-2">
+              <Label htmlFor="status">Status</Label>
+              <select
+                id="status"
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save Region</Button>
+            <Button onClick={handleAddRegion}>Add Region</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>);
+    </div >);
 
 }

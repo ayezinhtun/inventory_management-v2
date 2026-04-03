@@ -1,5 +1,6 @@
 import React, { Component } from "react";
 import { useStore } from "../../store/useStore";
+import logo from '../../assets/image/logo.png';
 import {
   Sidebar,
   SidebarContent,
@@ -98,41 +99,43 @@ export function AppSidebar() {
           icon: BoxIcon,
           roles: ["Admin"],
         },
-        {
-          id: "racks",
-          label: "Racks & Capacity",
-          icon: Building2,
-          roles: ["Admin", "PM", "Engineer"],
-        },
+        // {
+        //   id: "racks",
+        //   label: "Racks & Capacity",
+        //   icon: Building2,
+        //   roles: ["Admin", "PM", "Engineer"],
+        // },
       ],
     },
     {
       label: "Requests",
       items: [
-        {
-          id: "inventory-requests",
-          label: "Inventory Requests",
-          icon: ShoppingCart,
-          roles: ["Admin", "PM", "Engineer"],
-        },
-        {
-          id: "install-requests",
-          label: "Install Requests",
-          icon: Wrench,
-          roles: ["Engineer"],
-        },
-        {
-          id: "install-pm",
-          label: "Install Approvals",
-          icon: ClipboardList,
-          roles: ["PM"],
-        },
-        {
-          id: "install-admin",
-          label: "Install Approvals",
-          icon: ClipboardList,
-          roles: ["Admin"],
-        },
+       /* This part of the code defines an item in the navigation structure for the "Requests" section
+       of the sidebar. Here's what each property represents: */
+        // {
+        //   id: "inventory-requests",
+        //   label: "Inventory Requests",
+        //   icon: ShoppingCart,
+        //   roles: ["Admin", "PM", "Engineer"],
+        // },
+        // {
+        //   id: "install-requests",
+        //   label: "Install Requests",
+        //   icon: Wrench,
+        //   roles: ["Engineer"],
+        // },
+        // {
+        //   id: "install-pm",
+        //   label: "Install Approvals",
+        //   icon: ClipboardList,
+        //   roles: ["PM"],
+        // },
+        // {
+        //   id: "install-admin",
+        //   label: "Install Approvals",
+        //   icon: ClipboardList,
+        //   roles: ["Admin"],
+        // },
         {
           id: "relocation-requests",
           label: "Relocation Requests",
@@ -156,65 +159,65 @@ export function AppSidebar() {
     {
       label: "Operations",
       items: [
-        {
-          id: "physical-install",
-          label: "Physical Installs",
-          icon: Wrench,
-          roles: ["Admin", "PM", "Engineer"],
-        },
-        {
-          id: "physical-relocation",
-          label: "Physical Relocations",
-          icon: ArrowRightLeft,
-          roles: ["Admin", "PM", "Engineer"],
-        },
-        {
-          id: "maintenance",
-          label: "Maintenance",
-          icon: CalendarClock,
-          roles: ["Admin"],
-        },
-        {
-          id: "stocktake",
-          label: "Stocktake",
-          icon: Activity,
-          roles: ["Admin"],
-        },
+        // {
+        //   id: "physical-install",
+        //   label: "Physical Installs",
+        //   icon: Wrench,
+        //   roles: ["Admin", "PM", "Engineer"],
+        // },
+        // {
+        //   id: "physical-relocation",
+        //   label: "Physical Relocations",
+        //   icon: ArrowRightLeft,
+        //   roles: ["Admin", "PM", "Engineer"],
+        // },
+        // {
+        //   id: "maintenance",
+        //   label: "Maintenance",
+        //   icon: CalendarClock,
+        //   roles: ["Admin"],
+        // },
+        // {
+        //   id: "stocktake",
+        //   label: "Stocktake",
+        //   icon: Activity,
+        //   roles: ["Admin"],
+        // },
       ],
     },
     {
       label: "Procurement & Lifecycle",
       items: [
-        {
-          id: "vendors",
-          label: "Vendors",
-          icon: Building2,
-          roles: ["Admin"],
-        },
-        {
-          id: "purchase-orders",
-          label: "Purchase Orders",
-          icon: FileText,
-          roles: ["Admin"],
-        },
-        {
-          id: "goods-receipt",
-          label: "Goods Receipt",
-          icon: PackageCheck,
-          roles: ["Admin"],
-        },
-        {
-          id: "rma",
-          label: "RMA Management",
-          icon: RefreshCw,
-          roles: ["Admin"],
-        },
-        {
-          id: "disposal",
-          label: "Disposal & Write-off",
-          icon: Trash2,
-          roles: ["Admin"],
-        },
+        // {
+        //   id: "vendors",
+        //   label: "Vendors",
+        //   icon: Building2,
+        //   roles: ["Admin"],
+        // },
+        // {
+        //   id: "purchase-orders",
+        //   label: "Purchase Orders",
+        //   icon: FileText,
+        //   roles: ["Admin"],
+        // },
+        // {
+        //   id: "goods-receipt",
+        //   label: "Goods Receipt",
+        //   icon: PackageCheck,
+        //   roles: ["Admin"],
+        // },
+        // {
+        //   id: "rma",
+        //   label: "RMA Management",
+        //   icon: RefreshCw,
+        //   roles: ["Admin"],
+        // },
+        // {
+        //   id: "disposal",
+        //   label: "Disposal & Write-off",
+        //   icon: Trash2,
+        //   roles: ["Admin"],
+        // },
       ],
     },
     {
@@ -275,11 +278,11 @@ export function AppSidebar() {
   return (
     <Sidebar variant="sidebar" collapsible="icon">
       <SidebarHeader className="border-b border-border/50 py-4">
-        <div className="flex items-center gap-3 px-2">
-          <div className="bg-primary text-primary-foreground p-1.5 rounded-md flex-shrink-0">
-            <Server className="w-5 h-5" />
+        <div className="flex flex-col items-start px-2">
+          <div className="w-28 p-1.5 rounded-md flex-shrink-0">
+            <img src={logo} alt="" />
           </div>
-          <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-2 overflow-hidden group-data-[collapsible=icon]:hidden">
             <span className="font-heading font-bold text-lg leading-tight truncate">
               1CNG
             </span>
