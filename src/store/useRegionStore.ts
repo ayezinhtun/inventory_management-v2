@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
 
-
 export interface Region {
     id: string;
     name: string;
@@ -19,6 +18,13 @@ interface RegionState {
 
     addRegion: (
         Payload: Omit<Region, "id" | "created_at" | "updated_at">
+    ) => Promise<Region>;
+
+    deleteRegion: (id: string) => Promise<void>;
+
+    updateRegion: (
+      id: string, 
+      payload: Partial<Omit<Region, 'id' | 'created_at' | 'updated_at'>>,
     ) => Promise<Region>;
 }
 
@@ -52,4 +58,30 @@ export const useRegionStore = create<RegionState>((set, get) => ({
     await get().fetchRegions();
     return data!;
   },
+
+  //for delete region
+  deleteRegion: async (id: string) => {
+    const {error} = await supabase.from('regions').delete().eq('id', id);
+
+    if(error) throw error;
+
+    await get().fetchRegions();
+  }, 
+
+  // for update region
+
+  updateRegion: async (id: string, payload: Partial<Omit<Region, 'id' | 'created_at' | 'updated_at'>>) => {
+    const {data, error} = await supabase
+      .from('regions')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if(error) throw error;
+
+    await get().fetchRegions();
+    return data!;
+  }
+
 }));

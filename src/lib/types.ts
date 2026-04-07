@@ -111,26 +111,6 @@ export interface User {
   updated_at: string;
 }
 
-export interface Region {
-  id: string;
-  name: string;
-  description: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Warehouse {
-  id: string;
-  name: string;
-  region_id: string;
-  address: string;
-  contact_person: string;
-  contact_phone: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface Rack {
   id: string;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useRegionStore } from '../store/useRegionStore';
+import { useRegionStore, type Region } from '../store/useRegionStore';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -28,16 +28,18 @@ import { Switch } from '../components/ui/Switch';
 import { Plus, Globe, Edit, Trash2 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { toast } from 'sonner';
-import type { Region } from '../lib/types';
 export function RegionsPage() {
   const {
     regions,
     isLoading,
     fetchRegions,
-    addRegion
+    addRegion,
+    deleteRegion,
+    updateRegion
   } = useRegionStore();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -48,26 +50,88 @@ export function RegionsPage() {
     fetchRegions();
   }, [fetchRegions]);
 
-  const handleAddRegion = async () => {
+  // const handleAddRegion = async () => {
+  //   if (!formData.name.trim()) {
+  //     toast.error('Region name is required');
+  //     return;
+  //   }
+
+  //   try {
+  //     await addRegion(formData);
+  //     setFormData({ name: '', description: '', status: 'active' });
+  //     setIsDialogOpen(false);
+  //     toast.success('Region added successfully');
+  //   } catch (error) {
+  //     toast.error('Failed to add region');
+  //     console.error('Error adding region:', error);
+  //   }
+  // }
+
+  const resetForm = () => {
+    setFormData({ name: '', description: '', status: 'active' });
+    setIsDialogOpen(false);
+  }
+
+  // delte region
+  const handleDeleteRegion = async (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
+      try {
+        await deleteRegion(id);
+        toast.success('Region deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete region');
+        console.error('Error deleting region:', error);
+      }
+    }
+  }
+
+  const handleOpenDialog = (region?: Region) => {
+    if (region) {
+      // edit mode
+      setEditingRegion(region);
+      setFormData({
+        name: region.name,
+        description: region.description || '',
+        status: region.status || 'active'
+      });
+    } else {
+      // Add mode
+      setEditingRegion(null);
+      setFormData({
+        name: '',
+        description: '',
+        status: 'active'
+      });
+    }
+
+    setIsDialogOpen(true);
+  }
+
+  const handleSaveRegion = async () => {
     if (!formData.name.trim()) {
       toast.error('Region name is required');
       return;
     }
 
     try {
-      await addRegion(formData);
-      setFormData({ name: '', description: '', status: 'active' });
-      setIsDialogOpen(false);
-      toast.success('Region added successfully');
-    } catch (error) {
-      toast.error('Failed to add region');
-      console.error('Error adding region:', error);
-    }
-  }
+      if (editingRegion) {
+        //update existing region
+        await updateRegion(editingRegion.id, formData);
+        toast.success('Region updated successfully');
+      } else {
+        // add new region 
 
-  const resetForm = () => {
-    setFormData({ name: '', description: '', status: 'active' });
-    setIsDialogOpen(false);
+        await addRegion(formData);
+        toast.success('Region added successfully');
+      }
+
+      setFormData({ name: '', description: '', status: 'active' });
+      setEditingRegion(null);
+      setIsDialogOpen(false);
+    } catch (error) {
+      toast.error(`Failed to ${editingRegion ? 'update' : 'add'} region`);
+      console.error('Error', error);
+    }
   }
 
   return (
@@ -125,6 +189,27 @@ export function RegionsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{formatDate(region.updated_at)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleOpenDialog(region)}
+                          >
+
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-destructive"
+                            onClick={() => handleDeleteRegion(region.id, region.name)}
+                          >
+
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -139,10 +224,10 @@ export function RegionsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Add Region
+              {editingRegion ? 'Edit Region' : 'Add Region'}
             </DialogTitle>
             <DialogDescription>
-              Enter details for the new region.
+              {editingRegion ? 'Update the region details.' : 'Enter details for the new region.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -177,24 +262,27 @@ export function RegionsPage() {
                 rows={3} />
 
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="status">Status</Label>
-              <select
-                id="status"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+            <div className="flex items-center justify-between pt-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="active">Active Status</Label>
+                <p className="text-sm text-muted-foreground">
+                  Inactive warehouses won't appear in dropdowns
+                </p>
+              </div>
+              <Switch
+                id="active"
+                checked={formData.status === 'active'}
+                onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'active' : 'inactive' })}
+              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddRegion}>Add Region</Button>
+            <Button onClick={handleSaveRegion}>
+              {editingRegion ? 'Update Region' : 'Add Region'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
