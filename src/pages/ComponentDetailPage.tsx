@@ -1,4 +1,4 @@
-import React, { useState, Component } from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import {
   Card,
@@ -22,32 +22,44 @@ import {
   AlertDialogTrigger } from
 '../components/ui/AlertDialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle } from
+'../components/ui/Dialog';
+import {
   ArrowLeft,
+  ArrowRight,
   Edit,
   Trash2,
   Cpu,
   MapPin,
   Calendar,
   Shield,
-  Activity,
-  Server } from
+  History,
+  Server,
+  Package,
+  MoveRight } from
 'lucide-react';
 import { formatDate, formatCurrency, getStatusColor } from '../lib/utils';
 import { toast } from 'sonner';
+import type { ComponentHistory } from '../lib/types';
 export function ComponentDetailPage() {
   const {
     components,
     inventory,
-    auditLogs,
+    componentHistory,
     selectedId,
     navigate,
     currentUser,
     getRegionName,
     getWarehouseName,
     getComponentTypeName,
+    getUserName,
     deleteComponent
   } = useStore();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<ComponentHistory | null>(null);
   if (!selectedId) {
     return (
       <div className="p-6 text-center">
@@ -74,7 +86,7 @@ export function ComponentDetailPage() {
   const installedIn = component.installed_in_device_id ?
   inventory.find((i) => i.id === component.installed_in_device_id) :
   null;
-  const itemHistory = auditLogs.filter((log) => log.record_id === component.id);
+  const itemHistory = componentHistory.filter((h) => h.component_id === component.id);
   const handleDelete = () => {
     if (component.installed_in_device_id) {
       toast.error(
@@ -435,47 +447,214 @@ export function ComponentDetailPage() {
         <TabsContent value="history" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Activity History</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5 text-muted-foreground" />
+                Movement History
+              </CardTitle>
               <CardDescription>
-                Audit log of changes to this component
+                Full location movement trail for this component
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {itemHistory.length > 0 ?
-              <div className="space-y-4">
-                  {itemHistory.map((log) =>
-                <div
-                  key={log.id}
-                  className="flex gap-4 p-4 rounded-lg border bg-muted/30">
-                  
-                      <div className="mt-0.5">
-                        <Activity className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium">
-                            {log.action} by User {log.user_id}
-                          </p>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(log.timestamp)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {JSON.stringify(log.new_value || log.old_value)}
-                        </p>
-                      </div>
-                    </div>
-                )}
-                </div> :
-
-              <div className="text-center py-8 text-muted-foreground">
-                  <p>No history recorded yet.</p>
+              {itemHistory.length > 0 ? (
+                <div className="rounded-md border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50 border-b">
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date & Time</th>
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">From</th>
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">To</th>
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Moved By</th>
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Request</th>
+                        <th className="px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itemHistory.map((entry, idx) => {
+                        const fromLabel = entry.from_device_id
+                          ? `Device: ${inventory.find((i) => i.id === entry.from_device_id)?.item_name ?? entry.from_device_id}`
+                          : entry.from_warehouse_id
+                          ? `${getRegionName(entry.from_region_id ?? '')} › ${getWarehouseName(entry.from_warehouse_id)}`
+                          : '—';
+                        const toLabel = entry.to_device_id
+                          ? `Device: ${inventory.find((i) => i.id === entry.to_device_id)?.item_name ?? entry.to_device_id}`
+                          : entry.to_warehouse_id
+                          ? `${getRegionName(entry.to_region_id ?? '')} › ${getWarehouseName(entry.to_warehouse_id)}`
+                          : entry.to_region_id
+                          ? getRegionName(entry.to_region_id)
+                          : '—';
+                        return (
+                          <tr
+                            key={entry.id}
+                            className={`border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}
+                            onClick={() => setSelectedHistoryEntry(entry)}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                              {new Date(entry.moved_at).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  entry.movement_type === 'CREATED'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : entry.movement_type === 'INSTALLED'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : entry.movement_type === 'UNINSTALLED'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-purple-50 text-purple-700 border-purple-200'
+                                }
+                              >
+                                {entry.movement_type}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" title={fromLabel}>
+                              {fromLabel}
+                            </td>
+                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" title={toLabel}>
+                              {toLabel}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {getUserName(entry.moved_by)}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">
+                              {entry.related_request_type && entry.related_request_id
+                                ? <span className="capitalize">{entry.related_request_type}</span>
+                                : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <ArrowRight className="h-4 w-4 text-muted-foreground inline-block" />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              }
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No movement history yet.</p>
+                  <p className="text-xs mt-1">History is recorded when this component is created, installed, or relocated.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* History detail drill-down dialog */}
+      {selectedHistoryEntry && (() => {
+        const entry = selectedHistoryEntry;
+        const fromDevice = entry.from_device_id ? inventory.find((i) => i.id === entry.from_device_id) : null;
+        const toDevice = entry.to_device_id ? inventory.find((i) => i.id === entry.to_device_id) : null;
+        return (
+          <Dialog open={!!selectedHistoryEntry} onOpenChange={(open) => { if (!open) setSelectedHistoryEntry(null); }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <MoveRight className="h-5 w-5 text-muted-foreground" />
+                  Movement Detail
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      entry.movement_type === 'CREATED'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : entry.movement_type === 'INSTALLED'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : entry.movement_type === 'UNINSTALLED'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-purple-50 text-purple-700 border-purple-200'
+                    }
+                  >
+                    {entry.movement_type}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {new Date(entry.moved_at).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-lg border p-3 space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">From</p>
+                    {entry.from_device_id ? (
+                      <>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Server className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="font-medium">{fromDevice?.item_name ?? '—'}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{fromDevice?.item_type}</p>
+                      </>
+                    ) : entry.from_warehouse_id ? (
+                      <>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="font-medium">{getWarehouseName(entry.from_warehouse_id)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{getRegionName(entry.from_region_id ?? '')}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">—</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border p-3 space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">To</p>
+                    {entry.to_device_id ? (
+                      <>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Server className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="font-medium">{toDevice?.item_name ?? '—'}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{toDevice?.item_type}</p>
+                      </>
+                    ) : entry.to_warehouse_id ? (
+                      <>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="font-medium">{getWarehouseName(entry.to_warehouse_id)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{getRegionName(entry.to_region_id ?? '')}</p>
+                      </>
+                    ) : entry.to_region_id ? (
+                      <div className="flex items-center gap-1 text-sm">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-medium">{getRegionName(entry.to_region_id)}</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">—</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="grid grid-cols-2 text-sm">
+                    <span className="text-muted-foreground">Moved by</span>
+                    <span className="font-medium">{getUserName(entry.moved_by)}</span>
+                  </div>
+                  {entry.related_request_type && (
+                    <div className="grid grid-cols-2 text-sm">
+                      <span className="text-muted-foreground">Request type</span>
+                      <span className="font-medium capitalize">{entry.related_request_type}</span>
+                    </div>
+                  )}
+                  {entry.notes && (
+                    <div className="grid grid-cols-2 text-sm">
+                      <span className="text-muted-foreground">Notes</span>
+                      <span className="font-medium">{entry.notes}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>);
 
 }

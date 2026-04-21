@@ -7,6 +7,7 @@ import type {
   ComponentType,
   InventoryItem,
   Component,
+  ComponentHistory,
   InventoryRequest,
   InstallRequest,
   RelocationRequest,
@@ -133,6 +134,7 @@ interface AppState {
   rmaRecords: RMARecord[];
   disposalRecords: DisposalRecord[];
   stocktakeRecords: StocktakeRecord[];
+  componentHistory: ComponentHistory[];
 
   // CRUD helpers — Inventory
   addInventoryItem: (
@@ -257,6 +259,9 @@ interface AppState {
   markAllNotificationsRead: () => void;
   addNotification: (n: Omit<Notification, 'id' | 'created_at'>) => void;
 
+  // Component History
+  addComponentHistory: (entry: Omit<ComponentHistory, 'id' | 'moved_at'>) => void;
+
   // Audit
   addAuditLog: (entry: Omit<AuditLog, 'id' | 'timestamp'>) => void;
 
@@ -334,6 +339,7 @@ export const useStore = create<AppState>((set, get) => ({
   rmaRecords: mockRMARecords,
   disposalRecords: mockDisposalRecords,
   stocktakeRecords: mockStocktakeRecords,
+  componentHistory: [],
 
   // CRUD — Inventory
   addInventoryItem: (item) => {
@@ -407,6 +413,20 @@ export const useStore = create<AppState>((set, get) => ({
       old_value: null,
       new_value: { item_name: newComp.item_name },
       ip_address: '127.0.0.1'
+    });
+    get().addComponentHistory({
+      component_id: newComp.id,
+      movement_type: 'CREATED',
+      from_region_id: null,
+      from_warehouse_id: null,
+      from_device_id: null,
+      to_region_id: newComp.region_id || null,
+      to_warehouse_id: newComp.warehouse_id || null,
+      to_device_id: newComp.installed_in_device_id || null,
+      moved_by: get().currentUser?.id || '',
+      related_request_id: null,
+      related_request_type: null,
+      notes: 'Component added to inventory',
     });
   },
   updateComponent: (id, updates) => {
@@ -1056,6 +1076,20 @@ export const useStore = create<AppState>((set, get) => ({
           warehouse_id: req.destination_warehouse_id,
           quantity: Math.max(0, comp.quantity - req.quantity)
         });
+        get().addComponentHistory({
+          component_id: comp.id,
+          movement_type: 'INSTALLED',
+          from_region_id: comp.region_id || null,
+          from_warehouse_id: comp.warehouse_id || null,
+          from_device_id: comp.installed_in_device_id || null,
+          to_region_id: null,
+          to_warehouse_id: req.destination_warehouse_id || null,
+          to_device_id: req.destination_server_id || null,
+          moved_by: get().currentUser?.id || '',
+          related_request_id: id,
+          related_request_type: 'install',
+          notes: notes || '',
+        });
       }
       // Notify admins and requester
       const admins = get().users.filter(
@@ -1279,16 +1313,49 @@ export const useStore = create<AppState>((set, get) => ({
           warehouse_id: req.destination_warehouse_id
         });
       } else if (req.relocation_type === 'COMPONENT' && req.component_id) {
+        const comp = get().components.find((c) => c.id === req.component_id);
         if (req.destination_server_id) {
           get().updateComponent(req.component_id, {
             installed_in_device_id: req.destination_server_id
           });
+          if (comp) {
+            get().addComponentHistory({
+              component_id: comp.id,
+              movement_type: 'INSTALLED',
+              from_region_id: comp.region_id || null,
+              from_warehouse_id: comp.warehouse_id || null,
+              from_device_id: comp.installed_in_device_id || null,
+              to_region_id: req.destination_region_id || null,
+              to_warehouse_id: req.destination_warehouse_id || null,
+              to_device_id: req.destination_server_id,
+              moved_by: get().currentUser?.id || '',
+              related_request_id: id,
+              related_request_type: 'relocation',
+              notes: notes || '',
+            });
+          }
         } else {
           get().updateComponent(req.component_id, {
             installed_in_device_id: null,
             region_id: req.destination_region_id,
             warehouse_id: req.destination_warehouse_id
           });
+          if (comp) {
+            get().addComponentHistory({
+              component_id: comp.id,
+              movement_type: 'RELOCATED',
+              from_region_id: comp.region_id || null,
+              from_warehouse_id: comp.warehouse_id || null,
+              from_device_id: comp.installed_in_device_id || null,
+              to_region_id: req.destination_region_id || null,
+              to_warehouse_id: req.destination_warehouse_id || null,
+              to_device_id: null,
+              moved_by: get().currentUser?.id || '',
+              related_request_id: id,
+              related_request_type: 'relocation',
+              notes: notes || '',
+            });
+          }
         }
       }
       // Notify admins and requester
@@ -1339,6 +1406,16 @@ export const useStore = create<AppState>((set, get) => ({
       ...s.notifications,
       { ...n, id: generateId(), created_at: new Date().toISOString() }]
 
+    }));
+  },
+
+  // Component History
+  addComponentHistory: (entry) => {
+    set((s) => ({
+      componentHistory: [
+        { ...entry, id: generateId(), moved_at: new Date().toISOString() },
+        ...s.componentHistory,
+      ],
     }));
   },
 

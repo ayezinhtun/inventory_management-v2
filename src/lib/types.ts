@@ -87,6 +87,7 @@ export type StocktakeStatus =
 export type ReservedStockStatus = 'Active' | 'Released' | 'Expired';
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
+export type ComponentMovementType = 'CREATED' | 'INSTALLED' | 'UNINSTALLED' | 'RELOCATED';
 export type NotificationType = 'install' | 'relocation' | 'inventory';
 
 export type GoodsReceiptStatus =
@@ -363,6 +364,23 @@ export interface ReservedStock {
   notes: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ComponentHistory {
+  id: string;
+  component_id: string;
+  movement_type: ComponentMovementType;
+  from_region_id: string | null;
+  from_warehouse_id: string | null;
+  from_device_id: string | null;
+  to_region_id: string | null;
+  to_warehouse_id: string | null;
+  to_device_id: string | null;
+  moved_by: string;
+  related_request_id: string | null;
+  related_request_type: 'install' | 'relocation' | null;
+  notes: string;
+  moved_at: string;
 }
 
 export interface AuditLog {
