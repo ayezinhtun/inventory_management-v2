@@ -37,6 +37,10 @@ interface AuthState {
 async function syncToAppStore(profile: UserProfile | null) {
   const { useStore } = await import('./useStore');
   if (profile) {
+    const currentPage = useStore.getState().currentPage;
+    // Navigate to dashboard only when the user was on the auth pages;
+    // preserve any other page (e.g. session token-refresh mid-session).
+    const shouldNavigate = currentPage === 'login' || currentPage === 'signup';
     useStore.setState({
       isAuthenticated: true,
       currentUser: {
@@ -53,9 +57,15 @@ async function syncToAppStore(profile: UserProfile | null) {
         created_at: profile.created_at,
         updated_at: profile.updated_at,
       },
+      ...(shouldNavigate ? { currentPage: 'dashboard' } : {}),
     });
   } else {
-    useStore.setState({ isAuthenticated: false, currentUser: null });
+    useStore.setState({
+      isAuthenticated: false,
+      currentUser: null,
+      currentPage: 'login',
+      selectedId: null,
+    });
   }
 }
 
