@@ -14,7 +14,7 @@ import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
 import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Separator } from '../components/ui/Separator';
-import { AlertCircle, Loader2, Mail, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Loader2, Mail, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 // Inline Google icon (no extra dependency needed)
 function GoogleIcon() {
@@ -41,7 +41,7 @@ function GoogleIcon() {
 }
 
 export function LoginPage() {
-  const { login, signInWithGoogle, isLoading } = useAuthStore();
+  const { login, signInWithGoogle, completeMFALogin, mfaRequired, isLoading } = useAuthStore();
   const { navigate } = useStore();
 
   const [email, setEmail] = useState('');
@@ -50,15 +50,15 @@ export function LoginPage() {
   const [emailUnconfirmed, setEmailUnconfirmed] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
 
+  // TOTP step
+  const [totpCode, setTotpCode] = useState('');
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setEmailUnconfirmed(false);
-
     try {
       await login(email, password);
-      // On success, useAuthStore bridges to useStore which sets isAuthenticated = true
-      // App.tsx re-renders automatically
     } catch (err: any) {
       const msg: string = err?.message ?? '';
       if (msg.toLowerCase().includes('email not confirmed')) {
@@ -74,18 +74,108 @@ export function LoginPage() {
     }
   };
 
+  const handleVerifyMFA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await completeMFALogin(totpCode);
+    } catch (err: any) {
+      setError(err?.message || 'Invalid code. Please try again.');
+      setTotpCode('');
+    }
+  };
+
   const handleGoogleSSO = async () => {
     setError('');
     setSsoLoading(true);
     try {
       await signInWithGoogle();
-      // Browser will redirect to Google; no further action needed here
     } catch (err: any) {
       setError(err?.message || 'Google sign-in failed. Please try again.');
       setSsoLoading(false);
     }
   };
 
+  // ── TOTP screen ──────────────────────────────────────────────────────────
+  if (mfaRequired) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 px-4">
+        <div className="w-full max-w-md space-y-8">
+          <div className="flex flex-col items-center justify-center text-center">
+            <img src={logo} alt="1CNG" className="w-40 object-contain" />
+          </div>
+
+          <Card className="border-border/50 shadow-lg">
+            <CardContent className="p-6">
+              <CardHeader className="space-y-1 text-center mb-6 p-0">
+                <div className="flex justify-center mb-3">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <ShieldCheck className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+                <CardTitle className="text-2xl font-heading">Two-Factor Authentication</CardTitle>
+                <CardDescription>
+                  Enter the 6-digit code from your authenticator app
+                </CardDescription>
+              </CardHeader>
+
+              <form onSubmit={handleVerifyMFA} className="space-y-4">
+                {error && (
+                  <Alert variant="destructive" className="py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="ml-2">{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="totp">Authentication Code</Label>
+                  <Input
+                    id="totp"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    maxLength={6}
+                    className="font-mono text-2xl tracking-[0.4em] text-center h-14"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading || totpCode.length !== 6}
+                >
+                  {isLoading ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verifying…</>
+                  ) : (
+                    'Verify'
+                  )}
+                </Button>
+
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => {
+                    // Reset mfaRequired state by clearing the auth session partially — go back to login
+                    useAuthStore.setState({ mfaRequired: false });
+                    setTotpCode('');
+                    setError('');
+                  }}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Back to sign in
+                </button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal login screen ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-md space-y-8">

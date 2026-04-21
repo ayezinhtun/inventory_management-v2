@@ -1,5 +1,6 @@
-import React, { Component } from "react";
+import React from "react";
 import { useStore } from "../../store/useStore";
+import { useAuthStore } from "../../store/useAuthStore";
 import logo from '../../assets/image/logo.png';
 import {
   Sidebar,
@@ -52,9 +53,9 @@ export function AppSidebar() {
     currentUser,
     currentPage,
     navigate,
-    logout,
     getUnreadNotificationCount,
   } = useStore();
+  const { logout } = useAuthStore();
   if (!currentUser) return null;
   const role = currentUser.role;
   const unreadCount = getUnreadNotificationCount();

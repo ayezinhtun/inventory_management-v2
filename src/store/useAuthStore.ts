@@ -8,6 +8,7 @@ export interface UserProfile {
   name: string;
   email: string;
   role: string;
+  username?: string | null;
   region_id?: string | null;
   warehouse_id?: string | null;
   status: string;
@@ -16,97 +17,179 @@ export interface UserProfile {
   updated_at: string;
 }
 
+export interface MFAFactor {
+  id: string;
+  status: "verified" | "unverified";
+  friendly_name: string | null;
+  created_at: string;
+}
+
 interface AuthState {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
+  mfaFactors: MFAFactor[];
   isLoading: boolean;
   isInitializing: boolean;
+  mfaRequired: boolean; // true when login needs a TOTP step
 
   initializeAuth: () => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  completeMFALogin: (code: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   fetchProfile: () => Promise<UserProfile | null>;
+
+  // Profile self-service
+  updateProfile: (updates: { name?: string; username?: string }) => Promise<void>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  deactivateAccount: () => Promise<void>;
+
+  // 2FA / TOTP
+  enrollTOTP: () => Promise<{ factorId: string; qrCode: string; secret: string; uri: string }>;
+  verifyTOTP: (factorId: string, code: string) => Promise<void>;
+  unenrollTOTP: (factorId: string) => Promise<void>;
+  refreshMFAFactors: () => Promise<void>;
 }
 
-// Sync authenticated profile into the Zustand app store so the rest of the
-// app (role guards, audit logs, etc.) continues to work without changes.
-// Uses dynamic import to avoid a circular dependency between the two stores.
+// ─── Session expiry (1 hour hard limit) ───────────────────────────────────
+const SESSION_DURATION_MS = 60 * 60 * 1000;
+const SESSION_START_KEY = "ims-session-start";
+let sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleSessionExpiry(logoutFn: () => Promise<void>, durationMs: number) {
+  if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
+  sessionExpiryTimer = setTimeout(async () => {
+    await logoutFn();
+  }, Math.max(durationMs, 0));
+}
+
+function clearSessionExpiry() {
+  if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
+  sessionExpiryTimer = null;
+  localStorage.removeItem(SESSION_START_KEY);
+}
+
+function recordSessionStart() {
+  localStorage.setItem(SESSION_START_KEY, Date.now().toString());
+}
+
+// ─── Bridge to useStore ───────────────────────────────────────────────────
+// Dynamic import avoids circular dependency.
 async function syncToAppStore(profile: UserProfile | null) {
-  const { useStore } = await import('./useStore');
+  const { useStore } = await import("./useStore");
   if (profile) {
     const currentPage = useStore.getState().currentPage;
-    // Navigate to dashboard only when the user was on the auth pages;
-    // preserve any other page (e.g. session token-refresh mid-session).
-    const shouldNavigate = currentPage === 'login' || currentPage === 'signup';
+    const shouldNavigate = currentPage === "login" || currentPage === "signup";
     useStore.setState({
       isAuthenticated: true,
       currentUser: {
         id: profile.user_id,
-        username: profile.email,
+        username: profile.username || profile.email,
         email: profile.email,
-        password_hash: '',
+        password_hash: "",
         full_name: profile.name,
         role: profile.role as any,
         assigned_region_id: profile.region_id ?? null,
         assigned_warehouse_id: profile.warehouse_id ?? null,
-        is_active: profile.status === 'active',
+        is_active: profile.status === "active",
         last_login: profile.last_login_at ?? null,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
       },
-      ...(shouldNavigate ? { currentPage: 'dashboard' } : {}),
+      ...(shouldNavigate ? { currentPage: "dashboard" } : {}),
     });
   } else {
     useStore.setState({
       isAuthenticated: false,
       currentUser: null,
-      currentPage: 'login',
+      currentPage: "login",
       selectedId: null,
     });
   }
 }
 
+// ─── Audit helper ─────────────────────────────────────────────────────────
+async function writeAuditLog(
+  userId: string,
+  action: "CREATE" | "UPDATE" | "DELETE",
+  module: string,
+  recordId: string,
+  oldValue: Record<string, any> | null,
+  newValue: Record<string, any> | null
+) {
+  const { useStore } = await import("./useStore");
+  useStore.getState().addAuditLog({
+    user_id: userId,
+    action,
+    module,
+    record_id: recordId,
+    old_value: oldValue,
+    new_value: newValue,
+    ip_address: "—",
+  });
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
   profile: null,
+  mfaFactors: [],
   isLoading: false,
   isInitializing: true,
+  mfaRequired: false,
 
-  // Called once on app mount. Restores an existing session from localStorage
-  // and subscribes to auth state changes for the lifetime of the app.
   initializeAuth: async () => {
     set({ isInitializing: true });
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (session?.user) {
+        // Enforce 1-hour session limit
+        const storedStart = parseInt(localStorage.getItem(SESSION_START_KEY) || "0");
+        if (storedStart) {
+          const elapsed = Date.now() - storedStart;
+          if (elapsed >= SESSION_DURATION_MS) {
+            await supabase.auth.signOut();
+            set({ isInitializing: false });
+            return;
+          }
+          scheduleSessionExpiry(get().logout, SESSION_DURATION_MS - elapsed);
+        }
+
         set({ user: session.user, session });
         const profile = await get().fetchProfile();
         await syncToAppStore(profile);
+        await get().refreshMFAFactors();
       }
     } finally {
       set({ isInitializing: false });
     }
 
-    // Persistent listener: handles token refresh, OAuth callbacks, sign-out
+    // Persistent listener for token refresh / OAuth callbacks / sign-out
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         set({ user: session.user, session });
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === "SIGNED_IN") {
+          const profile = await get().fetchProfile();
+          await syncToAppStore(profile);
+          await get().refreshMFAFactors();
+        } else if (event === "TOKEN_REFRESHED") {
+          // Refresh profile silently; do NOT re-navigate
           const profile = await get().fetchProfile();
           await syncToAppStore(profile);
         }
-      } else if (event === 'SIGNED_OUT') {
-        set({ user: null, session: null, profile: null });
+      } else if (event === "SIGNED_OUT") {
+        set({ user: null, session: null, profile: null, mfaFactors: [], mfaRequired: false });
         await syncToAppStore(null);
       }
     });
   },
 
-  // Email/password sign-up — sends a confirmation email before the user can log in
   signup: async (email, password, name) => {
     set({ isLoading: true });
     try {
@@ -119,7 +202,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         },
       });
       if (error) throw error;
-      // user_profiles row is created automatically by the DB trigger with role = 'user'
       set({ user: data.user, isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -127,22 +209,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Email/password sign-in
   login: async (email, password) => {
-    set({ isLoading: true });
+    set({ isLoading: true, mfaRequired: false });
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
       set({ user: data.user, session: data.session });
 
-      await supabase
-        .from('user_profiles')
-        .update({ last_login_at: new Date().toISOString() })
-        .eq('user_id', data.user.id);
+      // Check if MFA step is needed
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+        set({ isLoading: false, mfaRequired: true });
+        return;
+      }
+
+      // No MFA required — complete login
+      recordSessionStart();
+      scheduleSessionExpiry(get().logout, SESSION_DURATION_MS);
+
+      await supabase.from("user_profiles").update({ last_login_at: new Date().toISOString() }).eq("user_id", data.user.id);
 
       const profile = await get().fetchProfile();
       await syncToAppStore(profile);
+      await get().refreshMFAFactors();
       set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -150,27 +240,61 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Google SSO — redirects the user to Google then back to the app.
-  // Requires Google OAuth enabled in the Supabase dashboard (Auth > Providers).
+  completeMFALogin: async (code) => {
+    set({ isLoading: true });
+    try {
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const totpFactor = factors?.totp?.[0];
+      if (!totpFactor) throw new Error("No TOTP factor found.");
+
+      const { data: challenge, error: cErr } = await supabase.auth.mfa.challenge({ factorId: totpFactor.id });
+      if (cErr) throw cErr;
+
+      const { error: vErr } = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challenge.id,
+        code,
+      });
+      if (vErr) throw vErr;
+
+      set({ mfaRequired: false });
+
+      recordSessionStart();
+      scheduleSessionExpiry(get().logout, SESSION_DURATION_MS);
+
+      const userId = get().user?.id;
+      if (userId) {
+        await supabase.from("user_profiles").update({ last_login_at: new Date().toISOString() }).eq("user_id", userId);
+      }
+
+      const profile = await get().fetchProfile();
+      await syncToAppStore(profile);
+      await get().refreshMFAFactors();
+      set({ isLoading: false });
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
   signInWithGoogle: async () => {
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: "google",
       options: {
         redirectTo: window.location.origin,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
+        queryParams: { access_type: "offline", prompt: "consent" },
       },
     });
     if (error) throw error;
+    // Session start is recorded in onAuthStateChange → SIGNED_IN
   },
 
   logout: async () => {
+    clearSessionExpiry();
     set({ isLoading: true });
     try {
       await supabase.auth.signOut();
-      set({ user: null, session: null, profile: null, isLoading: false });
+      set({ user: null, session: null, profile: null, mfaFactors: [], mfaRequired: false, isLoading: false });
       await syncToAppStore(null);
     } catch (err) {
       set({ isLoading: false });
@@ -180,24 +304,124 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   fetchProfile: async () => {
     const userId = get().user?.id;
-    if (!userId) {
-      set({ profile: null });
-      return null;
-    }
+    if (!userId) { set({ profile: null }); return null; }
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
+      const { data, error } = await supabase.from("user_profiles").select("*").eq("user_id", userId).single();
       if (error) throw error;
       set({ profile: data });
       return data as UserProfile;
     } catch (err) {
-      console.error('Failed to fetch user profile:', err);
+      console.error("Failed to fetch user profile:", err);
       set({ profile: null });
       return null;
     }
+  },
+
+  // ── Profile self-service ──────────────────────────────────────────────
+
+  updateProfile: async (updates) => {
+    const profile = get().profile;
+    if (!profile) throw new Error("Not authenticated");
+    set({ isLoading: true });
+    try {
+      const { error } = await supabase.from("user_profiles").update({ ...updates, updated_at: new Date().toISOString() }).eq("user_id", profile.user_id);
+      if (error) throw error;
+
+      const fresh = await get().fetchProfile();
+      await syncToAppStore(fresh);
+
+      await writeAuditLog(profile.user_id, "UPDATE", "Settings — Profile", profile.user_id,
+        { name: profile.name, username: profile.username ?? null },
+        updates
+      );
+      set({ isLoading: false });
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  updatePassword: async (currentPassword, newPassword) => {
+    const profile = get().profile;
+    if (!profile) throw new Error("Not authenticated");
+    set({ isLoading: true });
+    try {
+      // Re-authenticate to verify current password
+      const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password: currentPassword });
+      if (authErr) throw new Error("Current password is incorrect.");
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      await writeAuditLog(profile.user_id, "UPDATE", "Settings — Password", profile.user_id, null, { changed: true });
+      set({ isLoading: false });
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  deactivateAccount: async () => {
+    const profile = get().profile;
+    if (!profile) throw new Error("Not authenticated");
+    set({ isLoading: true });
+    try {
+      const { error } = await supabase.from("user_profiles").update({ status: "inactive", updated_at: new Date().toISOString() }).eq("user_id", profile.user_id);
+      if (error) throw error;
+
+      await writeAuditLog(profile.user_id, "UPDATE", "Settings — Account", profile.user_id, { status: "active" }, { status: "inactive" });
+      await get().logout();
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  // ── 2FA / TOTP ────────────────────────────────────────────────────────
+
+  enrollTOTP: async () => {
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: "totp",
+      friendlyName: "Authenticator App",
+    });
+    if (error) throw error;
+    return {
+      factorId: data.id,
+      qrCode: data.totp.qr_code,
+      secret: data.totp.secret,
+      uri: data.totp.uri,
+    };
+  },
+
+  verifyTOTP: async (factorId, code) => {
+    const profile = get().profile;
+    const { data: challenge, error: cErr } = await supabase.auth.mfa.challenge({ factorId });
+    if (cErr) throw cErr;
+
+    const { error: vErr } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code });
+    if (vErr) throw vErr;
+
+    await get().refreshMFAFactors();
+    if (profile) await writeAuditLog(profile.user_id, "UPDATE", "Settings — 2FA", profile.user_id, { mfa: "disabled" }, { mfa: "enabled" });
+  },
+
+  unenrollTOTP: async (factorId) => {
+    const profile = get().profile;
+    const { error } = await supabase.auth.mfa.unenroll({ factorId });
+    if (error) throw error;
+
+    await get().refreshMFAFactors();
+    if (profile) await writeAuditLog(profile.user_id, "UPDATE", "Settings — 2FA", profile.user_id, { mfa: "enabled" }, { mfa: "disabled" });
+  },
+
+  refreshMFAFactors: async () => {
+    const { data } = await supabase.auth.mfa.listFactors();
+    const totp = (data?.totp ?? []).map((f: any) => ({
+      id: f.id,
+      status: f.status,
+      friendly_name: f.friendly_name ?? null,
+      created_at: f.created_at,
+    }));
+    set({ mfaFactors: totp });
   },
 }));
