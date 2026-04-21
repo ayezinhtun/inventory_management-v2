@@ -55,6 +55,8 @@ import { Button } from './components/ui/Button';
 import { Bell, Search, LogOut, Settings } from 'lucide-react';
 import { useAuthStore } from './store/useAuthStore';
 import { Spinner } from './components/ui/Spinner';
+import { ForcePasswordChangePage } from './pages/ForcePasswordChangePage';
+import { PasswordRecoveryPage } from './pages/PasswordRecoveryPage';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,7 +79,7 @@ export function App() {
     getUnreadNotificationCount,
   } = useStore();
 
-  const { initializeAuth, logout, isInitializing } = useAuthStore();
+  const { initializeAuth, logout, isInitializing, isPasswordRecovery, profile } = useAuthStore();
 
   useEffect(() => {
     // Restore existing Supabase session and set up auth listener
@@ -95,6 +97,15 @@ export function App() {
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
         <Spinner className="h-8 w-8 text-primary" />
       </div>
+    );
+  }
+
+  if (isPasswordRecovery) {
+    return (
+      <TooltipProvider>
+        <PasswordRecoveryPage />
+        <Toaster position="top-right" richColors />
+      </TooltipProvider>
     );
   }
 
@@ -117,6 +128,16 @@ export function App() {
       </TooltipProvider>);
 
   }
+  // Force password change (admin-created or admin-reset account)
+  if (isAuthenticated && profile?.force_password_change) {
+    return (
+      <TooltipProvider>
+        <ForcePasswordChangePage />
+        <Toaster position="top-right" richColors />
+      </TooltipProvider>
+    );
+  }
+
   // If authenticated but missing role/region/warehouse, show empty state
   if (
     currentUser && (

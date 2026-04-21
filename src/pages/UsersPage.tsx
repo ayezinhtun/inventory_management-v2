@@ -1,440 +1,888 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useUsersStore, type UserRecord, type UserActivityLog } from '../store/useUsersStore';
 import { Card, CardContent } from '../components/ui/Card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow } from
-'../components/ui/Table';
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle } from
-'../components/ui/Dialog';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Switch } from '../components/ui/Switch';
+import { Avatar, AvatarFallback } from '../components/ui/Avatar';
+import { Separator } from '../components/ui/Separator';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue } from
-'../components/ui/Select';
-import { Plus, UserCog, Edit } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '../components/ui/Select';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '../components/ui/Dialog';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from '../components/ui/Sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '../components/ui/DropdownMenu';
+import { Alert, AlertDescription } from '../components/ui/Alert';
+import { ScrollArea } from '../components/ui/ScrollArea';
+import { Skeleton } from '../components/ui/Skeleton';
 import { toast } from 'sonner';
-import type { User, UserRole } from '../lib/types';
+import {
+  Plus, MoreVertical, KeyRound, Mail, Trash2, User, History,
+  Loader2, Copy, CheckCircle2, AlertTriangle, RefreshCw, Search,
+  Shield, ShieldCheck, Clock, Users,
+} from 'lucide-react';
+import { getInitials, formatDate } from '../lib/utils';
+import type { UserRole } from '../lib/types';
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function isOnline(lastSeenAt?: string | null): boolean {
+  if (!lastSeenAt) return false;
+  return Date.now() - new Date(lastSeenAt).getTime() < 5 * 60 * 1000;
+}
+
+function OnlineDot({ online }: { online: boolean }) {
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+        online ? 'bg-green-500' : 'bg-muted-foreground/30'
+      }`}
+      title={online ? 'Online' : 'Offline'}
+    />
+  );
+}
+
+function roleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' {
+  if (role === 'Admin') return 'default';
+  if (role === 'PM') return 'secondary';
+  return 'outline';
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  ACCOUNT_CREATED: 'Account Created',
+  ACCOUNT_DELETED: 'Account Deleted',
+  PASSWORD_RESET: 'Password Reset by Admin',
+  PROFILE_UPDATED: 'Profile Updated',
+  LOGIN: 'Signed In',
+  LOGOUT: 'Signed Out',
+  '2FA_ENABLED': '2FA Enabled',
+  '2FA_DISABLED': '2FA Disabled',
+};
+
+function ActivityBadge({ action }: { action: string }) {
+  const label = ACTION_LABELS[action] ?? action;
+  let cls = 'bg-muted text-muted-foreground';
+  if (action === 'ACCOUNT_CREATED') cls = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+  if (action === 'ACCOUNT_DELETED') cls = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+  if (action === 'PASSWORD_RESET') cls = 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300';
+  if (action === 'LOGIN') cls = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────
+
 export function UsersPage() {
+  const { currentUser, regions, warehouses, getRegionName, getWarehouseName } = useStore();
+  const { profile: myProfile } = useAuthStore();
   const {
-    users,
-    regions,
-    warehouses,
-    currentUser,
-    getRegionName,
-    getWarehouseName,
-    addUser,
-    updateUser
-  } = useStore();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
-    full_name: '',
-    username: '',
-    email: '',
-    password: '',
-    role: 'Engineer' as UserRole,
-    assigned_region_id: 'none',
-    assigned_warehouse_id: 'none',
-    is_active: true
+    users, isLoading,
+    fetchUsers, updateUserRecord, createUser, deleteUser,
+    resetUserPassword, sendPasswordResetEmail, fetchUserActivity,
+    subscribeToPresence,
+  } = useUsersStore();
+
+  const [search, setSearch] = useState('');
+
+  // Create dialog
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: '', email: '', role: 'Engineer' as UserRole,
+    region_id: 'none', warehouse_id: 'none',
   });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  const [pwdCopied, setPwdCopied] = useState(false);
+
+  // User detail sheet
+  const [sheetUser, setSheetUser] = useState<UserRecord | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '', username: '', role: '', region_id: 'none', warehouse_id: 'none', status: 'active',
+  });
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Activity log
+  const [activityLogs, setActivityLogs] = useState<UserActivityLog[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<UserActivityLog | null>(null);
+
+  // Password result (reset)
+  const [resetPassword, setResetPassword] = useState<string | null>(null);
+  const [resetPwdCopied, setResetPwdCopied] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
+  const [deleteInput, setDeleteInput] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Load on mount
+  useEffect(() => {
+    fetchUsers();
+    const unsubscribe = subscribeToPresence();
+    return unsubscribe;
+  }, []);
+
+  // Sync edit form when sheet user changes
+  useEffect(() => {
+    if (sheetUser) {
+      setEditForm({
+        name: sheetUser.name,
+        username: sheetUser.username ?? '',
+        role: sheetUser.role,
+        region_id: sheetUser.region_id ?? 'none',
+        warehouse_id: sheetUser.warehouse_id ?? 'none',
+        status: sheetUser.status,
+      });
+      loadActivity(sheetUser.user_id);
+    }
+  }, [sheetUser]);
+
+  async function loadActivity(userId: string) {
+    setActivityLoading(true);
+    try {
+      const logs = await fetchUserActivity(userId);
+      setActivityLogs(logs);
+    } catch {
+      setActivityLogs([]);
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   if (currentUser?.role !== 'Admin') {
     return (
       <div className="p-6 text-center">
-        <p className="text-destructive">
-          You do not have permission to view this page.
-        </p>
-      </div>);
-
+        <p className="text-destructive">You do not have permission to view this page.</p>
+      </div>
+    );
   }
-  const handleOpenDialog = (user?: User) => {
-    if (user) {
-      setEditingUser(user);
-      setFormData({
-        full_name: user.full_name,
-        username: user.username,
-        email: user.email,
-        password: '',
-        role: user.role,
-        assigned_region_id: user.assigned_region_id || 'none',
-        assigned_warehouse_id: user.assigned_warehouse_id || 'none',
-        is_active: user.is_active
-      });
-    } else {
-      setEditingUser(null);
-      setFormData({
-        full_name: '',
-        username: '',
-        email: '',
-        password: '',
-        role: 'Engineer',
-        assigned_region_id: 'none',
-        assigned_warehouse_id: 'none',
-        is_active: true
-      });
-    }
-    setIsDialogOpen(true);
-  };
-  const handleSave = () => {
-    if (
-    !formData.full_name.trim() ||
-    !formData.username.trim() ||
-    !formData.email.trim())
-    {
-      toast.error('Name, username, and email are required');
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.role.toLowerCase().includes(q)
+    );
+  });
+
+  const onlineCount = users.filter((u) => isOnline(u.last_seen_at)).length;
+
+  // ── Create handler ────────────────────────────────────────────────────────
+  async function handleCreate() {
+    if (!createForm.name.trim() || !createForm.email.trim()) {
+      toast.error('Name and email are required');
       return;
     }
-    if (!editingUser && !formData.password) {
-      toast.error('Password is required for new users');
-      return;
-    }
-    const userData = {
-      full_name: formData.full_name,
-      username: formData.username,
-      email: formData.email,
-      role: formData.role,
-      assigned_region_id:
-      formData.assigned_region_id === 'none' ?
-      null :
-      formData.assigned_region_id,
-      assigned_warehouse_id:
-      formData.assigned_warehouse_id === 'none' ?
-      null :
-      formData.assigned_warehouse_id,
-      is_active: formData.is_active
-    };
-    if (editingUser) {
-      updateUser(editingUser.id, userData);
-      toast.success('User updated successfully');
-    } else {
-      addUser({
-        ...userData,
-        password_hash: formData.password,
-        last_login: null
+    setCreateLoading(true);
+    try {
+      const generatedPwd = await createUser({
+        name: createForm.name.trim(),
+        email: createForm.email.trim(),
+        role: createForm.role,
+        region_id: createForm.region_id !== 'none' ? createForm.region_id : null,
+        warehouse_id: createForm.warehouse_id !== 'none' ? createForm.warehouse_id : null,
       });
-      toast.success('User added successfully');
+      setCreatedPassword(generatedPwd);
+      setCreateForm({ name: '', email: '', role: 'Engineer', region_id: 'none', warehouse_id: 'none' });
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to create user');
+      setCreateLoading(false);
+    } finally {
+      setCreateLoading(false);
     }
-    setIsDialogOpen(false);
-  };
-  const availableWarehouses =
-  formData.assigned_region_id !== 'none' ?
-  warehouses.filter((w) => w.region_id === formData.assigned_region_id) :
-  warehouses;
+  }
+
+  function handleCopyCreatedPwd() {
+    if (!createdPassword) return;
+    navigator.clipboard.writeText(createdPassword).then(() => {
+      setPwdCopied(true);
+      setTimeout(() => setPwdCopied(false), 2000);
+    });
+  }
+
+  // ── Edit handler ──────────────────────────────────────────────────────────
+  async function handleSaveEdit() {
+    if (!sheetUser) return;
+    if (!editForm.name.trim()) { toast.error('Name cannot be empty'); return; }
+    setEditSaving(true);
+    try {
+      await updateUserRecord(sheetUser.user_id, {
+        name: editForm.name.trim(),
+        username: editForm.username.trim() || null,
+        role: editForm.role,
+        region_id: editForm.region_id !== 'none' ? editForm.region_id : null,
+        warehouse_id: editForm.warehouse_id !== 'none' ? editForm.warehouse_id : null,
+        status: editForm.status,
+      });
+      toast.success('User updated');
+      // Refresh sheet user from updated list
+      const updated = useUsersStore.getState().users.find((u) => u.user_id === sheetUser.user_id);
+      if (updated) setSheetUser(updated);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update user');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  // ── Reset password ────────────────────────────────────────────────────────
+  async function handleResetPassword() {
+    if (!sheetUser) return;
+    setResetLoading(true);
+    try {
+      const pwd = await resetUserPassword(sheetUser.user_id);
+      setResetPassword(pwd);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to reset password');
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
+  async function handleSendResetEmail() {
+    if (!sheetUser) return;
+    try {
+      await sendPasswordResetEmail(sheetUser.email);
+      toast.success(`Reset link sent to ${sheetUser.email}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to send reset email');
+    }
+  }
+
+  // ── Delete handler ────────────────────────────────────────────────────────
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await deleteUser(deleteTarget.user_id);
+      toast.success(`${deleteTarget.name} has been deleted`);
+      setDeleteTarget(null);
+      setDeleteInput('');
+      if (sheetUser?.user_id === deleteTarget.user_id) setSheetUser(null);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete user');
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  const availableWarehouses = createForm.region_id !== 'none'
+    ? warehouses.filter((w) => w.region_id === createForm.region_id && w.is_active)
+    : warehouses.filter((w) => w.is_active);
+
+  const editAvailableWarehouses = editForm.region_id !== 'none'
+    ? warehouses.filter((w) => w.region_id === editForm.region_id && w.is_active)
+    : warehouses.filter((w) => w.is_active);
+
+  // ── UI ─────────────────────────────────────────────────────────────────────
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-heading">
-            Users
-          </h1>
-          <p className="text-muted-foreground">
-            Manage system access and roles
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight font-heading">User Management</h1>
+          <p className="text-muted-foreground">Manage system access, roles, and permissions</p>
         </div>
-
-        <Button onClick={() => handleOpenDialog()}>
+        <Button onClick={() => { setCreatedPassword(null); setCreateOpen(true); }}>
           <Plus className="h-4 w-4 mr-2" />
           Add User
         </Button>
       </div>
 
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Users', value: users.length, icon: Users },
+          { label: 'Online Now', value: onlineCount, icon: Shield },
+          { label: 'Admins', value: users.filter((u) => u.role === 'Admin').length, icon: ShieldCheck },
+          { label: 'Active', value: users.filter((u) => u.status === 'active').length, icon: CheckCircle2 },
+        ].map(({ label, value, icon: Icon }) => (
+          <Card key={label}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Icon className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{value}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
+          <div className="p-4 border-b">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Region</TableHead>
                 <TableHead>Warehouse</TableHead>
+                <TableHead>Account</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Last Login</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.length > 0 ?
-              users.map((user) =>
-              <TableRow key={user.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{user.full_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {user.email}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                    variant={
-                    user.role === 'Admin' ?
-                    'default' :
-                    user.role === 'PM' ?
-                    'secondary' :
-                    'outline'
-                    }>
-                    
-                        {user.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {user.assigned_region_id ?
-                  getRegionName(user.assigned_region_id) :
-                  'All Regions'}
-                    </TableCell>
-                    <TableCell>
-                      {user.assigned_warehouse_id ?
-                  getWarehouseName(user.assigned_warehouse_id) :
-                  'All Warehouses'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                    variant={user.is_active ? 'default' : 'secondary'}
-                    className={
-                    user.is_active ?
-                    'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' :
-                    ''
-                    }>
-                    
-                        {user.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(user.last_login)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleOpenDialog(user)}>
-                    
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
-                    </TableCell>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                    ))}
                   </TableRow>
-              ) :
-
-              <TableRow>
-                  <TableCell
-                  colSpan={7}
-                  className="h-32 text-center text-muted-foreground">
-                  
-                    No users found.
+                ))
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                    {search ? 'No users match your search.' : 'No users found.'}
                   </TableCell>
                 </TableRow>
-              }
+              ) : (
+                filtered.map((user) => {
+                  const online = isOnline(user.last_seen_at);
+                  return (
+                    <TableRow
+                      key={user.user_id}
+                      className="cursor-pointer hover:bg-muted/30"
+                      onClick={() => setSheetUser(user)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                {getInitials(user.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <OnlineDot online={online} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{user.name}</p>
+                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={roleBadgeVariant(user.role)}>{user.role}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {user.region_id ? getRegionName(user.region_id) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {user.warehouse_id ? getWarehouseName(user.warehouse_id) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={user.status === 'active' ? 'default' : 'secondary'}
+                          className={user.status === 'active' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : ''}>
+                          {user.status === 'active' ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <OnlineDot online={online} />
+                          <span className={online ? 'text-green-600 font-medium' : 'text-muted-foreground'}>
+                            {online ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDate(user.last_login_at)}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setSheetUser(user)}>
+                              <User className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
+                              setSheetUser(user);
+                              // will show reset in sheet
+                            }}>
+                              <KeyRound className="mr-2 h-4 w-4" />
+                              Reset Password
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
+                              try {
+                                await sendPasswordResetEmail(user.email);
+                                toast.success(`Reset link sent to ${user.email}`);
+                              } catch (e: any) { toast.error(e.message); }
+                            }}>
+                              <Mail className="mr-2 h-4 w-4" />
+                              Send Reset Email
+                            </DropdownMenuItem>
+                            {user.user_id !== myProfile?.user_id && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => { setDeleteTarget(user); setDeleteInput(''); }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete User
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* ── Create User Dialog ── */}
+      <Dialog open={createOpen} onOpenChange={(o) => { if (!o) { setCreatedPassword(null); } setCreateOpen(o); }}>
         <DialogContent className="max-w-md">
+          {createdPassword ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  User Created
+                </DialogTitle>
+                <DialogDescription>
+                  Share this temporary password with the user. They will be required to change it on first login.
+                </DialogDescription>
+              </DialogHeader>
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="ml-2 text-amber-800 text-xs">
+                  This password will not be shown again. Copy it now.
+                </AlertDescription>
+              </Alert>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 bg-muted rounded border font-mono text-lg tracking-wider">
+                  {createdPassword}
+                </code>
+                <Button variant="outline" size="icon" onClick={handleCopyCreatedPwd}>
+                  {pwdCopied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => { setCreateOpen(false); setCreatedPassword(null); }}>Done</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Add User</DialogTitle>
+                <DialogDescription>
+                  A temporary password will be auto-generated. The user must change it on first login.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label>Full Name <span className="text-destructive">*</span></Label>
+                  <Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="Jane Smith" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email <span className="text-destructive">*</span></Label>
+                  <Input type="email" value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} placeholder="jane@example.com" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Role</Label>
+                  <Select value={createForm.role} onValueChange={(v: UserRole) => setCreateForm({ ...createForm, role: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="PM">Project Manager (PM)</SelectItem>
+                      <SelectItem value="Engineer">Engineer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {createForm.role !== 'Admin' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Assigned Region</Label>
+                      <Select value={createForm.region_id} onValueChange={(v) => setCreateForm({ ...createForm, region_id: v, warehouse_id: 'none' })}>
+                        <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {regions.filter((r) => r.is_active).map((r) => (
+                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Assigned Warehouse</Label>
+                      <Select
+                        value={createForm.warehouse_id}
+                        onValueChange={(v) => setCreateForm({ ...createForm, warehouse_id: v })}
+                        disabled={createForm.region_id === 'none'}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {availableWarehouses.map((w) => (
+                            <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreate} disabled={createLoading}>
+                  {createLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating…</> : 'Create User'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── User Details Sheet ── */}
+      <Sheet open={!!sheetUser} onOpenChange={(o) => { if (!o) { setSheetUser(null); setResetPassword(null); setSelectedLog(null); } }}>
+        <SheetContent className="w-full sm:max-w-xl flex flex-col p-0">
+          {sheetUser && (
+            <>
+              <SheetHeader className="px-6 pt-6 pb-4 border-b">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Avatar className="h-12 w-12">
+                      <AvatarFallback className="bg-primary/10 text-primary text-base">
+                        {getInitials(sheetUser.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${isOnline(sheetUser.last_seen_at) ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <SheetTitle className="text-base truncate">{sheetUser.name}</SheetTitle>
+                    <SheetDescription className="text-xs truncate">{sheetUser.email}</SheetDescription>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Badge variant={roleBadgeVariant(sheetUser.role)}>{sheetUser.role}</Badge>
+                    <Badge variant={sheetUser.status === 'active' ? 'default' : 'secondary'}
+                      className={sheetUser.status === 'active' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : ''}>
+                      {sheetUser.status}
+                    </Badge>
+                  </div>
+                </div>
+              </SheetHeader>
+
+              <Tabs defaultValue="details" className="flex-1 flex flex-col overflow-hidden">
+                <TabsList className="mx-6 mt-4 w-auto justify-start">
+                  <TabsTrigger value="details"><User className="mr-2 h-3.5 w-3.5" />Details</TabsTrigger>
+                  <TabsTrigger value="activity"><History className="mr-2 h-3.5 w-3.5" />Activity</TabsTrigger>
+                </TabsList>
+
+                {/* ── Details Tab ── */}
+                <TabsContent value="details" className="flex-1 overflow-y-auto px-6 pb-6 space-y-6 mt-4">
+
+                  {/* Reset password result */}
+                  {resetPassword && (
+                    <Alert className="border-amber-200 bg-amber-50">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="ml-2 text-amber-800 text-xs space-y-2">
+                        <p>New temporary password — share securely and store now:</p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 px-2 py-1 bg-white rounded border font-mono text-sm">
+                            {resetPassword}
+                          </code>
+                          <Button variant="outline" size="icon" className="h-7 w-7 flex-shrink-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(resetPassword!);
+                              setResetPwdCopied(true);
+                              setTimeout(() => setResetPwdCopied(false), 2000);
+                            }}>
+                            {resetPwdCopied ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Profile fields */}
+                  <div className="grid gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label>Full Name</Label>
+                        <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Username <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                        <Input value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label>Email</Label>
+                      <Input value={sheetUser.email} disabled className="bg-muted/50" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label>Role</Label>
+                      <Select value={editForm.role} onValueChange={(v) => setEditForm({ ...editForm, role: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Admin">Admin</SelectItem>
+                          <SelectItem value="PM">Project Manager (PM)</SelectItem>
+                          <SelectItem value="Engineer">Engineer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {editForm.role !== 'Admin' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>Region</Label>
+                          <Select value={editForm.region_id} onValueChange={(v) => setEditForm({ ...editForm, region_id: v, warehouse_id: 'none' })}>
+                            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {regions.filter((r) => r.is_active).map((r) => (
+                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Warehouse</Label>
+                          <Select
+                            value={editForm.warehouse_id}
+                            onValueChange={(v) => setEditForm({ ...editForm, warehouse_id: v })}
+                            disabled={editForm.region_id === 'none'}
+                          >
+                            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {editAvailableWarehouses.map((w) => (
+                                <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <p className="text-sm font-medium">Account Active</p>
+                        <p className="text-xs text-muted-foreground">Inactive users cannot sign in</p>
+                      </div>
+                      <Switch
+                        checked={editForm.status === 'active'}
+                        onCheckedChange={(c) => setEditForm({ ...editForm, status: c ? 'active' : 'inactive' })}
+                        disabled={sheetUser.user_id === myProfile?.user_id}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Info row */}
+                  <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+                    <div>
+                      <p className="font-medium text-foreground">Created</p>
+                      <p>{formatDate(sheetUser.created_at)}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Last Login</p>
+                      <p>{formatDate(sheetUser.last_login_at) || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Last Seen</p>
+                      <p>{isOnline(sheetUser.last_seen_at) ? '🟢 Online now' : formatDate(sheetUser.last_seen_at) || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Force Pwd Change</p>
+                      <p>{sheetUser.force_password_change ? 'Yes (pending)' : 'No'}</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Password actions */}
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Password Actions</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={handleResetPassword}
+                        disabled={resetLoading}
+                      >
+                        {resetLoading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-2 h-3.5 w-3.5" />}
+                        Reset Password
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={handleSendResetEmail}
+                      >
+                        <Mail className="mr-2 h-3.5 w-3.5" />
+                        Send Reset Email
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Save + Delete */}
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={handleSaveEdit} disabled={editSaving} className="flex-1">
+                      {editSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : 'Save Changes'}
+                    </Button>
+                    {sheetUser.user_id !== myProfile?.user_id && (
+                      <Button
+                        variant="outline"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/5"
+                        onClick={() => { setDeleteTarget(sheetUser); setDeleteInput(''); }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* ── Activity Tab ── */}
+                <TabsContent value="activity" className="flex-1 overflow-hidden flex flex-col mt-4">
+                  <ScrollArea className="flex-1 px-6 pb-6">
+                    {activityLoading ? (
+                      <div className="space-y-2">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <Skeleton key={i} className="h-10 w-full" />
+                        ))}
+                      </div>
+                    ) : activityLogs.length === 0 ? (
+                      <div className="py-12 text-center text-muted-foreground text-sm">
+                        <Clock className="h-8 w-8 mx-auto mb-3 opacity-30" />
+                        No activity recorded yet.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Action</TableHead>
+                            <TableHead>Date & Time</TableHead>
+                            <TableHead className="w-8" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activityLogs.map((log) => (
+                            <TableRow
+                              key={log.id}
+                              className="cursor-pointer hover:bg-muted/30"
+                              onClick={() => setSelectedLog(selectedLog?.id === log.id ? null : log)}
+                            >
+                              <TableCell>
+                                <ActivityBadge action={log.action} />
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                {new Date(log.created_at).toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                {log.details && Object.keys(log.details).length > 0 && (
+                                  <span className="text-xs text-primary">›</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                    {/* Log detail expand */}
+                    {selectedLog?.details && Object.keys(selectedLog.details).length > 0 && (
+                      <div className="mt-3 p-3 rounded-lg bg-muted/50 border text-xs font-mono space-y-1">
+                        {Object.entries(selectedLog.details).map(([k, v]) => (
+                          <div key={k} className="flex gap-2">
+                            <span className="text-muted-foreground min-w-[100px]">{k}:</span>
+                            <span>{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteInput(''); } }}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>{editingUser ? 'Edit User' : 'Add User'}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete User
+            </DialogTitle>
             <DialogDescription>
-              {editingUser ?
-              'Update user details and access.' :
-              'Create a new user account.'}
+              This permanently deletes <strong>{deleteTarget?.name}</strong> and all associated data. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="fullname">
-                Full Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="fullname"
-                value={formData.full_name}
-                onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  full_name: e.target.value
-                })
-                } />
-              
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">
-                  Username <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="username"
-                  value={formData.username}
-                  onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    username: e.target.value
-                  })
-                  }
-                  disabled={!!editingUser} />
-                
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">
-                  Email <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    email: e.target.value
-                  })
-                  } />
-                
-              </div>
-            </div>
-
-            {!editingUser &&
-            <div className="space-y-2">
-                <Label htmlFor="password">
-                  Password <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  password: e.target.value
-                })
-                } />
-              
-              </div>
-            }
-
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(val: UserRole) =>
-                setFormData({
-                  ...formData,
-                  role: val
-                })
-                }>
-                
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Admin">Admin</SelectItem>
-                  <SelectItem value="PM">Project Manager (PM)</SelectItem>
-                  <SelectItem value="Engineer">Engineer</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.role !== 'Admin' &&
-            <>
-                <div className="space-y-2">
-                  <Label htmlFor="region">Assigned Region</Label>
-                  <Select
-                  value={formData.assigned_region_id}
-                  onValueChange={(val) =>
-                  setFormData({
-                    ...formData,
-                    assigned_region_id: val,
-                    assigned_warehouse_id: 'none'
-                  })
-                  }>
-                  
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None (No Access)</SelectItem>
-                      {regions.
-                    filter((r) => r.is_active).
-                    map((r) =>
-                    <SelectItem key={r.id} value={r.id}>
-                            {r.name}
-                          </SelectItem>
-                    )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="warehouse">Assigned Warehouse</Label>
-                  <Select
-                  value={formData.assigned_warehouse_id}
-                  onValueChange={(val) =>
-                  setFormData({
-                    ...formData,
-                    assigned_warehouse_id: val
-                  })
-                  }
-                  disabled={formData.assigned_region_id === 'none'}>
-                  
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select warehouse" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None (No Access)</SelectItem>
-                      {availableWarehouses.
-                    filter((w) => w.is_active).
-                    map((w) =>
-                    <SelectItem key={w.id} value={w.id}>
-                            {w.name}
-                          </SelectItem>
-                    )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            }
-
-            <div className="flex items-center justify-between pt-2">
-              <div className="space-y-0.5">
-                <Label htmlFor="active">Account Active</Label>
-                <p className="text-sm text-muted-foreground">
-                  Inactive users cannot log in
-                </p>
-              </div>
-              <Switch
-                id="active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) =>
-                setFormData({
-                  ...formData,
-                  is_active: checked
-                })
-                }
-                disabled={editingUser?.id === currentUser.id} // Cannot deactivate self
-              />
-            </div>
+          <div className="space-y-3 py-2">
+            <Label className="text-xs text-muted-foreground">
+              Type <strong>DELETE</strong> to confirm
+            </Label>
+            <Input
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              placeholder="DELETE"
+              className="border-destructive/40 focus-visible:ring-destructive/40"
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteInput(''); }}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save User</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteInput !== 'DELETE' || deleteLoading}
+            >
+              {deleteLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting…</> : 'Delete User'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>);
-
+    </div>
+  );
 }

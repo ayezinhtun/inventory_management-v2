@@ -14,7 +14,8 @@ import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
 import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Separator } from '../components/ui/Separator';
-import { AlertCircle, Loader2, Mail, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Loader2, Mail, ShieldCheck, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 // Inline Google icon (no extra dependency needed)
 function GoogleIcon() {
@@ -49,6 +50,8 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [emailUnconfirmed, setEmailUnconfirmed] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // TOTP step
   const [totpCode, setTotpCode] = useState('');
@@ -82,6 +85,23 @@ export function LoginPage() {
     } catch (err: any) {
       setError(err?.message || 'Invalid code. Please try again.');
       setTotpCode('');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) { setError('Enter your email address first'); return; }
+    setForgotLoading(true);
+    setError('');
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
+      setForgotSent(true);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to send reset email');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -234,6 +254,16 @@ export function LoginPage() {
                 </Alert>
               )}
 
+              {/* Forgot password success */}
+              {forgotSent && (
+                <Alert className="border-green-200 bg-green-50 text-green-800">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="ml-2">
+                    Password reset link sent. Check your inbox.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Email / password form */}
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
@@ -250,7 +280,17 @@ export function LoginPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={handleForgotPassword}
+                      disabled={forgotLoading}
+                    >
+                      {forgotLoading ? 'Sending…' : 'Forgot password?'}
+                    </button>
+                  </div>
                   <Input
                     id="password"
                     type="password"

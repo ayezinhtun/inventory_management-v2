@@ -12,7 +12,9 @@ export interface UserProfile {
   region_id?: string | null;
   warehouse_id?: string | null;
   status: string;
+  force_password_change?: boolean;
   last_login_at?: string | null;
+  last_seen_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +33,8 @@ interface AuthState {
   mfaFactors: MFAFactor[];
   isLoading: boolean;
   isInitializing: boolean;
-  mfaRequired: boolean; // true when login needs a TOTP step
+  mfaRequired: boolean;
+  isPasswordRecovery: boolean; // true when user clicked a password-reset email link
 
   initializeAuth: () => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
@@ -40,6 +43,7 @@ interface AuthState {
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   fetchProfile: () => Promise<UserProfile | null>;
+  clearPasswordRecovery: () => void;
 
   // Profile self-service
   updateProfile: (updates: { name?: string; username?: string }) => Promise<void>;
@@ -73,6 +77,29 @@ function clearSessionExpiry() {
 
 function recordSessionStart() {
   localStorage.setItem(SESSION_START_KEY, Date.now().toString());
+}
+
+// ─── Online presence heartbeat ────────────────────────────────────────────
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+async function updatePresence(userId: string) {
+  await supabase.from('user_profiles')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .catch(() => {});
+}
+
+function startHeartbeat(userId: string) {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  updatePresence(userId);
+  heartbeatTimer = setInterval(() => updatePresence(userId), 2 * 60 * 1000);
+  document.addEventListener('visibilitychange', function onVisible() {
+    if (!document.hidden) updatePresence(userId);
+  }, { once: false });
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
 }
 
 // ─── Bridge to useStore ───────────────────────────────────────────────────
@@ -140,6 +167,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitializing: true,
   mfaRequired: false,
+  isPasswordRecovery: false,
 
   initializeAuth: async () => {
     set({ isInitializing: true });
@@ -165,6 +193,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const profile = await get().fetchProfile();
         await syncToAppStore(profile);
         await get().refreshMFAFactors();
+        startHeartbeat(session.user.id);
       }
     } finally {
       set({ isInitializing: false });
@@ -172,19 +201,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Persistent listener for token refresh / OAuth callbacks / sign-out
     supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        set({ isPasswordRecovery: true });
+        return;
+      }
+
       if (session?.user) {
         set({ user: session.user, session });
         if (event === "SIGNED_IN") {
           const profile = await get().fetchProfile();
           await syncToAppStore(profile);
           await get().refreshMFAFactors();
+          startHeartbeat(session.user.id);
+          supabase.from("user_activity_logs").insert({
+            user_id: session.user.id,
+            actor_id: session.user.id,
+            action: "LOGIN",
+            details: { method: "oauth" },
+          }).catch(() => {});
         } else if (event === "TOKEN_REFRESHED") {
-          // Refresh profile silently; do NOT re-navigate
           const profile = await get().fetchProfile();
           await syncToAppStore(profile);
         }
       } else if (event === "SIGNED_OUT") {
-        set({ user: null, session: null, profile: null, mfaFactors: [], mfaRequired: false });
+        stopHeartbeat();
+        set({ user: null, session: null, profile: null, mfaFactors: [], mfaRequired: false, isPasswordRecovery: false });
         await syncToAppStore(null);
       }
     });
@@ -233,6 +274,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const profile = await get().fetchProfile();
       await syncToAppStore(profile);
       await get().refreshMFAFactors();
+      startHeartbeat(data.user.id);
+      supabase.from("user_activity_logs").insert({
+        user_id: data.user.id,
+        actor_id: data.user.id,
+        action: "LOGIN",
+        details: { method: "password" },
+      }).catch(() => {});
       set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -270,6 +318,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const profile = await get().fetchProfile();
       await syncToAppStore(profile);
       await get().refreshMFAFactors();
+      const uid = get().user?.id;
+      if (uid) {
+        startHeartbeat(uid);
+        supabase.from("user_activity_logs").insert({
+          user_id: uid,
+          actor_id: uid,
+          action: "LOGIN",
+          details: { method: "totp_mfa" },
+        }).catch(() => {});
+      }
       set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -289,12 +347,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Session start is recorded in onAuthStateChange → SIGNED_IN
   },
 
+  clearPasswordRecovery: () => {
+    set({ isPasswordRecovery: false });
+  },
+
   logout: async () => {
+    stopHeartbeat();
     clearSessionExpiry();
     set({ isLoading: true });
     try {
       await supabase.auth.signOut();
-      set({ user: null, session: null, profile: null, mfaFactors: [], mfaRequired: false, isLoading: false });
+      set({ user: null, session: null, profile: null, mfaFactors: [], mfaRequired: false, isPasswordRecovery: false, isLoading: false });
       await syncToAppStore(null);
     } catch (err) {
       set({ isLoading: false });
@@ -352,6 +415,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+
+      // Clear force_password_change if it was set (admin-created or admin-reset account)
+      if (profile.force_password_change) {
+        await supabase.from("user_profiles")
+          .update({ force_password_change: false, updated_at: new Date().toISOString() })
+          .eq("user_id", profile.user_id);
+        const fresh = await get().fetchProfile();
+        await syncToAppStore(fresh);
+      }
 
       await writeAuditLog(profile.user_id, "UPDATE", "Settings — Password", profile.user_id, null, { changed: true });
       set({ isLoading: false });
