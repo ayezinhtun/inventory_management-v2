@@ -1,4 +1,4 @@
-import React, { Component, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useStore } from './store/useStore';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -52,7 +52,9 @@ import {
 } from
   './components/ui/Breadcrumb';
 import { Button } from './components/ui/Button';
-import { Bell, Search, User as UserIcon, LogOut, Settings } from 'lucide-react';
+import { Bell, Search, LogOut, Settings } from 'lucide-react';
+import { useAuthStore } from './store/useAuthStore';
+import { Spinner } from './components/ui/Spinner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,20 +72,31 @@ export function App() {
     isAuthenticated,
     currentPage,
     currentUser,
-    logout,
     navigate,
     setCommandOpen,
-    getUnreadNotificationCount
+    getUnreadNotificationCount,
   } = useStore();
 
+  const { initializeAuth, logout, isInitializing } = useAuthStore();
 
   useEffect(() => {
-    const path = window.location.pathname;
+    // Restore existing Supabase session and set up auth listener
+    initializeAuth();
 
-    if (path === '/signup') {
+    // Support direct URL navigation to /signup
+    if (window.location.pathname === '/signup') {
       navigate('signup');
     }
   }, []);
+
+  // Show a full-screen spinner while restoring the existing session
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Spinner className="h-8 w-8 text-primary" />
+      </div>
+    );
+  }
 
   if (currentPage === 'signup') {
     return (
@@ -91,7 +104,7 @@ export function App() {
         <SignupPage />
         <Toaster position="top-right" richColors />
       </TooltipProvider>
-    )
+    );
   }
 
   // If not authenticated, show login page
@@ -123,7 +136,6 @@ export function App() {
             <button
               onClick={() => logout()}
               className="text-sm text-primary hover:underline mt-4 inline-block">
-
               Return to Login
             </button>
           </div>
@@ -334,6 +346,7 @@ export function App() {
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Log out</span>
                     </DropdownMenuItem>
+
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
