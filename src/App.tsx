@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component, useEffect } from 'react';
 import { useStore } from './store/useStore';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -32,11 +32,13 @@ import { MaintenancePage } from './pages/MaintenancePage';
 import { StocktakePage } from './pages/StocktakePage';
 import { AppSidebar } from './components/layout/AppSidebar';
 import { CommandSearch } from './components/shared/CommandSearch';
+import { SignupPage } from './pages/SignupPage';
 import {
   SidebarProvider,
   SidebarInset,
-  SidebarTrigger } from
-'./components/ui/Sidebar';
+  SidebarTrigger
+} from
+  './components/ui/Sidebar';
 import { Toaster } from './components/ui/Sonner';
 import { TooltipProvider } from './components/ui/Tooltip';
 import { Separator } from './components/ui/Separator';
@@ -46,8 +48,9 @@ import {
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator } from
-'./components/ui/Breadcrumb';
+  BreadcrumbSeparator
+} from
+  './components/ui/Breadcrumb';
 import { Button } from './components/ui/Button';
 import { Bell, Search, User as UserIcon, LogOut, Settings } from 'lucide-react';
 import {
@@ -56,8 +59,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger } from
-'./components/ui/DropdownMenu';
+  DropdownMenuTrigger
+} from
+  './components/ui/DropdownMenu';
 import { Avatar, AvatarFallback } from './components/ui/Avatar';
 import { Badge } from './components/ui/Badge';
 import { getInitials } from './lib/utils';
@@ -71,8 +75,28 @@ export function App() {
     setCommandOpen,
     getUnreadNotificationCount
   } = useStore();
+
+
+  useEffect(() => {
+    const path = window.location.pathname;
+
+    if (path === '/signup') {
+      navigate('signup');
+    }
+  }, []);
+
+  if (currentPage === 'signup') {
+    return (
+      <TooltipProvider>
+        <SignupPage />
+        <Toaster position="top-right" richColors />
+      </TooltipProvider>
+    )
+  }
+
   // If not authenticated, show login page
   if (!isAuthenticated) {
+
     return (
       <TooltipProvider>
         <LoginPage />
@@ -82,11 +106,10 @@ export function App() {
   }
   // If authenticated but missing role/region/warehouse, show empty state
   if (
-  currentUser && (
-  !currentUser.role ||
-  !currentUser.assigned_region_id && currentUser.role !== 'Admin' ||
-  !currentUser.assigned_warehouse_id && currentUser.role !== 'Admin'))
-  {
+    currentUser && (
+      !currentUser.role ||
+      !currentUser.assigned_region_id && currentUser.role !== 'Admin' ||
+      !currentUser.assigned_warehouse_id && currentUser.role !== 'Admin')) {
     return (
       <TooltipProvider>
         <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 p-4">
@@ -100,7 +123,7 @@ export function App() {
             <button
               onClick={() => logout()}
               className="text-sm text-primary hover:underline mt-4 inline-block">
-              
+
               Return to Login
             </button>
           </div>
@@ -148,6 +171,8 @@ export function App() {
         return <TypeManagementPage />;
       case 'users':
         return <UsersPage />;
+      case 'signup':
+        return <SignupPage />;
       case 'audit-log':
         return <AuditLogPage />;
       case 'notifications-page':
@@ -190,9 +215,9 @@ export function App() {
   // Format breadcrumb based on current page
   const formatBreadcrumb = (page: string) => {
     return page.
-    split('-').
-    map((word) => word.charAt(0).toUpperCase() + word.slice(1)).
-    join(' ');
+      split('-').
+      map((word) => word.charAt(0).toUpperCase() + word.slice(1)).
+      join(' ');
   };
   const unreadCount = getUnreadNotificationCount();
   return (
@@ -215,7 +240,7 @@ export function App() {
                           e.preventDefault();
                           navigate('dashboard');
                         }}>
-                        
+
                         1CNG
                       </BreadcrumbLink>
                     </BreadcrumbItem>
@@ -235,7 +260,7 @@ export function App() {
                   size="sm"
                   className="hidden md:flex text-muted-foreground w-64 justify-start"
                   onClick={() => setCommandOpen(true)}>
-                  
+
                   <Search className="mr-2 h-4 w-4" />
                   Search...
                   <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
@@ -248,7 +273,7 @@ export function App() {
                   size="icon"
                   className="md:hidden"
                   onClick={() => setCommandOpen(true)}>
-                  
+
                   <Search className="h-5 w-5" />
                 </Button>
 
@@ -257,10 +282,10 @@ export function App() {
                   size="icon"
                   className="relative"
                   onClick={() => navigate('notifications-page')}>
-                  
+
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 &&
-                  <span className="absolute top-1.5 right-1.5 flex h-2 w-2 rounded-full bg-destructive"></span>
+                    <span className="absolute top-1.5 right-1.5 flex h-2 w-2 rounded-full bg-destructive"></span>
                   }
                 </Button>
 
@@ -269,12 +294,12 @@ export function App() {
                     <Button
                       variant="ghost"
                       className="relative h-8 w-8 rounded-full ml-2">
-                      
+
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-primary/10 text-primary text-xs">
                           {currentUser ?
-                          getInitials(currentUser.full_name) :
-                          'U'}
+                            getInitials(currentUser.full_name) :
+                            'U'}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
@@ -295,7 +320,7 @@ export function App() {
                       <Badge
                         variant="secondary"
                         className="w-full justify-center">
-                        
+
                         {currentUser?.role}
                       </Badge>
                     </div>

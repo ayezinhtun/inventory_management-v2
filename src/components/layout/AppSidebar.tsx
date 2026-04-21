@@ -278,7 +278,7 @@ export function AppSidebar() {
   return (
     <Sidebar variant="sidebar" collapsible="icon">
       <SidebarHeader className="border-b border-border/50 py-4">
-        <div className="flex flex-col items-start px-2">
+        <div className="flex items-center gap-2 items-start px-2">
           <div className="w-28 p-1.5 rounded-md flex-shrink-0">
             <img src={logo} alt="" />
           </div>
@@ -287,7 +287,7 @@ export function AppSidebar() {
               1CNG
             </span>
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">
-              Inventory System
+              IMS
             </span>
           </div>
         </div>

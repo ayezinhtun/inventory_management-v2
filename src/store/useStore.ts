@@ -51,6 +51,7 @@ import { generateId, generateRequestNumber } from '../lib/utils';
 // ---- Navigation / Page State ----
 export type Page =
 'login' |
+'signup' |
 'dashboard' |
 'inventory' |
 'inventory-add' |
