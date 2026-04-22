@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUsersStore, type UserRecord, type UserActivityLog } from '../store/useUsersStore';
+import { useRegionStore } from '../store/useRegionStore';
+import { useWarehouseStore } from '../store/useWarehouseStore';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -91,8 +93,20 @@ function ActivityBadge({ action }: { action: string }) {
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export function UsersPage() {
-  const { currentUser, regions, warehouses, getRegionName, getWarehouseName } = useStore();
+  const { currentUser } = useStore();
   const { profile: myProfile } = useAuthStore();
+  const { regions, fetchRegions } = useRegionStore();
+  const { warehouses, fetchWarehouses } = useWarehouseStore();
+
+  // Name lookup helpers using the dedicated stores (always have fresh Supabase data)
+  function getRegionName(id?: string | null) {
+    if (!id) return '—';
+    return regions.find((r) => r.id === id)?.name ?? '—';
+  }
+  function getWarehouseName(id?: string | null) {
+    if (!id) return '—';
+    return warehouses.find((w) => w.id === id)?.name ?? '—';
+  }
   const {
     users, isLoading,
     fetchUsers, updateUserRecord, createUser, deleteUser,
@@ -137,6 +151,8 @@ export function UsersPage() {
   // Load on mount
   useEffect(() => {
     fetchUsers();
+    fetchRegions();
+    fetchWarehouses();
     const unsubscribe = subscribeToPresence();
     return unsubscribe;
   }, []);
@@ -287,12 +303,12 @@ export function UsersPage() {
   }
 
   const availableWarehouses = createForm.region_id !== 'none'
-    ? warehouses.filter((w) => w.region_id === createForm.region_id && w.is_active)
-    : warehouses.filter((w) => w.is_active);
+    ? warehouses.filter((w) => w.region_id === createForm.region_id && w.status === 'active')
+    : warehouses.filter((w) => w.status === 'active');
 
   const editAvailableWarehouses = editForm.region_id !== 'none'
-    ? warehouses.filter((w) => w.region_id === editForm.region_id && w.is_active)
-    : warehouses.filter((w) => w.is_active);
+    ? warehouses.filter((w) => w.region_id === editForm.region_id && w.status === 'active')
+    : warehouses.filter((w) => w.status === 'active');
 
   // ── UI ─────────────────────────────────────────────────────────────────────
 
@@ -545,7 +561,7 @@ export function UsersPage() {
                         <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">None</SelectItem>
-                          {regions.filter((r) => r.is_active).map((r) => (
+                          {regions.filter((r) => r.status === 'active').map((r) => (
                             <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -680,7 +696,7 @@ export function UsersPage() {
                             <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
-                              {regions.filter((r) => r.is_active).map((r) => (
+                              {regions.filter((r) => r.status === 'active').map((r) => (
                                 <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                               ))}
                             </SelectContent>
