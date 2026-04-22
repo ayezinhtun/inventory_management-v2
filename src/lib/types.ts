@@ -145,6 +145,13 @@ export interface Rack {
   updated_at: string;
 }
 
+export interface FormField {
+  id: string;
+  label: string;
+  field_type: 'text' | 'number' | 'date' | 'time';
+  required: boolean;
+}
+
 export interface ComponentType {
   id: string;
   type_name: string;
@@ -155,6 +162,7 @@ export interface ComponentType {
   created_by: string;
   created_at: string;
   updated_at: string;
+  fields: FormField[];
 }
 
 export interface InventoryItem {

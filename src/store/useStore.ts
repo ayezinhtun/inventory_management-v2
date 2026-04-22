@@ -524,7 +524,7 @@ export const useStore = create<AppState>((set, get) => ({
   // CRUD — Component Types
   addComponentType: (ct) => {
     const now = new Date().toISOString();
-    const optimistic: ComponentType = { ...ct, id: generateId(), created_at: now, updated_at: now } as ComponentType;
+    const optimistic: ComponentType = { ...ct, id: generateId(), created_at: now, updated_at: now, fields: ct.fields ?? [] } as ComponentType;
     set((s) => ({ componentTypes: [...s.componentTypes, optimistic] }));
     // Persist to DB
     (async () => {
@@ -534,6 +534,7 @@ export const useStore = create<AppState>((set, get) => ({
         description: ct.description,
         requires_specification: ct.requires_specification,
         is_active: ct.is_active,
+        fields: ct.fields ?? [],
         created_by: ct.created_by || null,
       }).select().single();
       if (!error && data) {
