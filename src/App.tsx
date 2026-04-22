@@ -54,6 +54,7 @@ import {
 import { Button } from './components/ui/Button';
 import { Bell, Search, LogOut, Settings } from 'lucide-react';
 import { useAuthStore } from './store/useAuthStore';
+import { useNotificationsStore } from './store/useNotificationsStore';
 import { Spinner } from './components/ui/Spinner';
 import { ForcePasswordChangePage } from './pages/ForcePasswordChangePage';
 import { PasswordRecoveryPage } from './pages/PasswordRecoveryPage';
@@ -80,6 +81,7 @@ export function App() {
   } = useStore();
 
   const { initializeAuth, logout, isInitializing, isPasswordRecovery, profile } = useAuthStore();
+  const { unreadCount: realUnreadCount, fetchNotifications, subscribeToRealtime } = useNotificationsStore();
 
   useEffect(() => {
     // Restore existing Supabase session and set up auth listener
@@ -90,6 +92,15 @@ export function App() {
       navigate('signup');
     }
   }, []);
+
+  // Load real notifications once authenticated
+  useEffect(() => {
+    if (profile) {
+      fetchNotifications();
+      const unsub = subscribeToRealtime();
+      return unsub;
+    }
+  }, [profile?.user_id]);
 
   // Show a full-screen spinner while restoring the existing session
   if (isInitializing) {
@@ -252,7 +263,8 @@ export function App() {
       map((word) => word.charAt(0).toUpperCase() + word.slice(1)).
       join(' ');
   };
-  const unreadCount = getUnreadNotificationCount();
+  // Use real unread count from Supabase notifications store
+  const unreadCount = realUnreadCount;
   return (
     <TooltipProvider>
       <SidebarProvider>
