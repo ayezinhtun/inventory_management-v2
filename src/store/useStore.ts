@@ -48,6 +48,7 @@ import {
   mockStocktakeRecords } from
 '../lib/mock-data';
 import { generateId, generateRequestNumber } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 
 // ---- Navigation / Page State ----
 export type Page =
@@ -275,6 +276,9 @@ interface AppState {
   getRacksByWarehouse: (warehouseId: string) => Rack[];
   getUnreadNotificationCount: () => number;
   getVendorName: (id: string) => string;
+
+  // Data loading
+  fetchAppData: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -307,7 +311,11 @@ export const useStore = create<AppState>((set, get) => ({
   // Navigation
   currentPage: 'login',
   selectedId: null,
-  navigate: (page, id = null) => set({ currentPage: page, selectedId: id }),
+  navigate: (page, id = null) => {
+    // Persist page so a browser refresh restores the same view
+    try { sessionStorage.setItem('ims-current-page', page); } catch {}
+    set({ currentPage: page, selectedId: id });
+  },
   sidebarOpen: true,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
@@ -516,30 +524,44 @@ export const useStore = create<AppState>((set, get) => ({
   // CRUD — Component Types
   addComponentType: (ct) => {
     const now = new Date().toISOString();
-    set((s) => ({
-      componentTypes: [
-      ...s.componentTypes,
-      {
-        ...ct,
-        id: generateId(),
-        created_at: now,
-        updated_at: now
-      } as ComponentType]
-
-    }));
+    const optimistic: ComponentType = { ...ct, id: generateId(), created_at: now, updated_at: now } as ComponentType;
+    set((s) => ({ componentTypes: [...s.componentTypes, optimistic] }));
+    // Persist to DB
+    (async () => {
+      const { data, error } = await supabase.from('component_types').insert({
+        type_name: ct.type_name,
+        category: ct.category,
+        description: ct.description,
+        requires_specification: ct.requires_specification,
+        is_active: ct.is_active,
+        created_by: ct.created_by || null,
+      }).select().single();
+      if (!error && data) {
+        // Replace optimistic record with real DB record
+        set((s) => ({
+          componentTypes: s.componentTypes.map((c) => c.id === optimistic.id ? data as ComponentType : c),
+        }));
+      }
+    })().catch(() => {});
   },
-  updateComponentType: (id, updates) =>
-  set((s) => ({
-    componentTypes: s.componentTypes.map((ct) =>
-    ct.id === id ?
-    { ...ct, ...updates, updated_at: new Date().toISOString() } :
-    ct
-    )
-  })),
-  deleteComponentType: (id) =>
-  set((s) => ({
-    componentTypes: s.componentTypes.filter((ct) => ct.id !== id)
-  })),
+  updateComponentType: (id, updates) => {
+    set((s) => ({
+      componentTypes: s.componentTypes.map((ct) =>
+        ct.id === id ? { ...ct, ...updates, updated_at: new Date().toISOString() } : ct
+      ),
+    }));
+    // Persist to DB
+    (async () => {
+      await supabase.from('component_types').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
+    })().catch(() => {});
+  },
+  deleteComponentType: (id) => {
+    set((s) => ({ componentTypes: s.componentTypes.filter((ct) => ct.id !== id) }));
+    // Persist to DB
+    (async () => {
+      await supabase.from('component_types').delete().eq('id', id);
+    })().catch(() => {});
+  },
 
   // CRUD — Users
   addUser: (u) => {
@@ -1421,12 +1443,22 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Audit
   addAuditLog: (entry) => {
-    set((s) => ({
-      auditLogs: [
-      { ...entry, id: generateId(), timestamp: new Date().toISOString() },
-      ...s.auditLogs]
-
-    }));
+    const now = new Date().toISOString();
+    const log: AuditLog = { ...entry, id: generateId(), timestamp: now };
+    set((s) => ({ auditLogs: [log, ...s.auditLogs] }));
+    // Persist to DB (fire-and-forget)
+    (async () => {
+      await supabase.from('audit_logs').insert({
+        user_id: entry.user_id || null,
+        action: entry.action,
+        module: entry.module,
+        record_id: entry.record_id || null,
+        old_value: entry.old_value,
+        new_value: entry.new_value,
+        ip_address: entry.ip_address || '—',
+        timestamp: now,
+      });
+    })().catch(() => {});
   },
 
   // Helpers
@@ -1447,5 +1479,72 @@ export const useStore = create<AppState>((set, get) => ({
     length;
   },
   getVendorName: (id) =>
-  get().vendors.find((v) => v.id === id)?.vendor_name || '—'
+  get().vendors.find((v) => v.id === id)?.vendor_name || '—',
+
+  // ── Load shared reference data from Supabase ──────────────────────────────
+  fetchAppData: async () => {
+    try {
+      // Regions
+      const { data: regionsRaw } = await supabase
+        .from('regions')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (regionsRaw) {
+        const regions: Region[] = regionsRaw.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description ?? null,
+          is_active: r.status === 'active',
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+        }));
+        set({ regions });
+      }
+
+      // Warehouses
+      const { data: warehousesRaw } = await supabase
+        .from('warehouses')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (warehousesRaw) {
+        const warehouses: Warehouse[] = warehousesRaw.map((w: any) => ({
+          id: w.id,
+          name: w.name,
+          region_id: w.region_id,
+          address: w.address ?? null,
+          contact_person: w.contact_person ?? null,
+          contact_phone: w.phone ?? null,
+          is_active: w.status === 'active',
+          created_at: w.created_at,
+          updated_at: w.updated_at,
+        }));
+        set({ warehouses });
+      }
+
+      // Component Types
+      const { data: typesRaw } = await supabase
+        .from('component_types')
+        .select('*')
+        .order('type_name', { ascending: true });
+
+      if (typesRaw) {
+        set({ componentTypes: typesRaw as ComponentType[] });
+      }
+
+      // Audit Logs (most recent 500)
+      const { data: logsRaw } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(500);
+
+      if (logsRaw) {
+        set({ auditLogs: logsRaw as AuditLog[] });
+      }
+    } catch (err) {
+      console.error('[fetchAppData] Error loading reference data:', err);
+    }
+  },
 }));

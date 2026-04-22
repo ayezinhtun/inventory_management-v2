@@ -74,12 +74,14 @@ export const useUsersStore = create<UsersState>((set, get) => ({
 
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
-      await supabase.from('user_activity_logs').insert({
-        user_id: userId,
-        actor_id: session.user.id,
-        action: 'PROFILE_UPDATED',
-        details: updates,
-      }).catch(() => {});
+      (async () => {
+        await supabase.from('user_activity_logs').insert({
+          user_id: userId,
+          actor_id: session.user.id,
+          action: 'PROFILE_UPDATED',
+          details: updates,
+        });
+      })().catch(() => {});
     }
 
     set((s) => ({

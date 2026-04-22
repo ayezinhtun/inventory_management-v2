@@ -83,10 +83,13 @@ function recordSessionStart() {
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 async function updatePresence(userId: string) {
-  await supabase.from('user_profiles')
-    .update({ last_seen_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .catch(() => {});
+  try {
+    await supabase.from('user_profiles')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('user_id', userId);
+  } catch {
+    // ignore — heartbeat failures are non-critical
+  }
 }
 
 function startHeartbeat(userId: string) {
@@ -104,11 +107,15 @@ function stopHeartbeat() {
 
 // ─── Bridge to useStore ───────────────────────────────────────────────────
 // Dynamic import avoids circular dependency.
+const SESSION_PAGE_KEY = "ims-current-page";
+
 async function syncToAppStore(profile: UserProfile | null) {
   const { useStore } = await import("./useStore");
   if (profile) {
     const currentPage = useStore.getState().currentPage;
     const shouldNavigate = currentPage === "login" || currentPage === "signup";
+    // Restore the page the user was on before a refresh
+    const savedPage = sessionStorage.getItem(SESSION_PAGE_KEY) as any | null;
     useStore.setState({
       isAuthenticated: true,
       currentUser: {
@@ -125,9 +132,12 @@ async function syncToAppStore(profile: UserProfile | null) {
         created_at: profile.created_at,
         updated_at: profile.updated_at,
       },
-      ...(shouldNavigate ? { currentPage: "dashboard" } : {}),
+      ...(shouldNavigate ? { currentPage: savedPage || "dashboard" } : {}),
     });
+    // Load regions, warehouses, component types from Supabase
+    useStore.getState().fetchAppData().catch(() => {});
   } else {
+    sessionStorage.removeItem(SESSION_PAGE_KEY);
     useStore.setState({
       isAuthenticated: false,
       currentUser: null,
@@ -213,12 +223,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           await syncToAppStore(profile);
           await get().refreshMFAFactors();
           startHeartbeat(session.user.id);
-          supabase.from("user_activity_logs").insert({
-            user_id: session.user.id,
-            actor_id: session.user.id,
-            action: "LOGIN",
-            details: { method: "oauth" },
-          }).catch(() => {});
+          (async () => {
+            await supabase.from("user_activity_logs").insert({
+              user_id: session.user.id,
+              actor_id: session.user.id,
+              action: "LOGIN",
+              details: { method: "oauth" },
+            });
+          })().catch(() => {});
         } else if (event === "TOKEN_REFRESHED") {
           const profile = await get().fetchProfile();
           await syncToAppStore(profile);
@@ -275,12 +287,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await syncToAppStore(profile);
       await get().refreshMFAFactors();
       startHeartbeat(data.user.id);
-      supabase.from("user_activity_logs").insert({
-        user_id: data.user.id,
-        actor_id: data.user.id,
-        action: "LOGIN",
-        details: { method: "password" },
-      }).catch(() => {});
+      (async () => {
+        await supabase.from("user_activity_logs").insert({
+          user_id: data.user.id,
+          actor_id: data.user.id,
+          action: "LOGIN",
+          details: { method: "password" },
+        });
+      })().catch(() => {});
       set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -321,12 +335,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const uid = get().user?.id;
       if (uid) {
         startHeartbeat(uid);
-        supabase.from("user_activity_logs").insert({
-          user_id: uid,
-          actor_id: uid,
-          action: "LOGIN",
-          details: { method: "totp_mfa" },
-        }).catch(() => {});
+        (async () => {
+          await supabase.from("user_activity_logs").insert({
+            user_id: uid,
+            actor_id: uid,
+            action: "LOGIN",
+            details: { method: "totp_mfa" },
+          });
+        })().catch(() => {});
       }
       set({ isLoading: false });
     } catch (err) {
