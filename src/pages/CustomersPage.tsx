@@ -84,15 +84,19 @@ export function CustomersPage() {
     );
   }
 
-  const filtered = customers.filter((c) => {
-    const q = search.toLowerCase();
-    return (
-      c.customer_name.toLowerCase().includes(q) ||
-      (c.contact_person ?? '').toLowerCase().includes(q) ||
-      (c.email ?? '').toLowerCase().includes(q) ||
-      c.customer_type.toLowerCase().includes(q)
-    );
-  });
+  const filtered = search.trim()
+    ? customers.filter((c) => {
+        const q = search.toLowerCase();
+        return (
+          c.customer_name.toLowerCase().includes(q) ||
+          (c.contact_person ?? '').toLowerCase().includes(q) ||
+          (c.email ?? '').toLowerCase().includes(q) ||
+          (c.phone ?? '').toLowerCase().includes(q) ||
+          (c.address ?? '').toLowerCase().includes(q) ||
+          c.customer_type.toLowerCase().includes(q)
+        );
+      })
+    : customers;
 
   // ── open dialog ────────────────────────────────────────────────────────────
 
