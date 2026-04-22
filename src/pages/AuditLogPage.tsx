@@ -1,96 +1,198 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/Card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow } from
-'../components/ui/Table';
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue } from
-'../components/ui/Select';
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '../components/ui/Select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '../components/ui/Dialog';
+import { Separator } from '../components/ui/Separator';
+import { Loader2, Search, FileSearch, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDateTime } from '../lib/utils';
+
+// ── types ─────────────────────────────────────────────────────────────────────
+
+interface AuditEntry {
+  id: string;
+  user_id: string | null;
+  action: string;
+  module: string;
+  record_id: string | null;
+  old_value: Record<string, any> | null;
+  new_value: Record<string, any> | null;
+  ip_address: string | null;
+  timestamp: string;
+  user_name?: string; // joined
+}
+
+const PAGE_SIZE = 50;
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function actionColor(action: string) {
+  if (action === 'CREATE') return 'bg-emerald-100 text-emerald-800';
+  if (action === 'UPDATE') return 'bg-blue-100 text-blue-800';
+  if (action === 'DELETE') return 'bg-red-100 text-red-800';
+  return 'bg-gray-100 text-gray-800';
+}
+
+function summarize(log: AuditEntry): string {
+  if (log.action === 'CREATE') return `Created new record in ${log.module}`;
+  if (log.action === 'DELETE') return `Deleted record from ${log.module}`;
+  if (log.old_value && log.new_value) {
+    const changed = Object.keys(log.new_value).filter(
+      (k) => JSON.stringify(log.old_value![k]) !== JSON.stringify(log.new_value![k])
+    );
+    if (changed.length === 0) return 'Updated record';
+    if (changed.includes('status')) return `Status → ${log.new_value.status}`;
+    if (changed.includes('quantity')) return `Quantity → ${log.new_value.quantity}`;
+    return `Changed: ${changed.slice(0, 3).join(', ')}${changed.length > 3 ? ` +${changed.length - 3} more` : ''}`;
+  }
+  if (log.new_value) return `Updated: ${Object.keys(log.new_value).join(', ')}`;
+  return 'Updated record';
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+
 export function AuditLogPage() {
-  const { auditLogs, currentUser, getUserName } = useStore();
+  const { currentUser } = useStore();
+
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+
+  const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
   const [moduleFilter, setModuleFilter] = useState('all');
+  const [modules, setModules] = useState<string[]>([]);
+
+  const [detailLog, setDetailLog] = useState<AuditEntry | null>(null);
+
   if (!currentUser) return null;
-  // Filter logs based on role and filters
-  let visibleLogs =
-  currentUser.role === 'Admin' ?
-  auditLogs :
-  auditLogs.filter((log) => log.user_id === currentUser.id);
-  if (actionFilter !== 'all') {
-    visibleLogs = visibleLogs.filter((log) => log.action === actionFilter);
-  }
-  if (moduleFilter !== 'all') {
-    visibleLogs = visibleLogs.filter((log) => log.module === moduleFilter);
-  }
-  // Get unique modules for filter
-  const modules = Array.from(new Set(auditLogs.map((l) => l.module))).sort();
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case 'CREATE':
-        return 'bg-emerald-100 text-emerald-800';
-      case 'UPDATE':
-        return 'bg-blue-100 text-blue-800';
-      case 'DELETE':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-  const formatDetails = (log: any) => {
-    if (log.action === 'CREATE') {
-      return `Created new record in ${log.module}`;
-    }
-    if (log.action === 'DELETE') {
-      return `Deleted record from ${log.module}`;
-    }
-    // For UPDATE, try to show what changed
-    if (log.old_value && log.new_value) {
-      const changedKeys = Object.keys(log.new_value).filter(
-        (key) =>
-        JSON.stringify(log.old_value[key]) !==
-        JSON.stringify(log.new_value[key])
-      );
-      if (changedKeys.length > 0) {
-        if (changedKeys.includes('status')) {
-          return `Updated status to ${log.new_value.status}`;
-        }
-        if (changedKeys.includes('quantity')) {
-          return `Updated quantity to ${log.new_value.quantity}`;
-        }
-        return `Updated fields: ${changedKeys.join(', ')}`;
+  const isAdmin = currentUser.role === 'Admin';
+
+  // ── fetch ──────────────────────────────────────────────────────────────────
+
+  async function fetchLogs(p = 0) {
+    setLoading(true);
+    try {
+      let query = supabase
+        .from('audit_logs')
+        .select(`
+          id, user_id, action, module, record_id,
+          old_value, new_value, ip_address, timestamp,
+          user_profiles!audit_logs_user_id_fkey(name)
+        `, { count: 'exact' })
+        .order('timestamp', { ascending: false })
+        .range(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE - 1);
+
+      // Non-admins only see their own logs
+      if (!isAdmin) {
+        query = query.eq('user_id', currentUser.id);
       }
+      if (actionFilter !== 'all') query = query.eq('action', actionFilter);
+      if (moduleFilter !== 'all') query = query.eq('module', moduleFilter);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      const entries: AuditEntry[] = (data ?? []).map((row: any) => ({
+        id: row.id,
+        user_id: row.user_id,
+        action: row.action,
+        module: row.module,
+        record_id: row.record_id,
+        old_value: row.old_value,
+        new_value: row.new_value,
+        ip_address: row.ip_address,
+        timestamp: row.timestamp,
+        user_name: row.user_profiles?.name ?? null,
+      }));
+
+      setLogs(entries);
+      setTotal(count ?? 0);
+      setPage(p);
+    } catch (err) {
+      console.error('[AuditLog] fetch error:', err);
+      setLogs([]);
+    } finally {
+      setLoading(false);
     }
-    return 'Updated record';
-  };
+  }
+
+  async function fetchModules() {
+    const { data } = await supabase
+      .from('audit_logs')
+      .select('module')
+      .order('module');
+    if (data) {
+      const unique = Array.from(new Set(data.map((r: any) => r.module))).sort();
+      setModules(unique as string[]);
+    }
+  }
+
+  useEffect(() => {
+    fetchModules();
+  }, []);
+
+  useEffect(() => {
+    fetchLogs(0);
+  }, [actionFilter, moduleFilter]);
+
+  // ── client-side search filter ──────────────────────────────────────────────
+
+  const visible = search.trim()
+    ? logs.filter((l) => {
+        const q = search.toLowerCase();
+        return (
+          l.module.toLowerCase().includes(q) ||
+          l.action.toLowerCase().includes(q) ||
+          (l.user_name ?? '').toLowerCase().includes(q) ||
+          (l.record_id ?? '').toLowerCase().includes(q) ||
+          summarize(l).toLowerCase().includes(q)
+        );
+      })
+    : logs;
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  // ── render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-heading">
-            Audit Log
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight font-heading">Audit Log</h1>
           <p className="text-muted-foreground">
-            {currentUser.role === 'Admin' ?
-            'Track all system activities and changes' :
-            'View your recent activities'}
+            {isAdmin ? 'Complete record of all system actions' : 'Your recent activity'}
           </p>
         </div>
 
-        <div className="flex gap-2">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search logs…"
+              className="pl-9 w-48"
+            />
+          </div>
+
           <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-36">
               <SelectValue placeholder="Action" />
             </SelectTrigger>
             <SelectContent>
@@ -102,71 +204,217 @@ export function AuditLogPage() {
           </Select>
 
           <Select value={moduleFilter} onValueChange={setModuleFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-44">
               <SelectValue placeholder="Module" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Modules</SelectItem>
-              {modules.map((m) =>
-              <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              )}
+              {modules.map((m) => (
+                <SelectItem key={m} value={m}>{m}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
+
+          <Button variant="outline" size="sm" onClick={() => fetchLogs(page)}>
+            Refresh
+          </Button>
         </div>
       </div>
 
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Timestamp</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Module</TableHead>
-                <TableHead>Details</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleLogs.length > 0 ?
-              visibleLogs.map((log) =>
-              <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                      {formatDateTime(log.timestamp)}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {getUserName(log.user_id)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                    variant="outline"
-                    className={getActionColor(log.action)}>
-                    
-                        {log.action}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{log.module}</TableCell>
-                    <TableCell className="text-sm">
-                      {formatDetails(log)}
+          {loading ? (
+            <div className="flex items-center justify-center h-40 text-muted-foreground gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" /> Loading audit logs…
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  {isAdmin && <TableHead>User</TableHead>}
+                  <TableHead>Action</TableHead>
+                  <TableHead>Module</TableHead>
+                  <TableHead>Summary</TableHead>
+                  <TableHead className="text-right">Details</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={isAdmin ? 6 : 5} className="h-32 text-center text-muted-foreground">
+                      No audit logs found.
                     </TableCell>
                   </TableRow>
-              ) :
+                ) : (
+                  visible.map((log) => (
+                    <TableRow
+                      key={log.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => setDetailLog(log)}
+                    >
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {formatDateTime(log.timestamp)}
+                      </TableCell>
+                      {isAdmin && (
+                        <TableCell className="font-medium text-sm">
+                          {log.user_name ?? <span className="text-muted-foreground italic">system</span>}
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <Badge variant="outline" className={actionColor(log.action)}>
+                          {log.action}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{log.module}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                        {summarize(log)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {(log.old_value || log.new_value || log.record_id) && (
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-6 px-2 text-xs text-primary"
+                            onClick={(e) => { e.stopPropagation(); setDetailLog(log); }}
+                          >
+                            View
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
 
-              <TableRow>
-                  <TableCell
-                  colSpan={5}
-                  className="h-32 text-center text-muted-foreground">
-                  
-                    No audit logs found matching your filters.
-                  </TableCell>
-                </TableRow>
-              }
-            </TableBody>
-          </Table>
+          {/* Pagination */}
+          {!loading && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
+              <span>
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline" size="icon" className="h-7 w-7"
+                  disabled={page === 0}
+                  onClick={() => fetchLogs(page - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline" size="icon" className="h-7 w-7"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => fetchLogs(page + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
-    </div>);
 
+      {/* Detail Modal */}
+      <Dialog open={!!detailLog} onOpenChange={(o) => !o && setDetailLog(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSearch className="h-5 w-5 text-muted-foreground" />
+              Audit Entry Detail
+            </DialogTitle>
+            <DialogDescription>
+              {detailLog && (
+                <span>
+                  {detailLog.action} · {detailLog.module} · {formatDateTime(detailLog.timestamp)}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailLog && (
+            <div className="space-y-4 text-sm mt-2">
+              {/* Meta */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">User</p>
+                  <p className="font-medium">{detailLog.user_name ?? 'system'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Action</p>
+                  <Badge variant="outline" className={actionColor(detailLog.action)}>
+                    {detailLog.action}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Module</p>
+                  <p className="font-medium">{detailLog.module}</p>
+                </div>
+                {detailLog.record_id && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Record ID</p>
+                    <p className="font-mono text-xs truncate" title={detailLog.record_id}>
+                      {detailLog.record_id}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Changes */}
+              {(detailLog.old_value || detailLog.new_value) && (
+                <>
+                  <Separator />
+                  <div className="space-y-3">
+                    {detailLog.action === 'UPDATE' && detailLog.old_value && detailLog.new_value ? (
+                      <>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          Changes
+                        </p>
+                        <div className="rounded-lg border overflow-hidden text-xs">
+                          <div className="grid grid-cols-3 bg-muted px-3 py-1.5 font-medium text-muted-foreground">
+                            <span>Field</span>
+                            <span>Before</span>
+                            <span>After</span>
+                          </div>
+                          {Object.keys({ ...detailLog.old_value, ...detailLog.new_value }).map((key) => {
+                            const before = detailLog.old_value?.[key];
+                            const after = detailLog.new_value?.[key];
+                            const changed = JSON.stringify(before) !== JSON.stringify(after);
+                            return (
+                              <div
+                                key={key}
+                                className={`grid grid-cols-3 px-3 py-1.5 border-t ${changed ? 'bg-amber-50/50' : ''}`}
+                              >
+                                <span className="font-medium">{key}</span>
+                                <span className={`truncate ${changed ? 'text-red-600 line-through opacity-70' : 'text-muted-foreground'}`}>
+                                  {before !== undefined ? String(before) : '—'}
+                                </span>
+                                <span className={`truncate ${changed ? 'text-green-700 font-medium' : 'text-muted-foreground'}`}>
+                                  {after !== undefined ? String(after) : '—'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          {detailLog.action === 'CREATE' ? 'Created Data' : 'Deleted Data'}
+                        </p>
+                        <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto whitespace-pre-wrap">
+                          {JSON.stringify(detailLog.new_value ?? detailLog.old_value, null, 2)}
+                        </pre>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
