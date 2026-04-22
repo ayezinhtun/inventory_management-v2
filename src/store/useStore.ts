@@ -21,8 +21,9 @@ import type {
   RMARecord,
   DisposalRecord,
   StocktakeRecord,
-  UserRole } from
-'../lib/types';
+  UserRole
+} from
+  '../lib/types';
 import {
   mockUsers,
   mockRegions,
@@ -44,52 +45,54 @@ import {
   mockGoodsReceipts,
   mockRMARecords,
   mockDisposalRecords,
-  mockStocktakeRecords } from
-'../lib/mock-data';
+  mockStocktakeRecords
+} from
+  '../lib/mock-data';
 import { generateId, generateRequestNumber } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 
 // ---- Navigation / Page State ----
 export type Page =
-'login' |
-'signup' |
-'dashboard' |
-'inventory' |
-'inventory-add' |
-'inventory-detail' |
-'components' |
-'components-add' |
-'component-detail' |
-'type-management' |
-'regions' |
-'warehouses' |
-'racks' |
-'inventory-requests' |
-'inventory-request-detail' |
-'install-requests' |
-'install-request-detail' |
-'install-pm' |
-'install-admin' |
-'physical-install' |
-'relocation-requests' |
-'relocation-request-detail' |
-'relocation-pm' |
-'relocation-admin' |
-'physical-relocation' |
-'reserved-stock' |
-'customers' |
-'customer-inventory' |
-'vendors' |
-'purchase-orders' |
-'goods-receipt' |
-'rma' |
-'disposal' |
-'stocktake' |
-'maintenance' |
-'users' |
-'audit-log' |
-'notifications-page' |
-'reports' |
-'settings';
+  'login' |
+  'signup' |
+  'dashboard' |
+  'inventory' |
+  'inventory-add' |
+  'inventory-detail' |
+  'components' |
+  'components-add' |
+  'component-detail' |
+  'type-management' |
+  'regions' |
+  'warehouses' |
+  'racks' |
+  'inventory-requests' |
+  'inventory-request-detail' |
+  'install-requests' |
+  'install-request-detail' |
+  'install-pm' |
+  'install-admin' |
+  'physical-install' |
+  'relocation-requests' |
+  'relocation-request-detail' |
+  'relocation-pm' |
+  'relocation-admin' |
+  'physical-relocation' |
+  'reserved-stock' |
+  'customers' |
+  'customer-inventory' |
+  'vendors' |
+  'purchase-orders' |
+  'goods-receipt' |
+  'rma' |
+  'disposal' |
+  'stocktake' |
+  'maintenance' |
+  'users' |
+  'audit-log' |
+  'notifications-page' |
+  'reports' |
+  'settings';
 
 interface AppState {
   // Auth
@@ -110,6 +113,10 @@ interface AppState {
   setGlobalSearch: (q: string) => void;
   commandOpen: boolean;
   setCommandOpen: (open: boolean) => void;
+
+  isLoading: boolean;
+
+  fetchUsers: () => Promise<void>;
 
   // Data
   users: User[];
@@ -136,18 +143,18 @@ interface AppState {
 
   // CRUD helpers — Inventory
   addInventoryItem: (
-  item: Omit<
-    InventoryItem,
-    'id' | 'created_at' | 'updated_at' | 'is_deleted'>)
+    item: Omit<
+      InventoryItem,
+      'id' | 'created_at' | 'updated_at' | 'is_deleted'>)
 
-  => void;
+    => void;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
 
   // CRUD helpers — Components
   addComponent: (
-  item: Omit<Component, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>)
-  => void;
+    item: Omit<Component, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>)
+    => void;
   updateComponent: (id: string, updates: Partial<Component>) => void;
   deleteComponent: (id: string) => void;
 
@@ -168,8 +175,8 @@ interface AppState {
 
   // CRUD helpers — Component Types
   addComponentType: (
-  ct: Omit<ComponentType, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    ct: Omit<ComponentType, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updateComponentType: (id: string, updates: Partial<ComponentType>) => void;
   deleteComponentType: (id: string) => void;
 
@@ -189,54 +196,54 @@ interface AppState {
 
   // CRUD helpers — Purchase Orders
   addPurchaseOrder: (
-  po: Omit<PurchaseOrder, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    po: Omit<PurchaseOrder, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updatePurchaseOrder: (id: string, updates: Partial<PurchaseOrder>) => void;
 
   // CRUD helpers — Goods Receipts
   addGoodsReceipt: (
-  gr: Omit<GoodsReceipt, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    gr: Omit<GoodsReceipt, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updateGoodsReceipt: (id: string, updates: Partial<GoodsReceipt>) => void;
 
   // CRUD helpers — RMA
   addRMARecord: (
-  rma: Omit<RMARecord, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    rma: Omit<RMARecord, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updateRMARecord: (id: string, updates: Partial<RMARecord>) => void;
 
   // CRUD helpers — Disposal
   addDisposalRecord: (
-  d: Omit<DisposalRecord, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    d: Omit<DisposalRecord, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updateDisposalRecord: (id: string, updates: Partial<DisposalRecord>) => void;
 
   // CRUD helpers — Reserved Stock
   addReservedStock: (
-  rs: Omit<ReservedStock, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    rs: Omit<ReservedStock, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updateReservedStock: (id: string, updates: Partial<ReservedStock>) => void;
   releaseReservedStock: (id: string) => void;
 
   // CRUD helpers — Maintenance
   addMaintenanceTask: (
-  mt: Omit<MaintenanceTask, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    mt: Omit<MaintenanceTask, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updateMaintenanceTask: (id: string, updates: Partial<MaintenanceTask>) => void;
 
   // CRUD helpers — Stocktake
   addStocktakeRecord: (
-  st: Omit<StocktakeRecord, 'id' | 'created_at' | 'updated_at'>)
-  => void;
+    st: Omit<StocktakeRecord, 'id' | 'created_at' | 'updated_at'>)
+    => void;
   updateStocktakeRecord: (id: string, updates: Partial<StocktakeRecord>) => void;
 
   // Request actions
   createInventoryRequest: (req: Partial<InventoryRequest>) => void;
   updateInventoryRequestStatus: (
-  id: string,
-  status: string,
-  response?: string)
-  => void;
+    id: string,
+    status: string,
+    response?: string)
+    => void;
 
   createInstallRequest: (req: Partial<InstallRequest>) => void;
   approveInstallPM: (id: string, comments: string) => void;
@@ -279,7 +286,7 @@ export const useStore = create<AppState>((set, get) => ({
   login: (username, password) => {
     const user = get().users.find(
       (u) =>
-      u.username === username && u.password_hash === password && u.is_active
+        u.username === username && u.password_hash === password && u.is_active
     );
     if (user) {
       set({
@@ -292,12 +299,12 @@ export const useStore = create<AppState>((set, get) => ({
     return false;
   },
   logout: () =>
-  set({
-    currentUser: null,
-    isAuthenticated: false,
-    currentPage: 'login',
-    selectedId: null
-  }),
+    set({
+      currentUser: null,
+      isAuthenticated: false,
+      currentPage: 'login',
+      selectedId: null
+    }),
 
   // Navigation
   currentPage: 'login',
@@ -311,6 +318,8 @@ export const useStore = create<AppState>((set, get) => ({
   setGlobalSearch: (q) => set({ globalSearch: q }),
   commandOpen: false,
   setCommandOpen: (open) => set({ commandOpen: open }),
+
+  isLoading: false,
 
   // Data
   users: mockUsers,
@@ -334,6 +343,46 @@ export const useStore = create<AppState>((set, get) => ({
   rmaRecords: mockRMARecords,
   disposalRecords: mockDisposalRecords,
   stocktakeRecords: mockStocktakeRecords,
+
+  // to fetch user
+  fetchUsers: async () => {
+    set({ isLoading: true });
+
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*');
+
+      if (error) throw error;
+
+      // Map database fields to User type
+      const mappedUsers = data?.map(u => ({
+        id: u.id,
+        full_name: u.name || u.email,
+        username: u.email,
+        email: u.email,
+        password_hash: '',
+        role: (u.role === 'admin' ? 'Admin' :
+          u.role === 'pm' ? 'PM' :
+            u.role === 'engineer' ? 'Engineer' : 'Engineer') as UserRole,
+        assigned_region_id: u.region_id || null,
+        assigned_warehouse_id: u.warehouse_id || null,
+        is_active: u.status === 'active',
+        last_login: u.last_login_at || null,
+        created_at: u.created_at,
+        updated_at: u.updated_at || u.created_at
+      })) || [];
+
+      console.log('Mapped users:', mappedUsers);
+      console.log('User count:', mappedUsers.length);
+
+
+      set({ users: mappedUsers, isLoading: false });
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      set({ isLoading: false });
+    }
+  },
 
   // CRUD — Inventory
   addInventoryItem: (item) => {
@@ -360,21 +409,21 @@ export const useStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
     set((s) => ({
       inventory: s.inventory.map((i) =>
-      i.id === id ?
-      {
-        ...i,
-        ...updates,
-        updated_at: now,
-        updated_by: get().currentUser?.id || null
-      } :
-      i
+        i.id === id ?
+          {
+            ...i,
+            ...updates,
+            updated_at: now,
+            updated_by: get().currentUser?.id || null
+          } :
+          i
       )
     }));
   },
   deleteInventoryItem: (id) => {
     set((s) => ({
       inventory: s.inventory.map((i) =>
-      i.id === id ? { ...i, is_deleted: true } : i
+        i.id === id ? { ...i, is_deleted: true } : i
       )
     }));
     get().addAuditLog({
@@ -413,14 +462,14 @@ export const useStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
     set((s) => ({
       components: s.components.map((c) =>
-      c.id === id ? { ...c, ...updates, updated_at: now } : c
+        c.id === id ? { ...c, ...updates, updated_at: now } : c
       )
     }));
   },
   deleteComponent: (id) => {
     set((s) => ({
       components: s.components.map((c) =>
-      c.id === id ? { ...c, is_deleted: true } : c
+        c.id === id ? { ...c, is_deleted: true } : c
       )
     }));
   },
@@ -430,115 +479,115 @@ export const useStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
     set((s) => ({
       regions: [
-      ...s.regions,
-      { ...r, id: generateId(), created_at: now, updated_at: now } as Region]
+        ...s.regions,
+        { ...r, id: generateId(), created_at: now, updated_at: now } as Region]
 
     }));
   },
   updateRegion: (id, updates) =>
-  set((s) => ({
-    regions: s.regions.map((r) =>
-    r.id === id ?
-    { ...r, ...updates, updated_at: new Date().toISOString() } :
-    r
-    )
-  })),
+    set((s) => ({
+      regions: s.regions.map((r) =>
+        r.id === id ?
+          { ...r, ...updates, updated_at: new Date().toISOString() } :
+          r
+      )
+    })),
   deleteRegion: (id) =>
-  set((s) => ({ regions: s.regions.filter((r) => r.id !== id) })),
+    set((s) => ({ regions: s.regions.filter((r) => r.id !== id) })),
 
   // CRUD — Warehouses
   addWarehouse: (w) => {
     const now = new Date().toISOString();
     set((s) => ({
       warehouses: [
-      ...s.warehouses,
-      {
-        ...w,
-        id: generateId(),
-        created_at: now,
-        updated_at: now
-      } as Warehouse]
+        ...s.warehouses,
+        {
+          ...w,
+          id: generateId(),
+          created_at: now,
+          updated_at: now
+        } as Warehouse]
 
     }));
   },
   updateWarehouse: (id, updates) =>
-  set((s) => ({
-    warehouses: s.warehouses.map((w) =>
-    w.id === id ?
-    { ...w, ...updates, updated_at: new Date().toISOString() } :
-    w
-    )
-  })),
+    set((s) => ({
+      warehouses: s.warehouses.map((w) =>
+        w.id === id ?
+          { ...w, ...updates, updated_at: new Date().toISOString() } :
+          w
+      )
+    })),
   deleteWarehouse: (id) =>
-  set((s) => ({ warehouses: s.warehouses.filter((w) => w.id !== id) })),
+    set((s) => ({ warehouses: s.warehouses.filter((w) => w.id !== id) })),
 
   // CRUD — Racks
   addRack: (r) => {
     const now = new Date().toISOString();
     set((s) => ({
       racks: [
-      ...s.racks,
-      { ...r, id: generateId(), created_at: now, updated_at: now } as Rack]
+        ...s.racks,
+        { ...r, id: generateId(), created_at: now, updated_at: now } as Rack]
 
     }));
   },
   updateRack: (id, updates) =>
-  set((s) => ({
-    racks: s.racks.map((r) =>
-    r.id === id ?
-    { ...r, ...updates, updated_at: new Date().toISOString() } :
-    r
-    )
-  })),
+    set((s) => ({
+      racks: s.racks.map((r) =>
+        r.id === id ?
+          { ...r, ...updates, updated_at: new Date().toISOString() } :
+          r
+      )
+    })),
   deleteRack: (id) =>
-  set((s) => ({ racks: s.racks.filter((r) => r.id !== id) })),
+    set((s) => ({ racks: s.racks.filter((r) => r.id !== id) })),
 
   // CRUD — Component Types
   addComponentType: (ct) => {
     const now = new Date().toISOString();
     set((s) => ({
       componentTypes: [
-      ...s.componentTypes,
-      {
-        ...ct,
-        id: generateId(),
-        created_at: now,
-        updated_at: now
-      } as ComponentType]
+        ...s.componentTypes,
+        {
+          ...ct,
+          id: generateId(),
+          created_at: now,
+          updated_at: now
+        } as ComponentType]
 
     }));
   },
   updateComponentType: (id, updates) =>
-  set((s) => ({
-    componentTypes: s.componentTypes.map((ct) =>
-    ct.id === id ?
-    { ...ct, ...updates, updated_at: new Date().toISOString() } :
-    ct
-    )
-  })),
+    set((s) => ({
+      componentTypes: s.componentTypes.map((ct) =>
+        ct.id === id ?
+          { ...ct, ...updates, updated_at: new Date().toISOString() } :
+          ct
+      )
+    })),
   deleteComponentType: (id) =>
-  set((s) => ({
-    componentTypes: s.componentTypes.filter((ct) => ct.id !== id)
-  })),
+    set((s) => ({
+      componentTypes: s.componentTypes.filter((ct) => ct.id !== id)
+    })),
 
   // CRUD — Users
   addUser: (u) => {
     const now = new Date().toISOString();
     set((s) => ({
       users: [
-      ...s.users,
-      { ...u, id: generateId(), created_at: now, updated_at: now } as User]
+        ...s.users,
+        { ...u, id: generateId(), created_at: now, updated_at: now } as User]
 
     }));
   },
   updateUser: (id, updates) =>
-  set((s) => ({
-    users: s.users.map((u) =>
-    u.id === id ?
-    { ...u, ...updates, updated_at: new Date().toISOString() } :
-    u
-    )
-  })),
+    set((s) => ({
+      users: s.users.map((u) =>
+        u.id === id ?
+          { ...u, ...updates, updated_at: new Date().toISOString() } :
+          u
+      )
+    })),
 
   // CRUD — Vendors
   addVendor: (v) => {
@@ -563,9 +612,9 @@ export const useStore = create<AppState>((set, get) => ({
   updateVendor: (id, updates) => {
     set((s) => ({
       vendors: s.vendors.map((v) =>
-      v.id === id ?
-      { ...v, ...updates, updated_at: new Date().toISOString() } :
-      v
+        v.id === id ?
+          { ...v, ...updates, updated_at: new Date().toISOString() } :
+          v
       )
     }));
   },
@@ -596,9 +645,9 @@ export const useStore = create<AppState>((set, get) => ({
   updateCustomer: (id, updates) => {
     set((s) => ({
       customers: s.customers.map((c) =>
-      c.id === id ?
-      { ...c, ...updates, updated_at: new Date().toISOString() } :
-      c
+        c.id === id ?
+          { ...c, ...updates, updated_at: new Date().toISOString() } :
+          c
       )
     }));
   },
@@ -629,9 +678,9 @@ export const useStore = create<AppState>((set, get) => ({
   updatePurchaseOrder: (id, updates) => {
     set((s) => ({
       purchaseOrders: s.purchaseOrders.map((po) =>
-      po.id === id ?
-      { ...po, ...updates, updated_at: new Date().toISOString() } :
-      po
+        po.id === id ?
+          { ...po, ...updates, updated_at: new Date().toISOString() } :
+          po
       )
     }));
   },
@@ -650,9 +699,9 @@ export const useStore = create<AppState>((set, get) => ({
   updateGoodsReceipt: (id, updates) => {
     set((s) => ({
       goodsReceipts: s.goodsReceipts.map((gr) =>
-      gr.id === id ?
-      { ...gr, ...updates, updated_at: new Date().toISOString() } :
-      gr
+        gr.id === id ?
+          { ...gr, ...updates, updated_at: new Date().toISOString() } :
+          gr
       )
     }));
   },
@@ -680,9 +729,9 @@ export const useStore = create<AppState>((set, get) => ({
   updateRMARecord: (id, updates) => {
     set((s) => ({
       rmaRecords: s.rmaRecords.map((r) =>
-      r.id === id ?
-      { ...r, ...updates, updated_at: new Date().toISOString() } :
-      r
+        r.id === id ?
+          { ...r, ...updates, updated_at: new Date().toISOString() } :
+          r
       )
     }));
   },
@@ -710,9 +759,9 @@ export const useStore = create<AppState>((set, get) => ({
   updateDisposalRecord: (id, updates) => {
     set((s) => ({
       disposalRecords: s.disposalRecords.map((d) =>
-      d.id === id ?
-      { ...d, ...updates, updated_at: new Date().toISOString() } :
-      d
+        d.id === id ?
+          { ...d, ...updates, updated_at: new Date().toISOString() } :
+          d
       )
     }));
   },
@@ -731,18 +780,18 @@ export const useStore = create<AppState>((set, get) => ({
   updateReservedStock: (id, updates) => {
     set((s) => ({
       reservedStock: s.reservedStock.map((rs) =>
-      rs.id === id ?
-      { ...rs, ...updates, updated_at: new Date().toISOString() } :
-      rs
+        rs.id === id ?
+          { ...rs, ...updates, updated_at: new Date().toISOString() } :
+          rs
       )
     }));
   },
   releaseReservedStock: (id) => {
     set((s) => ({
       reservedStock: s.reservedStock.map((rs) =>
-      rs.id === id ?
-      { ...rs, status: 'Released', updated_at: new Date().toISOString() } :
-      rs
+        rs.id === id ?
+          { ...rs, status: 'Released', updated_at: new Date().toISOString() } :
+          rs
       )
     }));
   },
@@ -761,9 +810,9 @@ export const useStore = create<AppState>((set, get) => ({
   updateMaintenanceTask: (id, updates) => {
     set((s) => ({
       maintenanceTasks: s.maintenanceTasks.map((mt) =>
-      mt.id === id ?
-      { ...mt, ...updates, updated_at: new Date().toISOString() } :
-      mt
+        mt.id === id ?
+          { ...mt, ...updates, updated_at: new Date().toISOString() } :
+          mt
       )
     }));
   },
@@ -782,9 +831,9 @@ export const useStore = create<AppState>((set, get) => ({
   updateStocktakeRecord: (id, updates) => {
     set((s) => ({
       stocktakeRecords: s.stocktakeRecords.map((st) =>
-      st.id === id ?
-      { ...st, ...updates, updated_at: new Date().toISOString() } :
-      st
+        st.id === id ?
+          { ...st, ...updates, updated_at: new Date().toISOString() } :
+          st
       )
     }));
   },
@@ -838,16 +887,16 @@ export const useStore = create<AppState>((set, get) => ({
     const req = get().inventoryRequests.find((r) => r.id === id);
     set((s) => ({
       inventoryRequests: s.inventoryRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: status as any,
-        admin_response: response || r.admin_response,
-        reviewed_by: get().currentUser?.id || null,
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: status as any,
+            admin_response: response || r.admin_response,
+            reviewed_by: get().currentUser?.id || null,
+            reviewed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          } :
+          r
       )
     }));
     if (req) {
@@ -897,8 +946,8 @@ export const useStore = create<AppState>((set, get) => ({
     const requester = get().currentUser;
     const pms = get().users.filter(
       (u) =>
-      u.role === 'PM' &&
-      u.assigned_region_id === requester?.assigned_region_id
+        u.role === 'PM' &&
+        u.assigned_region_id === requester?.assigned_region_id
     );
     pms.forEach((pm) => {
       get().addNotification({
@@ -915,16 +964,16 @@ export const useStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
     set((s) => ({
       installRequests: s.installRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Pending Admin Approval' as any,
-        pm_reviewed_by: get().currentUser?.id || null,
-        pm_reviewed_at: now,
-        pm_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Pending Admin Approval' as any,
+            pm_reviewed_by: get().currentUser?.id || null,
+            pm_reviewed_at: now,
+            pm_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     const req = get().installRequests.find((r) => r.id === id);
@@ -950,16 +999,16 @@ export const useStore = create<AppState>((set, get) => ({
     const req = get().installRequests.find((r) => r.id === id);
     set((s) => ({
       installRequests: s.installRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Rejected by PM' as any,
-        pm_reviewed_by: get().currentUser?.id || null,
-        pm_reviewed_at: now,
-        pm_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Rejected by PM' as any,
+            pm_reviewed_by: get().currentUser?.id || null,
+            pm_reviewed_at: now,
+            pm_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     if (req) {
@@ -977,16 +1026,16 @@ export const useStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
     set((s) => ({
       installRequests: s.installRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Approved' as any,
-        admin_reviewed_by: get().currentUser?.id || null,
-        admin_reviewed_at: now,
-        admin_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Approved' as any,
+            admin_reviewed_by: get().currentUser?.id || null,
+            admin_reviewed_at: now,
+            admin_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     const req = get().installRequests.find((r) => r.id === id);
@@ -1006,16 +1055,16 @@ export const useStore = create<AppState>((set, get) => ({
     const req = get().installRequests.find((r) => r.id === id);
     set((s) => ({
       installRequests: s.installRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Rejected by Admin' as any,
-        admin_reviewed_by: get().currentUser?.id || null,
-        admin_reviewed_at: now,
-        admin_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Rejected by Admin' as any,
+            admin_reviewed_by: get().currentUser?.id || null,
+            admin_reviewed_at: now,
+            admin_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     if (req) {
@@ -1036,16 +1085,16 @@ export const useStore = create<AppState>((set, get) => ({
       // Update request status
       set((s) => ({
         installRequests: s.installRequests.map((r) =>
-        r.id === id ?
-        {
-          ...r,
-          status: 'Completed' as any,
-          completed_by: get().currentUser?.id || null,
-          completed_at: now,
-          completion_notes: notes,
-          updated_at: now
-        } :
-        r
+          r.id === id ?
+            {
+              ...r,
+              status: 'Completed' as any,
+              completed_by: get().currentUser?.id || null,
+              completed_at: now,
+              completion_notes: notes,
+              updated_at: now
+            } :
+            r
         )
       }));
       // Auto-update: move component to destination server
@@ -1123,8 +1172,8 @@ export const useStore = create<AppState>((set, get) => ({
     const requester = get().currentUser;
     const pms = get().users.filter(
       (u) =>
-      u.role === 'PM' &&
-      u.assigned_region_id === requester?.assigned_region_id
+        u.role === 'PM' &&
+        u.assigned_region_id === requester?.assigned_region_id
     );
     pms.forEach((pm) => {
       get().addNotification({
@@ -1142,16 +1191,16 @@ export const useStore = create<AppState>((set, get) => ({
     const req = get().relocationRequests.find((r) => r.id === id);
     set((s) => ({
       relocationRequests: s.relocationRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Rejected by PM' as any,
-        pm_reviewed_by: get().currentUser?.id || null,
-        pm_reviewed_at: now,
-        pm_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Rejected by PM' as any,
+            pm_reviewed_by: get().currentUser?.id || null,
+            pm_reviewed_at: now,
+            pm_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     if (req) {
@@ -1169,16 +1218,16 @@ export const useStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
     set((s) => ({
       relocationRequests: s.relocationRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Pending Admin Approval' as any,
-        pm_reviewed_by: get().currentUser?.id || null,
-        pm_reviewed_at: now,
-        pm_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Pending Admin Approval' as any,
+            pm_reviewed_by: get().currentUser?.id || null,
+            pm_reviewed_at: now,
+            pm_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     const req = get().relocationRequests.find((r) => r.id === id);
@@ -1202,16 +1251,16 @@ export const useStore = create<AppState>((set, get) => ({
     const now = new Date().toISOString();
     set((s) => ({
       relocationRequests: s.relocationRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Approved' as any,
-        admin_reviewed_by: get().currentUser?.id || null,
-        admin_reviewed_at: now,
-        admin_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Approved' as any,
+            admin_reviewed_by: get().currentUser?.id || null,
+            admin_reviewed_at: now,
+            admin_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     const req = get().relocationRequests.find((r) => r.id === id);
@@ -1231,16 +1280,16 @@ export const useStore = create<AppState>((set, get) => ({
     const req = get().relocationRequests.find((r) => r.id === id);
     set((s) => ({
       relocationRequests: s.relocationRequests.map((r) =>
-      r.id === id ?
-      {
-        ...r,
-        status: 'Rejected by Admin' as any,
-        admin_reviewed_by: get().currentUser?.id || null,
-        admin_reviewed_at: now,
-        admin_comments: comments,
-        updated_at: now
-      } :
-      r
+        r.id === id ?
+          {
+            ...r,
+            status: 'Rejected by Admin' as any,
+            admin_reviewed_by: get().currentUser?.id || null,
+            admin_reviewed_at: now,
+            admin_comments: comments,
+            updated_at: now
+          } :
+          r
       )
     }));
     if (req) {
@@ -1260,16 +1309,16 @@ export const useStore = create<AppState>((set, get) => ({
     if (req) {
       set((s) => ({
         relocationRequests: s.relocationRequests.map((r) =>
-        r.id === id ?
-        {
-          ...r,
-          status: 'Completed' as any,
-          completed_by: get().currentUser?.id || null,
-          completed_at: now,
-          completion_notes: notes,
-          updated_at: now
-        } :
-        r
+          r.id === id ?
+            {
+              ...r,
+              status: 'Completed' as any,
+              completed_by: get().currentUser?.id || null,
+              completed_at: now,
+              completion_notes: notes,
+              updated_at: now
+            } :
+            r
         )
       }));
       // Auto-update location
@@ -1320,24 +1369,24 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Notifications
   markNotificationRead: (id) =>
-  set((s) => ({
-    notifications: s.notifications.map((n) =>
-    n.id === id ? { ...n, is_read: true } : n
-    )
-  })),
+    set((s) => ({
+      notifications: s.notifications.map((n) =>
+        n.id === id ? { ...n, is_read: true } : n
+      )
+    })),
   markAllNotificationsRead: () => {
     const userId = get().currentUser?.id;
     set((s) => ({
       notifications: s.notifications.map((n) =>
-      n.user_id === userId ? { ...n, is_read: true } : n
+        n.user_id === userId ? { ...n, is_read: true } : n
       )
     }));
   },
   addNotification: (n) => {
     set((s) => ({
       notifications: [
-      ...s.notifications,
-      { ...n, id: generateId(), created_at: new Date().toISOString() }]
+        ...s.notifications,
+        { ...n, id: generateId(), created_at: new Date().toISOString() }]
 
     }));
   },
@@ -1346,8 +1395,8 @@ export const useStore = create<AppState>((set, get) => ({
   addAuditLog: (entry) => {
     set((s) => ({
       auditLogs: [
-      { ...entry, id: generateId(), timestamp: new Date().toISOString() },
-      ...s.auditLogs]
+        { ...entry, id: generateId(), timestamp: new Date().toISOString() },
+        ...s.auditLogs]
 
     }));
   },
@@ -1355,20 +1404,20 @@ export const useStore = create<AppState>((set, get) => ({
   // Helpers
   getRegionName: (id) => get().regions.find((r) => r.id === id)?.name || '—',
   getWarehouseName: (id) =>
-  get().warehouses.find((w) => w.id === id)?.name || '—',
+    get().warehouses.find((w) => w.id === id)?.name || '—',
   getRackName: (id) => get().racks.find((r) => r.id === id)?.name || '—',
   getUserName: (id) => get().users.find((u) => u.id === id)?.full_name || '—',
   getComponentTypeName: (id) =>
-  get().componentTypes.find((ct) => ct.id === id)?.type_name || '—',
+    get().componentTypes.find((ct) => ct.id === id)?.type_name || '—',
   getWarehousesByRegion: (regionId) =>
-  get().warehouses.filter((w) => w.region_id === regionId && w.is_active),
+    get().warehouses.filter((w) => w.region_id === regionId && w.is_active),
   getRacksByWarehouse: (warehouseId) =>
-  get().racks.filter((r) => r.warehouse_id === warehouseId && r.is_active),
+    get().racks.filter((r) => r.warehouse_id === warehouseId && r.is_active),
   getUnreadNotificationCount: () => {
     const userId = get().currentUser?.id;
     return get().notifications.filter((n) => n.user_id === userId && !n.is_read).
-    length;
+      length;
   },
   getVendorName: (id) =>
-  get().vendors.find((v) => v.id === id)?.vendor_name || '—'
+    get().vendors.find((v) => v.id === id)?.vendor_name || '—'
 }));

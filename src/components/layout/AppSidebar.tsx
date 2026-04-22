@@ -47,16 +47,19 @@ import {
   Activity,
   BoxIcon,
 } from "lucide-react";
+import { useAuthStore } from "../../store/useAuthStore";
 export function AppSidebar() {
   const {
-    currentUser,
     currentPage,
     navigate,
-    logout,
     getUnreadNotificationCount,
   } = useStore();
-  if (!currentUser) return null;
-  const role = currentUser.role;
+  const {profile, logout} = useAuthStore();
+   if (!profile) return null;
+
+  const role = profile.role;
+
+
   const unreadCount = getUnreadNotificationCount();
   // Define navigation structure based on roles
   const navGroups = [
@@ -344,15 +347,15 @@ export function AppSidebar() {
             >
               <Avatar className="h-8 w-8 rounded-md">
                 <AvatarFallback className="rounded-md bg-primary/10 text-primary text-xs">
-                  {getInitials(currentUser.full_name)}
+                  {getInitials(profile.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col items-start overflow-hidden group-data-[collapsible=icon]:hidden ml-2">
                 <span className="text-sm font-medium truncate w-full">
-                  {currentUser.full_name}
+                  {profile.name}
                 </span>
                 <span className="text-xs text-muted-foreground truncate w-full">
-                  {currentUser.role}
+                  {profile.role}
                 </span>
               </div>
             </SidebarMenuButton>
@@ -366,10 +369,10 @@ export function AppSidebar() {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">
-                  {currentUser.full_name}
+                  {profile.name}
                 </p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  {currentUser.email}
+                  {profile.email}
                 </p>
               </div>
             </DropdownMenuLabel>

@@ -52,7 +52,7 @@ import {
 } from
   './components/ui/Breadcrumb';
 import { Button } from './components/ui/Button';
-import { Bell, Search, User as UserIcon, LogOut, Settings } from 'lucide-react';
+import { Bell, Search, User as UserIcon, LogOut, Settings, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,14 +71,13 @@ export function App() {
     isAuthenticated,
     currentPage,
     currentUser,
-    logout,
     navigate,
     setCommandOpen,
     getUnreadNotificationCount
   } = useStore();
 
 
-  const {user, profile} = useAuthStore();
+  const { user, profile, checkSession, isLoading: authLoading, logout } = useAuthStore();
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -88,6 +87,12 @@ export function App() {
     }
   }, []);
 
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
+
+
+
   if (currentPage === 'signup') {
     return (
       <TooltipProvider>
@@ -95,6 +100,14 @@ export function App() {
         <Toaster position="top-right" richColors />
       </TooltipProvider>
     )
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   // If not authenticated, show login page
@@ -107,12 +120,12 @@ export function App() {
       </TooltipProvider>);
 
   }
+
+
+
+
   // If authenticated but missing role/region/warehouse, show empty state
-  if (
-    currentUser && (
-      !currentUser.role ||
-      !currentUser.assigned_region_id && currentUser.role !== 'Admin' ||
-      !currentUser.assigned_warehouse_id && currentUser.role !== 'Admin')) {
+  if (!profile || !profile.role) {
     return (
       <TooltipProvider>
         <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 p-4">
@@ -124,7 +137,10 @@ export function App() {
               Please contact Admin to assign your role, region, and warehouse.
             </p>
             <button
-              onClick={() => logout()}
+              onClick={() => {
+                logout();
+                navigate('login');
+              }}
               className="text-sm text-primary hover:underline mt-4 inline-block">
 
               Return to Login

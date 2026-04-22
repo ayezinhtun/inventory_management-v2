@@ -5,8 +5,9 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle } from
-'../components/ui/Card';
+  CardTitle
+} from
+  '../components/ui/Card';
 import {
   Server,
   Cpu,
@@ -16,13 +17,15 @@ import {
   DollarSign,
   Users,
   PackageX,
-  CheckCircle2 } from
-'lucide-react';
+  CheckCircle2
+} from
+  'lucide-react';
 import {
   ChartContainer,
   ChartTooltipContent,
-  ChartLegendContent } from
-'../components/ui/Chart';
+  ChartLegendContent
+} from
+  '../components/ui/Chart';
 import {
   PieChart,
   Pie,
@@ -34,21 +37,23 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer } from
-'recharts';
+  ResponsiveContainer
+} from
+  'recharts';
 import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
-  TableRow } from
-'../components/ui/Table';
+  TableRow
+} from
+  '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
 import { formatCurrency, formatDate, getStatusColor } from '../lib/utils';
+import { useAuthStore } from '../store/useAuthStore';
 export function DashboardPage() {
   const {
-    currentUser,
     inventory,
     components,
     inventoryRequests,
@@ -58,53 +63,35 @@ export function DashboardPage() {
     auditLogs,
     regions
   } = useStore();
-  if (!currentUser) return null;
-  const isAdmin = currentUser.role === 'Admin';
-  const isPM = currentUser.role === 'PM';
-  const isEngineer = currentUser.role === 'Engineer';
+
+  const { profile } = useAuthStore();
+
+  if (!profile) return null;
+
+  const isAdmin = profile.role === 'admin';
+  const isPM = profile.role === 'pm';
+  const isEngineer = profile.role === 'engineer';
   // Role-based filtering
   const filteredInventory = useMemo(() => {
-    const active = inventory.filter((i) => !i.is_deleted);
-    if (isAdmin) return active;
-    if (isPM)
-    return active.filter(
-      (i) => i.region_id === currentUser.assigned_region_id
-    );
-    return active.filter((i) => i.region_id === currentUser.assigned_region_id);
-  }, [inventory, currentUser, isAdmin, isPM]);
+    return inventory.filter((i) => !i.is_deleted);
+  }, [inventory]);
+
   const filteredComponents = useMemo(() => {
-    const active = components.filter((c) => !c.is_deleted);
-    if (isAdmin) return active;
-    if (isPM)
-    return active.filter(
-      (c) => c.region_id === currentUser.assigned_region_id
-    );
-    return active.filter((c) => c.region_id === currentUser.assigned_region_id);
-  }, [components, currentUser, isAdmin, isPM]);
+    return components.filter((c) => !c.is_deleted);
+  }, [components]);
+
   const filteredInstallRequests = useMemo(() => {
-    if (isAdmin) return installRequests;
-    if (isPM) {
-      return installRequests.filter((r) => {
-        const requester = users.find((u) => u.id === r.requester_id);
-        return requester?.assigned_region_id === currentUser.assigned_region_id;
-      });
-    }
-    return installRequests.filter((r) => r.requester_id === currentUser.id);
-  }, [installRequests, currentUser, isAdmin, isPM, users]);
+    return installRequests;
+  }, [installRequests]);
+
   const filteredRelocationRequests = useMemo(() => {
-    if (isAdmin) return relocationRequests;
-    if (isPM) {
-      return relocationRequests.filter((r) => {
-        const requester = users.find((u) => u.id === r.requester_id);
-        return requester?.assigned_region_id === currentUser.assigned_region_id;
-      });
-    }
-    return relocationRequests.filter((r) => r.requester_id === currentUser.id);
-  }, [relocationRequests, currentUser, isAdmin, isPM, users]);
+    return relocationRequests;
+  }, [relocationRequests]);
+
   const filteredInventoryRequests = useMemo(() => {
-    if (isAdmin) return inventoryRequests;
-    return inventoryRequests.filter((r) => r.requester_id === currentUser.id);
-  }, [inventoryRequests, currentUser, isAdmin]);
+    return inventoryRequests;
+  }, [inventoryRequests]);
+
   // Metrics
   const totalInventory = filteredInventory.length;
   const totalComponents = filteredComponents.length;
@@ -112,26 +99,26 @@ export function DashboardPage() {
     (i) => i.status === 'Broken'
   ).length;
   const pendingInstalls = filteredInstallRequests.filter((r) =>
-  r.status.includes('Pending')
+    r.status.includes('Pending')
   ).length;
   const pendingRelocations = filteredRelocationRequests.filter((r) =>
-  r.status.includes('Pending')
+    r.status.includes('Pending')
   ).length;
   const pendingInventoryReqs = filteredInventoryRequests.filter(
     (r) => r.status === 'Pending'
   ).length;
   const totalPendingRequests =
-  pendingInstalls + pendingRelocations + pendingInventoryReqs;
+    pendingInstalls + pendingRelocations + pendingInventoryReqs;
   const activeUsers = users.filter((u) => u.is_active).length;
   const totalAssetValue =
-  filteredInventory.reduce(
-    (sum, item) => sum + (item.purchase_price || 0) * item.quantity,
-    0
-  ) +
-  filteredComponents.reduce(
-    (sum, comp) => sum + (comp.purchase_price || 0) * comp.quantity,
-    0
-  );
+    filteredInventory.reduce(
+      (sum, item) => sum + (item.purchase_price || 0) * item.quantity,
+      0
+    ) +
+    filteredComponents.reduce(
+      (sum, comp) => sum + (comp.purchase_price || 0) * comp.quantity,
+      0
+    );
   // Chart Data: Inventory by Type
   const inventoryByType = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -169,8 +156,8 @@ export function DashboardPage() {
   const inventoryByRegion = useMemo(() => {
     const counts: Record<string, number> = {};
     const relevantRegions = isAdmin ?
-    regions :
-    regions.filter((r) => r.id === currentUser.assigned_region_id);
+      regions :
+      regions.filter((r) => r.id === profile.assigned_region_id);
     relevantRegions.forEach((r) => counts[r.name] = 0);
     filteredInventory.forEach((item) => {
       const region = regions.find((r) => r.id === item.region_id);
@@ -182,7 +169,7 @@ export function DashboardPage() {
       region,
       count
     }));
-  }, [filteredInventory, regions, isAdmin, currentUser]);
+  }, [filteredInventory, regions, isAdmin, profile]);
   const regionConfig = {
     count: {
       label: 'Items',
@@ -199,27 +186,27 @@ export function DashboardPage() {
     };
     const allReqs = [...filteredInstallRequests, ...filteredRelocationRequests];
     allReqs.forEach((r) => {
-      if (r.status.includes('Pending')) counts.Pending++;else
-      if (r.status.includes('Approved')) counts.Approved++;else
-      if (r.status.includes('Rejected')) counts.Rejected++;else
-      if (r.status.includes('Completed') || r.status.includes('Fulfilled'))
-      counts.Completed++;
+      if (r.status.includes('Pending')) counts.Pending++; else
+        if (r.status.includes('Approved')) counts.Approved++; else
+          if (r.status.includes('Rejected')) counts.Rejected++; else
+            if (r.status.includes('Completed') || r.status.includes('Fulfilled'))
+              counts.Completed++;
     });
     // Include inventory requests
     filteredInventoryRequests.forEach((r) => {
-      if (r.status === 'Pending') counts.Pending++;else
-      if (r.status === 'Approved') counts.Approved++;else
-      if (r.status === 'Rejected') counts.Rejected++;else
-      if (r.status === 'Fulfilled') counts.Completed++;
+      if (r.status === 'Pending') counts.Pending++; else
+        if (r.status === 'Approved') counts.Approved++; else
+          if (r.status === 'Rejected') counts.Rejected++; else
+            if (r.status === 'Fulfilled') counts.Completed++;
     });
     return Object.entries(counts).map(([name, value]) => ({
       name,
       value
     }));
   }, [
-  filteredInstallRequests,
-  filteredRelocationRequests,
-  filteredInventoryRequests]
+    filteredInstallRequests,
+    filteredRelocationRequests,
+    filteredInventoryRequests]
   );
   const statusConfig = {
     Pending: {
@@ -241,22 +228,22 @@ export function DashboardPage() {
   };
   // Tables Data
   const recentActivity = isAdmin ?
-  auditLogs.slice(0, 8) :
-  auditLogs.filter((l) => l.user_id === currentUser.id).slice(0, 8);
+    auditLogs.slice(0, 8) :
+    auditLogs.filter((l) => l.user_id === profile.id).slice(0, 8);
   const pendingRequestsList = [
-  ...filteredInstallRequests,
-  ...filteredRelocationRequests,
-  ...filteredInventoryRequests].
+    ...filteredInstallRequests,
+    ...filteredRelocationRequests,
+    ...filteredInventoryRequests].
 
-  filter((r) => r.status.includes('Pending')).
-  sort(
-    (a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  ).
-  slice(0, 5);
+    filter((r) => r.status.includes('Pending')).
+    sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    ).
+    slice(0, 5);
   const lowStockComponents = filteredComponents.
-  filter((c) => c.minimum_stock > 0 && c.quantity < c.minimum_stock).
-  slice(0, 5);
+    filter((c) => c.minimum_stock > 0 && c.quantity < c.minimum_stock).
+    slice(0, 5);
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
       <div className="flex flex-col space-y-2">
@@ -264,8 +251,8 @@ export function DashboardPage() {
           Dashboard
         </h1>
         <p className="text-muted-foreground">
-          Welcome back, {currentUser.full_name}. Here's an overview of your{' '}
-          {currentUser.role.toLowerCase()} workspace.
+          Welcome back, {profile.name}. Here's an overview of your{' '}
+          {profile.role.toLowerCase()} workspace.
         </p>
       </div>
 
@@ -376,11 +363,11 @@ export function DashboardPage() {
                   innerRadius={60}
                   outerRadius={80}
                   paddingAngle={2}>
-                  
+
                   {inventoryByType.map((entry, index) =>
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={`var(--color-${entry.name.replace(' ', '')})`} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={`var(--color-${entry.name.replace(' ', '')})`} />
 
                   )}
                 </Pie>
@@ -406,25 +393,25 @@ export function DashboardPage() {
                   left: -20,
                   bottom: 0
                 }}>
-                
+
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
                   stroke="var(--border)" />
-                
+
                 <XAxis
                   dataKey="region"
                   tickLine={false}
                   axisLine={false}
                   fontSize={12} />
-                
+
                 <YAxis tickLine={false} axisLine={false} fontSize={12} />
                 <Tooltip content={<ChartTooltipContent />} />
                 <Bar
                   dataKey="count"
                   fill="var(--color-count)"
                   radius={[4, 4, 0, 0]} />
-                
+
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -447,11 +434,11 @@ export function DashboardPage() {
                   innerRadius={60}
                   outerRadius={80}
                   paddingAngle={2}>
-                  
+
                   {requestStatusData.map((entry, index) =>
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={`var(--color-${entry.name})`} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={`var(--color-${entry.name})`} />
 
                   )}
                 </Pie>
@@ -482,32 +469,32 @@ export function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {recentActivity.length === 0 ?
-                <TableRow>
+                  <TableRow>
                     <TableCell
-                    colSpan={4}
-                    className="text-center text-muted-foreground py-6">
-                    
+                      colSpan={4}
+                      className="text-center text-muted-foreground py-6">
+
                       No recent activity
                     </TableCell>
                   </TableRow> :
 
-                recentActivity.map((log) => {
-                  const user = users.find((u) => u.id === log.user_id);
-                  return (
-                    <TableRow key={log.id}>
+                  recentActivity.map((log) => {
+                    const user = users.find((u) => u.id === log.user_id);
+                    return (
+                      <TableRow key={log.id}>
                         <TableCell className="font-medium">
                           {user?.full_name || 'Unknown'}
                         </TableCell>
                         <TableCell>
                           <Badge
-                          variant={
-                          log.action === 'DELETE' ?
-                          'destructive' :
-                          log.action === 'CREATE' ?
-                          'default' :
-                          'secondary'
-                          }>
-                          
+                            variant={
+                              log.action === 'DELETE' ?
+                                'destructive' :
+                                log.action === 'CREATE' ?
+                                  'default' :
+                                  'secondary'
+                            }>
+
                             {log.action}
                           </Badge>
                         </TableCell>
@@ -517,7 +504,7 @@ export function DashboardPage() {
                         </TableCell>
                       </TableRow>);
 
-                })
+                  })
                 }
               </TableBody>
             </Table>
@@ -534,17 +521,17 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               {lowStockComponents.length === 0 ?
-              <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                   <PackageX className="h-8 w-8 mb-2 opacity-20" />
                   <p className="text-sm">Stock levels are healthy</p>
                 </div> :
 
-              <div className="space-y-4">
+                <div className="space-y-4">
                   {lowStockComponents.map((comp) =>
-                <div
-                  key={comp.id}
-                  className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                  
+                    <div
+                      key={comp.id}
+                      className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+
                       <div className="space-y-1">
                         <p className="text-sm font-medium leading-none">
                           {comp.item_name}
@@ -555,7 +542,7 @@ export function DashboardPage() {
                       </div>
                       <Badge variant="destructive">{comp.quantity} left</Badge>
                     </div>
-                )}
+                  )}
                 </div>
               }
             </CardContent>
@@ -568,17 +555,17 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               {pendingRequestsList.length === 0 ?
-              <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                   <CheckCircle2 className="h-8 w-8 mb-2 opacity-20" />
                   <p className="text-sm">All caught up</p>
                 </div> :
 
-              <div className="space-y-4">
+                <div className="space-y-4">
                   {pendingRequestsList.map((req) =>
-                <div
-                  key={req.id}
-                  className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                  
+                    <div
+                      key={req.id}
+                      className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+
                       <div className="space-y-1">
                         <p className="text-sm font-medium leading-none">
                           {req.request_number}
@@ -588,13 +575,13 @@ export function DashboardPage() {
                         </p>
                       </div>
                       <Badge
-                    className={getStatusColor(req.status)}
-                    variant="outline">
-                    
+                        className={getStatusColor(req.status)}
+                        variant="outline">
+
                         {req.status}
                       </Badge>
                     </div>
-                )}
+                  )}
                 </div>
               }
             </CardContent>

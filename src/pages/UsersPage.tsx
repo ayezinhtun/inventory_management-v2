@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -33,12 +33,13 @@ import { Plus, UserCog, Edit } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 import type { User, UserRole } from '../lib/types';
+import { useAuthStore } from '../store/useAuthStore';
 export function UsersPage() {
   const {
     users,
+    fetchUsers,
     regions,
     warehouses,
-    currentUser,
     getRegionName,
     getWarehouseName,
     addUser,
@@ -56,7 +57,13 @@ export function UsersPage() {
     assigned_warehouse_id: 'none',
     is_active: true
   });
-  if (currentUser?.role !== 'Admin') {
+  const { profile } = useAuthStore();
+
+useEffect(() => {
+  fetchUsers();
+}, [fetchUsers]);
+
+if (profile?.role !== 'admin') {
     return (
       <div className="p-6 text-center">
         <p className="text-destructive">
@@ -387,6 +394,7 @@ export function UsersPage() {
                     assigned_warehouse_id: val
                   })
                   }
+
                   disabled={formData.assigned_region_id === 'none'}>
                   
                     <SelectTrigger>
@@ -423,7 +431,7 @@ export function UsersPage() {
                   is_active: checked
                 })
                 }
-                disabled={editingUser?.id === currentUser.id} // Cannot deactivate self
+                disabled={editingUser?.id === profile?.user_id} // Cannot deactivate self
               />
             </div>
           </div>
