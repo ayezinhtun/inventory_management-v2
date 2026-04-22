@@ -49,6 +49,7 @@ import {
 '../lib/mock-data';
 import { generateId, generateRequestNumber } from '../lib/utils';
 import { supabase } from '../lib/supabase';
+import { auditLog } from '../lib/auditLog';
 
 // ---- Navigation / Page State ----
 export type Page =
@@ -372,6 +373,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
   updateInventoryItem: (id, updates) => {
     const now = new Date().toISOString();
+    const existing = get().inventory.find((i) => i.id === id);
     set((s) => ({
       inventory: s.inventory.map((i) =>
       i.id === id ?
@@ -384,6 +386,13 @@ export const useStore = create<AppState>((set, get) => ({
       i
       )
     }));
+    auditLog({
+      action: 'UPDATE',
+      module: 'Hardware Inventory',
+      record_id: id,
+      old_value: existing ? { item_name: existing.item_name, status: (existing as any).status, quantity: (existing as any).quantity } : null,
+      new_value: updates as Record<string, unknown>,
+    });
   },
   deleteInventoryItem: (id) => {
     set((s) => ({
@@ -542,10 +551,12 @@ export const useStore = create<AppState>((set, get) => ({
         set((s) => ({
           componentTypes: s.componentTypes.map((c) => c.id === optimistic.id ? data as ComponentType : c),
         }));
+        auditLog({ action: 'CREATE', module: 'Type Management', record_id: data.id, new_value: { type_name: (data as any).type_name } });
       }
     })().catch(() => {});
   },
   updateComponentType: (id, updates) => {
+    const existing = get().componentTypes.find((ct) => ct.id === id);
     set((s) => ({
       componentTypes: s.componentTypes.map((ct) =>
         ct.id === id ? { ...ct, ...updates, updated_at: new Date().toISOString() } : ct
@@ -554,13 +565,20 @@ export const useStore = create<AppState>((set, get) => ({
     // Persist to DB
     (async () => {
       await supabase.from('component_types').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
+      auditLog({
+        action: 'UPDATE', module: 'Type Management', record_id: id,
+        old_value: existing ? { type_name: existing.type_name } : null,
+        new_value: updates as Record<string, unknown>,
+      });
     })().catch(() => {});
   },
   deleteComponentType: (id) => {
+    const existing = get().componentTypes.find((ct) => ct.id === id);
     set((s) => ({ componentTypes: s.componentTypes.filter((ct) => ct.id !== id) }));
     // Persist to DB
     (async () => {
       await supabase.from('component_types').delete().eq('id', id);
+      auditLog({ action: 'DELETE', module: 'Type Management', record_id: id, old_value: existing ? { type_name: existing.type_name } : null });
     })().catch(() => {});
   },
 

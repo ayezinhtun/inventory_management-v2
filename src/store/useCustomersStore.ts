@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { auditLog } from '../lib/auditLog';
 
 export interface Customer {
   id: string;
@@ -51,11 +52,16 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
       .select()
       .single();
     if (error) throw error;
+
+    auditLog({ action: 'CREATE', module: 'Customers', record_id: data!.id, new_value: data! });
+
     await get().fetchCustomers();
     return data!;
   },
 
   updateCustomer: async (id, payload) => {
+    const existing = get().customers.find((c) => c.id === id);
+
     const { data, error } = await supabase
       .from('customers')
       .update({ ...payload, updated_at: new Date().toISOString() })
@@ -63,6 +69,9 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
       .select()
       .single();
     if (error) throw error;
+
+    auditLog({ action: 'UPDATE', module: 'Customers', record_id: id, old_value: existing ?? null, new_value: data! });
+
     set((s) => ({
       customers: s.customers.map((c) => (c.id === id ? data! : c)),
     }));
@@ -70,8 +79,13 @@ export const useCustomersStore = create<CustomersState>((set, get) => ({
   },
 
   deleteCustomer: async (id) => {
+    const existing = get().customers.find((c) => c.id === id);
+
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) throw error;
+
+    auditLog({ action: 'DELETE', module: 'Customers', record_id: id, old_value: existing ?? null });
+
     set((s) => ({ customers: s.customers.filter((c) => c.id !== id) }));
   },
 }));

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { auditLog } from '../lib/auditLog';
 
 export interface UserRecord {
   id: string;
@@ -66,11 +67,13 @@ export const useUsersStore = create<UsersState>((set, get) => ({
   },
 
   updateUserRecord: async (userId, updates) => {
+    const existing = get().users.find((u) => u.user_id === userId);
     const { error } = await supabase
       .from('user_profiles')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('user_id', userId);
     if (error) throw error;
+    auditLog({ action: 'UPDATE', module: 'User Management', record_id: userId, old_value: existing ? { name: existing.name, role: existing.role, status: existing.status } : null, new_value: updates as Record<string, unknown> });
 
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
@@ -96,15 +99,18 @@ export const useUsersStore = create<UsersState>((set, get) => ({
     if (error) throw new Error(error.message);
     if (result?.error) throw new Error(result.error);
     await get().fetchUsers();
+    auditLog({ action: 'CREATE', module: 'User Management', record_id: result.user_id ?? null, new_value: { name: data.name, email: data.email, role: data.role } });
     return result.password as string;
   },
 
   deleteUser: async (userId) => {
+    const existing = get().users.find((u) => u.user_id === userId);
     const { data: result, error } = await supabase.functions.invoke('admin-user-actions', {
       body: { action: 'delete', target_user_id: userId },
     });
     if (error) throw new Error(error.message);
     if (result?.error) throw new Error(result.error);
+    auditLog({ action: 'DELETE', module: 'User Management', record_id: userId, old_value: existing ? { name: existing.name, email: existing.email } : null });
     set((s) => ({ users: s.users.filter((u) => u.user_id !== userId) }));
   },
 
