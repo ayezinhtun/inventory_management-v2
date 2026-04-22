@@ -5,6 +5,9 @@
 -- Credentials: admin@1cng.com / Admin@1CNG2026!
 -- =============================================================
 
+-- pgcrypto is required for crypt() and gen_salt()
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 DO $$
 DECLARE
   v_admin_id uuid := gen_random_uuid();
