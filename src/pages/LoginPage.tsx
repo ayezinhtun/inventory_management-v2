@@ -15,25 +15,37 @@ import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
 import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Server, AlertCircle, Loader2 } from 'lucide-react';
+import {toast} from 'sonner';
+import { useAuthStore } from '../store/useAuthStore';
+
 export function LoginPage() {
-  const login = useStore((state) => state.login);
-  const [username, setUsername] = useState('');
+  const {navigate} = useStore();
+
+  const { login } = useAuthStore();
+
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    // Simulate network delay
-    setTimeout(() => {
-      const success = login(username, password);
-      if (!success) {
-        setError('Invalid username or password');
-      }
+
+
+    try {
+      await login(email, password);
+      toast.success('Login successful');
+      navigate('dashboard');
+    } catch (error: any) {
+      setError(error.message || 'Invalid email or password');
+    } finally {
       setIsLoading(false);
-    }, 600);
+    }
   };
+
+  
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-md space-y-8">
@@ -61,13 +73,13 @@ export function LoginPage() {
                 }
 
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
-                    id="username"
-                    type="text"
-                    placeholder="Enter your username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     disabled={isLoading}
                     required />
 
@@ -102,10 +114,10 @@ export function LoginPage() {
 
               <div className="text-center mt-4">
                 <p className="text-sm text-gray-600">
-                  Create Account?{' '}
-                  <a href="/signup" className="text-blue-600 hover:underline">
+                  Don't have an account?{' '}
+                  <button onClick={() => navigate('signup')} className="text-blue-600 hover:underline">
                     Sign Up
-                  </a>
+                  </button>
                 </p>
               </div>
             </CardContent>

@@ -65,6 +65,7 @@ import {
 import { Avatar, AvatarFallback } from './components/ui/Avatar';
 import { Badge } from './components/ui/Badge';
 import { getInitials } from './lib/utils';
+import { useAuthStore } from './store/useAuthStore';
 export function App() {
   const {
     isAuthenticated,
@@ -76,6 +77,8 @@ export function App() {
     getUnreadNotificationCount
   } = useStore();
 
+
+  const {user, profile} = useAuthStore();
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -95,7 +98,7 @@ export function App() {
   }
 
   // If not authenticated, show login page
-  if (!isAuthenticated) {
+  if (!user) {
 
     return (
       <TooltipProvider>
