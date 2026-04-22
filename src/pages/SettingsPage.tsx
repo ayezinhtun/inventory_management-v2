@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useRegionStore } from '../store/useRegionStore';
+import { useWarehouseStore } from '../store/useWarehouseStore';
 import {
   Card,
   CardContent,
@@ -37,7 +39,7 @@ import {
 type TwoFAStep = 'idle' | 'enrolling' | 'verifying';
 
 export function SettingsPage() {
-  const { currentUser, getRegionName, getWarehouseName } = useStore();
+  const { currentUser } = useStore();
   const {
     profile,
     mfaFactors,
@@ -49,10 +51,27 @@ export function SettingsPage() {
     verifyTOTP,
     unenrollTOTP,
   } = useAuthStore();
+  const { regions, fetchRegions } = useRegionStore();
+  const { warehouses, fetchWarehouses } = useWarehouseStore();
 
   // ── Profile form ──────────────────────────────────────────────────────────
-  const [name, setName] = useState(profile?.name || currentUser?.full_name || '');
-  const [username, setUsername] = useState(profile?.username || '');
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+
+  // Sync form fields when profile loads (avoids stale initial state)
+  useEffect(() => {
+    if (profile) {
+      setName(profile.name || '');
+      setUsername(profile.username || '');
+    }
+  }, [profile?.user_id]);
+
+  // Load region/warehouse data for label display
+  useEffect(() => {
+    fetchRegions();
+    fetchWarehouses();
+  }, []);
+
   const [profileSaving, setProfileSaving] = useState(false);
 
   // ── Password form ─────────────────────────────────────────────────────────
@@ -83,15 +102,16 @@ export function SettingsPage() {
 
   const activeTOTP = mfaFactors.find((f) => f.status === 'verified');
   const regionLabel = currentUser.assigned_region_id
-    ? getRegionName(currentUser.assigned_region_id)
+    ? (regions.find((r) => r.id === currentUser.assigned_region_id)?.name ?? currentUser.assigned_region_id)
     : 'All Regions';
   const warehouseLabel = currentUser.assigned_warehouse_id
-    ? getWarehouseName(currentUser.assigned_warehouse_id)
+    ? (warehouses.find((w) => w.id === currentUser.assigned_warehouse_id)?.name ?? currentUser.assigned_warehouse_id)
     : 'All Warehouses';
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   async function handleSaveProfile() {
+    if (!profile) { toast.error('Profile not loaded yet, please wait'); return; }
     if (!name.trim()) { toast.error('Name cannot be empty'); return; }
     setProfileSaving(true);
     try {
@@ -239,7 +259,7 @@ export function SettingsPage() {
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleSaveProfile} disabled={profileSaving || isLoading}>
+          <Button onClick={handleSaveProfile} disabled={profileSaving || isLoading || !profile}>
             {profileSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : 'Save Changes'}
           </Button>
         </CardFooter>
