@@ -35,6 +35,7 @@ const FIELD_TYPE_LABELS: Record<FormField['field_type'], string> = {
   number: 'Number',
   date: 'Date',
   time: 'Time',
+  dropdown: 'Dropdown',
 };
 
 // Preview of what the dynamic form will look like
@@ -51,20 +52,17 @@ function FormPreview({ fields }: { fields: FormField[] }) {
       {fields.map((f) => (
         <div key={f.id} className="space-y-1">
           <Label className="text-xs">
-            {f.label}
+            {f.label || <span className="italic text-muted-foreground">Untitled field</span>}
             {f.required && <span className="text-destructive ml-1">*</span>}
           </Label>
-          {f.field_type === 'text' && (
-            <Input disabled placeholder={f.label} className="h-8 text-xs opacity-60" />
-          )}
-          {f.field_type === 'number' && (
-            <Input disabled type="number" placeholder="0" className="h-8 text-xs opacity-60" />
-          )}
-          {f.field_type === 'date' && (
-            <Input disabled type="date" className="h-8 text-xs opacity-60" />
-          )}
-          {f.field_type === 'time' && (
-            <Input disabled type="time" className="h-8 text-xs opacity-60" />
+          {f.field_type === 'text' && <Input disabled placeholder={f.label} className="h-8 text-xs opacity-60" />}
+          {f.field_type === 'number' && <Input disabled type="number" placeholder="0" className="h-8 text-xs opacity-60" />}
+          {f.field_type === 'date' && <Input disabled type="date" className="h-8 text-xs opacity-60" />}
+          {f.field_type === 'time' && <Input disabled type="time" className="h-8 text-xs opacity-60" />}
+          {f.field_type === 'dropdown' && (
+            <select disabled className="w-full h-8 text-xs rounded-md border border-input bg-transparent px-2 opacity-60">
+              <option value="">{(f.options ?? []).length > 0 ? `${f.options!.length} option(s)` : 'No options yet'}</option>
+            </select>
           )}
         </div>
       ))}
@@ -134,7 +132,7 @@ export function TypeManagementPage() {
       updateComponentType(editingType.id, payload);
       toast.success('Component type updated');
     } else {
-      addComponentType({ ...payload, created_by: currentUser.id });
+      addComponentType({ ...payload, created_by: currentUser!.id });
       toast.success('Component type created');
     }
     setDialogOpen(false);
@@ -345,17 +343,44 @@ export function TypeManagementPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <div>
-                  <Label>Requires Specification</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Force users to enter specs when adding this component
-                  </p>
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Requires Specification</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Force users to enter specs when adding this component
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.requires_specification}
+                    onCheckedChange={(v) => setFormData({ ...formData, requires_specification: v })}
+                  />
                 </div>
-                <Switch
-                  checked={formData.requires_specification}
-                  onCheckedChange={(v) => setFormData({ ...formData, requires_specification: v })}
-                />
+
+                {/* Inline spec field builder — shown when Requires Specification is ON */}
+                {formData.requires_specification && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/40 dark:bg-blue-950/20 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide">
+                        Specification Fields
+                      </p>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { addField(); setActiveTab('fields'); }}>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Field
+                      </Button>
+                    </div>
+                    {fields.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No fields yet — click <strong>Add Field</strong> or switch to the <strong>Form Fields</strong> tab.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        <strong>{fields.length}</strong> field{fields.length !== 1 ? 's' : ''} configured.
+                        Switch to the <strong>Form Fields</strong> tab to edit them.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-1">
@@ -392,8 +417,8 @@ export function TypeManagementPage() {
               ) : (
                 <div className="space-y-2">
                   {fields.map((field, idx) => (
+                    <React.Fragment key={field.id}>
                     <div
-                      key={field.id}
                       className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30"
                     >
                       {/* Reorder */}
@@ -434,13 +459,14 @@ export function TypeManagementPage() {
                         onValueChange={(v) => updateField(field.id, 'field_type', v as FormField['field_type'])}
                       >
                         <SelectTrigger className="w-28 h-8 text-sm">
-                          <SelectValue />
+                          <SelectValue displayValue={FIELD_TYPE_LABELS[field.field_type]} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="text">Text</SelectItem>
                           <SelectItem value="number">Number</SelectItem>
                           <SelectItem value="date">Date</SelectItem>
                           <SelectItem value="time">Time</SelectItem>
+                          <SelectItem value="dropdown">Dropdown</SelectItem>
                         </SelectContent>
                       </Select>
 
@@ -463,6 +489,22 @@ export function TypeManagementPage() {
                         <X className="h-4 w-4" />
                       </button>
                     </div>
+
+                    {/* Dropdown options editor */}
+                    {field.field_type === 'dropdown' && (
+                      <div className="ml-8 mt-1.5">
+                        <Input
+                          value={(field.options ?? []).join(', ')}
+                          onChange={(e) =>
+                            updateField(field.id, 'options', e.target.value.split(',').map((o) => o.trim()).filter(Boolean))
+                          }
+                          placeholder="Option 1, Option 2, Option 3 …"
+                          className="h-7 text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground mt-0.5">Comma-separated choices</p>
+                      </div>
+                    )}
+                    </React.Fragment>
                   ))}
 
                   <Button size="sm" variant="outline" onClick={addField} className="w-full mt-1">
