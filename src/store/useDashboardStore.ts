@@ -8,13 +8,16 @@ import { supabase } from '../lib/supabase';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DashboardMetrics {
-  totalComponents: number;   // unique component records
-  totalQuantity: number;     // sum of all quantities
-  componentTypes: number;    // active component type count
-  activeRegions: number;
-  activeWarehouses: number;
-  activeUsers: number;
-  totalAssetValue: number;   // sum(purchase_price * quantity)
+  totalComponents: number;    // unique component records
+  totalQuantity: number;      // sum of all quantities
+  componentTypes: number;     // active component type count
+  totalRegions: number;       // all regions
+  activeRegions: number;      // active regions
+  totalWarehouses: number;    // all warehouses
+  activeWarehouses: number;   // active warehouses
+  totalCustomers: number;     // all customers
+  activeUsers: number;        // active user accounts
+  totalAssetValue: number;    // sum(purchase_price * quantity)
   brokenComponents: number;
   lowStockCount: number;
 }
@@ -58,7 +61,9 @@ interface DashboardState {
 
 const EMPTY_METRICS: DashboardMetrics = {
   totalComponents: 0, totalQuantity: 0, componentTypes: 0,
-  activeRegions: 0, activeWarehouses: 0, activeUsers: 0,
+  totalRegions: 0,    activeRegions: 0,
+  totalWarehouses: 0, activeWarehouses: 0,
+  totalCustomers: 0,  activeUsers: 0,
   totalAssetValue: 0, brokenComponents: 0, lowStockCount: 0,
 };
 
@@ -91,11 +96,12 @@ export const useDashboardStore = create<DashboardState>((set) => ({
       }
 
       const [
-        { data: compsRaw,  error: compErr },
+        { data: compsRaw,      error: compErr },
         { data: typesRaw },
         { data: regionsRaw },
         { data: warehousesRaw },
         { count: userCount },
+        { count: customerCount },
         { data: logsRaw },
       ] = await Promise.all([
         compQuery,
@@ -103,20 +109,21 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         supabase.from('regions').select('id, name, status'),
         supabase.from('warehouses').select('id, status'),
         supabase.from('user_profiles').select('user_id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('customers').select('id', { count: 'exact', head: true }),
         supabase
           .from('audit_logs')
           .select('id, user_id, action, module, record_id, timestamp')
           .order('timestamp', { ascending: false })
-          .limit(10),
+          .limit(12),
       ]);
 
       if (compErr) throw compErr;
 
-      const comps     = compsRaw     ?? [];
-      const types     = typesRaw     ?? [];
-      const regions   = regionsRaw   ?? [];
+      const comps      = compsRaw      ?? [];
+      const types      = typesRaw      ?? [];
+      const regions    = regionsRaw    ?? [];
       const warehouses = warehousesRaw ?? [];
-      const logs      = logsRaw      ?? [];
+      const logs       = logsRaw       ?? [];
 
       // ── 2. Resolve user names for audit log ────────────────────────────────
       const userIds = [...new Set(logs.map((l: any) => l.user_id).filter(Boolean))];
@@ -189,7 +196,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
           (a.quantity / Math.max(a.minimum_stock, 1)) -
           (b.quantity / Math.max(b.minimum_stock, 1))
         )
-        .slice(0, 6)
+        .slice(0, 8)
         .map((c: any) => ({
           id: c.id,
           item_name: c.item_name,
@@ -215,13 +222,16 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         metrics: {
           totalComponents,
           totalQuantity,
-          componentTypes: types.length,
+          componentTypes:   types.length,
+          totalRegions:     regions.length,
           activeRegions,
+          totalWarehouses:  warehouses.length,
           activeWarehouses,
-          activeUsers: userCount ?? 0,
+          totalCustomers:   customerCount ?? 0,
+          activeUsers:      userCount ?? 0,
           totalAssetValue,
           brokenComponents,
-          lowStockCount: lowStock.length,
+          lowStockCount:    lowStock.length,
         },
         componentsByType,
         componentsByRegion,
