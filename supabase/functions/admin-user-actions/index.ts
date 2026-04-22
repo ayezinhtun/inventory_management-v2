@@ -123,14 +123,17 @@ Deno.serve(async (req: Request) => {
       });
       if (createErr) throw createErr;
 
-      await supabaseAdmin.from('user_profiles').update({
+      // Use upsert so it works whether or not a trigger auto-created the profile row
+      await supabaseAdmin.from('user_profiles').upsert({
+        user_id: authUser.user.id,
         name,
+        email,
         role,
         region_id: region_id || null,
         warehouse_id: warehouse_id || null,
         force_password_change: true,
         status: 'active',
-      }).eq('user_id', authUser.user.id);
+      }, { onConflict: 'user_id' });
 
       await supabaseAdmin.from('user_activity_logs').insert({
         user_id: authUser.user.id,
