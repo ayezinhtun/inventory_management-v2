@@ -8,18 +8,27 @@ import { supabase } from '../lib/supabase';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DashboardMetrics {
-  totalComponents: number;    // unique component records
-  totalQuantity: number;      // sum of all quantities
-  componentTypes: number;     // active component type count
-  totalRegions: number;       // all regions
-  activeRegions: number;      // active regions
-  totalWarehouses: number;    // all warehouses
-  activeWarehouses: number;   // active warehouses
-  totalCustomers: number;     // all customers
-  activeUsers: number;        // active user accounts
-  totalAssetValue: number;    // sum(purchase_price * quantity)
+  // Core counts
+  totalComponents: number;
+  totalQuantity: number;
+  componentTypes: number;
+  totalRegions: number;
+  activeRegions: number;
+  totalWarehouses: number;
+  activeWarehouses: number;
+  totalCustomers: number;
+  activeUsers: number;
+  totalAssetValue: number;
   brokenComponents: number;
   lowStockCount: number;
+
+  // Month-over-month deltas (positive = growth)
+  componentsThisMonth: number;
+  componentsLastMonth: number;
+  customersThisMonth: number;
+  customersLastMonth: number;
+  auditThisMonth: number;
+  auditLastMonth: number;
 }
 
 export interface ActivityEntry {
@@ -43,6 +52,7 @@ export interface LowStockItem {
 
 export interface ChartPoint   { name: string; value: number }
 export interface RegionPoint  { region: string; count: number; quantity: number }
+export interface MonthPoint   { month: string; value: number; prevValue: number }
 
 interface DashboardState {
   metrics: DashboardMetrics;
@@ -51,6 +61,7 @@ interface DashboardState {
   componentsByType: ChartPoint[];
   componentsByRegion: RegionPoint[];
   componentsByStatus: ChartPoint[];
+  monthlyTrend: MonthPoint[];
   isLoading: boolean;
   lastUpdated: Date | null;
 
@@ -65,7 +76,23 @@ const EMPTY_METRICS: DashboardMetrics = {
   totalWarehouses: 0, activeWarehouses: 0,
   totalCustomers: 0,  activeUsers: 0,
   totalAssetValue: 0, brokenComponents: 0, lowStockCount: 0,
+  componentsThisMonth: 0, componentsLastMonth: 0,
+  customersThisMonth: 0,  customersLastMonth: 0,
+  auditThisMonth: 0,      auditLastMonth: 0,
 };
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function monthStart(offsetMonths = 0): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  d.setMonth(d.getMonth() - offsetMonths);
+  return d.toISOString();
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
@@ -76,45 +103,66 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   componentsByType:   [],
   componentsByRegion: [],
   componentsByStatus: [],
+  monthlyTrend:       [],
   isLoading:          false,
   lastUpdated:        null,
 
   fetchDashboard: async ({ role = 'Engineer', regionId = null } = {}) => {
     set({ isLoading: true });
     try {
-      // ── 1. Parallel queries ────────────────────────────────────────────────
+      // Date boundaries for MoM comparison
+      const thisMonthStart = monthStart(0);
+      const lastMonthStart = monthStart(1);
+      const twoMonthsAgo   = monthStart(2);
+      const sixMonthsAgo   = monthStart(5);
+      const twelveMonthsAgo = monthStart(11);
+
+      // ── 1. Component query ────────────────────────────────────────────────
       let compQuery = supabase
         .from('components')
         .select(
-          'id, item_name, component_type_id, region_id, quantity, minimum_stock, status, purchase_price'
+          'id, item_name, component_type_id, region_id, quantity, minimum_stock, status, purchase_price, created_at'
         )
         .eq('is_deleted', false);
 
-      // Non-admins only see their own region
       if (role !== 'Admin' && regionId) {
         compQuery = compQuery.eq('region_id', regionId);
       }
 
+      // ── 2. Parallel queries ────────────────────────────────────────────────
       const [
-        { data: compsRaw,      error: compErr },
+        { data: compsRaw,       error: compErr },
         { data: typesRaw },
         { data: regionsRaw },
         { data: warehousesRaw },
         { count: userCount },
-        { count: customerCount },
+        { count: customerCountTotal },
+        { count: customerCountThis },
+        { count: customerCountLast },
         { data: logsRaw },
+        { count: auditThis },
+        { count: auditLast },
+        { data: trendCompsRaw },
+        { data: trendPrevRaw },
       ] = await Promise.all([
         compQuery,
         supabase.from('component_types').select('id, type_name').eq('is_active', true),
         supabase.from('regions').select('id, name, status'),
         supabase.from('warehouses').select('id, status'),
         supabase.from('user_profiles').select('user_id', { count: 'exact', head: true }).eq('status', 'active'),
+        // customer totals
         supabase.from('customers').select('id', { count: 'exact', head: true }),
-        supabase
-          .from('audit_logs')
-          .select('id, user_id, action, module, record_id, timestamp')
-          .order('timestamp', { ascending: false })
-          .limit(12),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', thisMonthStart),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
+        // audit log
+        supabase.from('audit_logs').select('id, user_id, action, module, record_id, timestamp').order('timestamp', { ascending: false }).limit(12),
+        // audit MoM
+        supabase.from('audit_logs').select('id', { count: 'exact', head: true }).gte('timestamp', thisMonthStart),
+        supabase.from('audit_logs').select('id', { count: 'exact', head: true }).gte('timestamp', lastMonthStart).lt('timestamp', thisMonthStart),
+        // 6-month trend: components created each month
+        supabase.from('components').select('created_at').eq('is_deleted', false).gte('created_at', sixMonthsAgo),
+        // prev 6-month for comparison
+        supabase.from('components').select('created_at').eq('is_deleted', false).gte('created_at', twelveMonthsAgo).lt('created_at', sixMonthsAgo),
       ]);
 
       if (compErr) throw compErr;
@@ -125,7 +173,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
       const warehouses = warehousesRaw ?? [];
       const logs       = logsRaw       ?? [];
 
-      // ── 2. Resolve user names for audit log ────────────────────────────────
+      // ── 3. Resolve user names for audit log ────────────────────────────────
       const userIds = [...new Set(logs.map((l: any) => l.user_id).filter(Boolean))];
       const nameMap: Record<string, string> = {};
       if (userIds.length > 0) {
@@ -136,7 +184,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         (profiles ?? []).forEach((p: any) => { nameMap[p.user_id] = p.name; });
       }
 
-      // ── 3. Metrics ─────────────────────────────────────────────────────────
+      // ── 4. Metrics ─────────────────────────────────────────────────────────
       const totalComponents  = comps.length;
       const totalQuantity    = comps.reduce((s: number, c: any) => s + (c.quantity ?? 0), 0);
       const totalAssetValue  = comps.reduce((s: number, c: any) =>
@@ -148,9 +196,35 @@ export const useDashboardStore = create<DashboardState>((set) => ({
       const activeRegions    = regions.filter((r: any) => r.status === 'active').length;
       const activeWarehouses = warehouses.filter((w: any) => w.status === 'active').length;
 
-      // ── 4. Charts ──────────────────────────────────────────────────────────
+      // Components MoM
+      const componentsThisMonth = comps.filter((c: any) => c.created_at >= thisMonthStart).length;
+      const componentsLastMonth = comps.filter((c: any) =>
+        c.created_at >= lastMonthStart && c.created_at < thisMonthStart).length;
 
-      // By type
+      // ── 5. Monthly trend chart (last 6 months vs prev 6) ──────────────────
+      const now = new Date();
+      const monthlyTrend: MonthPoint[] = Array.from({ length: 6 }, (_, i) => {
+        const monthOffset = 5 - i;
+        const d = new Date(now);
+        d.setDate(1);
+        d.setMonth(d.getMonth() - monthOffset);
+        const mStart = d.toISOString();
+        const mEnd = new Date(d.setMonth(d.getMonth() + 1)).toISOString();
+        // prev year equivalent
+        const pStart = new Date(new Date(mStart).setFullYear(new Date(mStart).getFullYear() - 1)).toISOString();
+        const pEnd   = new Date(new Date(mEnd).setFullYear(new Date(mEnd).getFullYear() - 1)).toISOString();
+
+        const value     = (trendCompsRaw ?? []).filter((c: any) => c.created_at >= mStart && c.created_at < mEnd).length;
+        const prevValue = (trendPrevRaw  ?? []).filter((c: any) => c.created_at >= pStart && c.created_at < pEnd).length;
+
+        return {
+          month: MONTH_NAMES[new Date(mStart).getMonth()],
+          value,
+          prevValue,
+        };
+      });
+
+      // ── 6. Charts ──────────────────────────────────────────────────────────
       const typeAcc: Record<string, { name: string; qty: number }> = {};
       comps.forEach((c: any) => {
         const tid = c.component_type_id;
@@ -167,7 +241,6 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         .sort((a, b) => b.value - a.value)
         .slice(0, 8);
 
-      // By region (show all regions, zero-count ones included)
       const regionAcc: Record<string, { name: string; count: number; qty: number }> = {};
       regions.forEach((r: any) => { regionAcc[r.id] = { name: r.name, count: 0, qty: 0 }; });
       comps.forEach((c: any) => {
@@ -180,7 +253,6 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         .map((r) => ({ region: r.name, count: r.count, quantity: r.qty }))
         .sort((a, b) => b.quantity - a.quantity);
 
-      // By status
       const statusAcc: Record<string, number> = {};
       comps.forEach((c: any) => {
         const s = c.status ?? 'Unknown';
@@ -190,7 +262,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value);
 
-      // ── 5. Low stock items (sorted: most critical first) ───────────────────
+      // ── 7. Low stock ───────────────────────────────────────────────────────
       const lowStockItems = lowStock
         .sort((a: any, b: any) =>
           (a.quantity / Math.max(a.minimum_stock, 1)) -
@@ -206,7 +278,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
           region_name: regions.find((r: any) => r.id === c.region_id)?.name ?? '—',
         }));
 
-      // ── 6. Recent activity ─────────────────────────────────────────────────
+      // ── 8. Recent activity ─────────────────────────────────────────────────
       const recentActivity: ActivityEntry[] = logs.map((l: any) => ({
         id:        l.id,
         user_id:   l.user_id,
@@ -217,7 +289,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
         timestamp: l.timestamp,
       }));
 
-      // ── 7. Commit ──────────────────────────────────────────────────────────
+      // ── 9. Commit ──────────────────────────────────────────────────────────
       set({
         metrics: {
           totalComponents,
@@ -227,15 +299,22 @@ export const useDashboardStore = create<DashboardState>((set) => ({
           activeRegions,
           totalWarehouses:  warehouses.length,
           activeWarehouses,
-          totalCustomers:   customerCount ?? 0,
+          totalCustomers:   customerCountTotal ?? 0,
           activeUsers:      userCount ?? 0,
           totalAssetValue,
           brokenComponents,
           lowStockCount:    lowStock.length,
+          componentsThisMonth,
+          componentsLastMonth,
+          customersThisMonth:  customerCountThis ?? 0,
+          customersLastMonth:  customerCountLast ?? 0,
+          auditThisMonth:  auditThis ?? 0,
+          auditLastMonth:  auditLast ?? 0,
         },
         componentsByType,
         componentsByRegion,
         componentsByStatus,
+        monthlyTrend,
         lowStockItems,
         recentActivity,
         lastUpdated: new Date(),

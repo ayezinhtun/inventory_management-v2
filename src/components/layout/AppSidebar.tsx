@@ -47,6 +47,7 @@ import {
   CalendarClock,
   Activity,
   BoxIcon,
+  Mail,
 } from "lucide-react";
 export function AppSidebar() {
   const {
@@ -252,6 +253,12 @@ export function AppSidebar() {
           id: "users",
           label: "User Management",
           icon: Users,
+          roles: ["Admin"],
+        },
+        {
+          id: "mail",
+          label: "Mail",
+          icon: Mail,
           roles: ["Admin"],
         },
         {

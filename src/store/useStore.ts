@@ -91,6 +91,7 @@ export type Page =
 'users' |
 'audit-log' |
 'notifications-page' |
+'mail' |
 'reports' |
 'settings';
 

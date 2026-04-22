@@ -17,6 +17,7 @@ import { TypeManagementPage } from './pages/TypeManagementPage';
 import { UsersPage } from './pages/UsersPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { MailPage } from './pages/MailPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ComponentDetailPage } from './pages/ComponentDetailPage';
 import { VendorsPage } from './pages/VendorsPage';
@@ -221,6 +222,8 @@ export function App() {
         return <AuditLogPage />;
       case 'notifications-page':
         return <NotificationsPage />;
+      case 'mail':
+        return <MailPage />;
       case 'settings':
         return <SettingsPage />;
       case 'component-detail':

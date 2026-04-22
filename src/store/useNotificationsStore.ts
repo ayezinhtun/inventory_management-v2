@@ -33,6 +33,7 @@ export interface EmailLog {
   to_email: string;
   to_user_id: string | null;
   subject: string;
+  html_body: string | null;
   status: EmailStatus;
   provider: string;
   provider_id: string | null;
