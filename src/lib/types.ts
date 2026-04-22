@@ -148,8 +148,9 @@ export interface Rack {
 export interface FormField {
   id: string;
   label: string;
-  field_type: 'text' | 'number' | 'date' | 'time';
+  field_type: 'text' | 'number' | 'date' | 'time' | 'dropdown';
   required: boolean;
+  options?: string[]; // Choices for dropdown type
 }
 
 export interface ComponentType {
