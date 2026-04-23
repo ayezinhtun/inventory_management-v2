@@ -204,6 +204,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await syncToAppStore(profile);
         await get().refreshMFAFactors();
         startHeartbeat(session.user.id);
+
+        // Real-time: re-sync when this user's own profile changes (role, region, warehouse)
+        // This makes the sidebar react immediately when an admin changes the user's role.
+        supabase
+          .channel(`profile-${session.user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'user_profiles',
+              filter: `user_id=eq.${session.user.id}`,
+            },
+            async () => {
+              const fresh = await get().fetchProfile();
+              await syncToAppStore(fresh);
+            }
+          )
+          .subscribe();
       }
     } finally {
       set({ isInitializing: false });
@@ -423,10 +442,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updatePassword: async (currentPassword, newPassword) => {
     const profile = get().profile;
     if (!profile) throw new Error("Not authenticated");
+    // Use email from profile; fall back to the auth user's email
+    const email = profile.email || get().user?.email || '';
+    if (!email) throw new Error("Cannot determine account email. Please contact an administrator.");
     set({ isLoading: true });
     try {
       // Re-authenticate to verify current password
-      const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password: currentPassword });
+      const { error: authErr } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
       if (authErr) throw new Error("Current password is incorrect.");
 
       const { error } = await supabase.auth.updateUser({ password: newPassword });

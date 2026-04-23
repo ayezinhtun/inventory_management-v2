@@ -29,6 +29,51 @@ Deno.serve(async (req: Request) => {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
+  // Parse body early — needed to detect 'forgot_password' before auth check
+  let body: Record<string, any>;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // ── FORGOT PASSWORD ────────────────────────────────────────────────────────
+  // Intentionally UNAUTHENTICATED — called from the login page.
+  // Invalidates the current password so the old one can't be used after reset.
+  if (body.action === 'forgot_password') {
+    const { email } = body;
+    if (!email) {
+      return new Response(JSON.stringify({ error: 'email is required' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    try {
+      const { data: users, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
+      if (listErr) throw listErr;
+      const targetUser = users.users.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase()
+      );
+      if (targetUser) {
+        // Set a random temp password — old password immediately stops working
+        const tempPwd = generatePassword();
+        await supabaseAdmin.auth.admin.updateUserById(targetUser.id, { password: tempPwd });
+      }
+      // Always return success (don't reveal whether email exists)
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } catch (err: any) {
+      // Still return success to avoid email enumeration
+      console.error('[forgot_password]', err.message);
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
+  // ── All other actions require Admin auth ───────────────────────────────────
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -57,58 +102,10 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Parse body early so we can handle unauthenticated actions
-  let body: Record<string, any>;
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // ── FORGOT PASSWORD (unauthenticated) ──────────────────────────────────
-  // Invalidates the user's current password by setting a random temp one,
-  // so the old password no longer works. The client then sends a reset email.
-  if (body.action === 'forgot_password') {
-    const { email } = body;
-    if (!email) {
-      return new Response(JSON.stringify({ error: 'email is required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    try {
-      // Find user by email
-      const { data: users, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
-      if (listErr) throw listErr;
-      const targetUser = users.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-      if (!targetUser) {
-        // Return success even when not found (security: don't reveal if email exists)
-        return new Response(JSON.stringify({ success: true }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      // Set a random temporary password — old password is immediately invalid
-      const tempPwd = generatePassword();
-      const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(
-        targetUser.id, { password: tempPwd }
-      );
-      if (updateErr) throw updateErr;
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } catch (err: any) {
-      return new Response(JSON.stringify({ error: err.message ?? 'Internal error' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-  }
-
   try {
     const { action } = body;
 
-    // ── CREATE USER ────────────────────────────────────────────────────────
+    // ── CREATE USER ──────────────────────────────────────────────────────────
     if (action === 'create') {
       const { email, name, role, region_id, warehouse_id } = body;
       if (!email || !name || !role) throw new Error('email, name, and role are required');
@@ -123,7 +120,6 @@ Deno.serve(async (req: Request) => {
       });
       if (createErr) throw createErr;
 
-      // Use upsert so it works whether or not a trigger auto-created the profile row
       await supabaseAdmin.from('user_profiles').upsert({
         user_id: authUser.user.id,
         name,
@@ -147,18 +143,22 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ── DELETE USER ────────────────────────────────────────────────────────
+    // ── DELETE USER ──────────────────────────────────────────────────────────
     if (action === 'delete') {
       const { target_user_id } = body;
       if (!target_user_id) throw new Error('target_user_id is required');
       if (target_user_id === user.id) throw new Error('Cannot delete your own account');
 
+      // Log before deleting (cascade may remove profile row)
       await supabaseAdmin.from('user_activity_logs').insert({
         user_id: target_user_id,
         actor_id: user.id,
         action: 'ACCOUNT_DELETED',
         details: { deleted_by: user.email },
       }).catch(() => {});
+
+      // Remove from user_profiles first to avoid FK issues
+      await supabaseAdmin.from('user_profiles').delete().eq('user_id', target_user_id).catch(() => {});
 
       const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(target_user_id);
       if (delErr) throw delErr;
@@ -168,7 +168,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ── RESET PASSWORD ─────────────────────────────────────────────────────
+    // ── RESET PASSWORD ───────────────────────────────────────────────────────
     if (action === 'reset_password') {
       const { target_user_id } = body;
       if (!target_user_id) throw new Error('target_user_id is required');
