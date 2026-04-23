@@ -1,0 +1,328 @@
+/**
+ * Dashboard store — fetches all metrics directly from Supabase.
+ * No mock data. All numbers are real.
+ */
+import { create } from 'zustand';
+import { supabase } from '../lib/supabase';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface DashboardMetrics {
+  // Core counts
+  totalComponents: number;
+  totalQuantity: number;
+  componentTypes: number;
+  totalRegions: number;
+  activeRegions: number;
+  totalWarehouses: number;
+  activeWarehouses: number;
+  totalCustomers: number;
+  activeUsers: number;
+  totalAssetValue: number;
+  brokenComponents: number;
+  lowStockCount: number;
+
+  // Month-over-month deltas (positive = growth)
+  componentsThisMonth: number;
+  componentsLastMonth: number;
+  customersThisMonth: number;
+  customersLastMonth: number;
+  auditThisMonth: number;
+  auditLastMonth: number;
+}
+
+export interface ActivityEntry {
+  id: string;
+  user_id: string | null;
+  user_name: string;
+  action: string;
+  module: string;
+  record_id: string | null;
+  timestamp: string;
+}
+
+export interface LowStockItem {
+  id: string;
+  item_name: string;
+  quantity: number;
+  minimum_stock: number;
+  type_name: string;
+  region_name: string;
+}
+
+export interface ChartPoint   { name: string; value: number }
+export interface RegionPoint  { region: string; count: number; quantity: number }
+export interface MonthPoint   { month: string; value: number; prevValue: number }
+
+interface DashboardState {
+  metrics: DashboardMetrics;
+  recentActivity: ActivityEntry[];
+  lowStockItems: LowStockItem[];
+  componentsByType: ChartPoint[];
+  componentsByRegion: RegionPoint[];
+  componentsByStatus: ChartPoint[];
+  monthlyTrend: MonthPoint[];
+  isLoading: boolean;
+  lastUpdated: Date | null;
+
+  fetchDashboard: (opts?: { role?: string; regionId?: string | null }) => Promise<void>;
+}
+
+// ── Defaults ──────────────────────────────────────────────────────────────────
+
+const EMPTY_METRICS: DashboardMetrics = {
+  totalComponents: 0, totalQuantity: 0, componentTypes: 0,
+  totalRegions: 0,    activeRegions: 0,
+  totalWarehouses: 0, activeWarehouses: 0,
+  totalCustomers: 0,  activeUsers: 0,
+  totalAssetValue: 0, brokenComponents: 0, lowStockCount: 0,
+  componentsThisMonth: 0, componentsLastMonth: 0,
+  customersThisMonth: 0,  customersLastMonth: 0,
+  auditThisMonth: 0,      auditLastMonth: 0,
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function monthStart(offsetMonths = 0): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  d.setMonth(d.getMonth() - offsetMonths);
+  return d.toISOString();
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// ── Store ─────────────────────────────────────────────────────────────────────
+
+export const useDashboardStore = create<DashboardState>((set) => ({
+  metrics:            EMPTY_METRICS,
+  recentActivity:     [],
+  lowStockItems:      [],
+  componentsByType:   [],
+  componentsByRegion: [],
+  componentsByStatus: [],
+  monthlyTrend:       [],
+  isLoading:          false,
+  lastUpdated:        null,
+
+  fetchDashboard: async ({ role = 'Engineer', regionId = null } = {}) => {
+    set({ isLoading: true });
+    try {
+      // Date boundaries for MoM comparison
+      const thisMonthStart = monthStart(0);
+      const lastMonthStart = monthStart(1);
+      const twoMonthsAgo   = monthStart(2);
+      const sixMonthsAgo   = monthStart(5);
+      const twelveMonthsAgo = monthStart(11);
+
+      // ── 1. Component query ────────────────────────────────────────────────
+      let compQuery = supabase
+        .from('components')
+        .select(
+          'id, item_name, component_type_id, region_id, quantity, minimum_stock, status, purchase_price, created_at'
+        )
+        .eq('is_deleted', false);
+
+      if (role !== 'Admin' && regionId) {
+        compQuery = compQuery.eq('region_id', regionId);
+      }
+
+      // ── 2. Parallel queries ────────────────────────────────────────────────
+      const [
+        { data: compsRaw,       error: compErr },
+        { data: typesRaw },
+        { data: regionsRaw },
+        { data: warehousesRaw },
+        { count: userCount },
+        { count: customerCountTotal },
+        { count: customerCountThis },
+        { count: customerCountLast },
+        { data: logsRaw },
+        { count: auditThis },
+        { count: auditLast },
+        { data: trendCompsRaw },
+        { data: trendPrevRaw },
+      ] = await Promise.all([
+        compQuery,
+        supabase.from('component_types').select('id, type_name').eq('is_active', true),
+        supabase.from('regions').select('id, name, status'),
+        supabase.from('warehouses').select('id, status'),
+        supabase.from('user_profiles').select('user_id', { count: 'exact', head: true }).eq('status', 'active'),
+        // customer totals
+        supabase.from('customers').select('id', { count: 'exact', head: true }),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', thisMonthStart),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
+        // audit log
+        supabase.from('audit_logs').select('id, user_id, action, module, record_id, timestamp').order('timestamp', { ascending: false }).limit(12),
+        // audit MoM
+        supabase.from('audit_logs').select('id', { count: 'exact', head: true }).gte('timestamp', thisMonthStart),
+        supabase.from('audit_logs').select('id', { count: 'exact', head: true }).gte('timestamp', lastMonthStart).lt('timestamp', thisMonthStart),
+        // 6-month trend: components created each month
+        supabase.from('components').select('created_at').eq('is_deleted', false).gte('created_at', sixMonthsAgo),
+        // prev 6-month for comparison
+        supabase.from('components').select('created_at').eq('is_deleted', false).gte('created_at', twelveMonthsAgo).lt('created_at', sixMonthsAgo),
+      ]);
+
+      if (compErr) throw compErr;
+
+      const comps      = compsRaw      ?? [];
+      const types      = typesRaw      ?? [];
+      const regions    = regionsRaw    ?? [];
+      const warehouses = warehousesRaw ?? [];
+      const logs       = logsRaw       ?? [];
+
+      // ── 3. Resolve user names for audit log ────────────────────────────────
+      const userIds = [...new Set(logs.map((l: any) => l.user_id).filter(Boolean))];
+      const nameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, name')
+          .in('user_id', userIds);
+        (profiles ?? []).forEach((p: any) => { nameMap[p.user_id] = p.name; });
+      }
+
+      // ── 4. Metrics ─────────────────────────────────────────────────────────
+      const totalComponents  = comps.length;
+      const totalQuantity    = comps.reduce((s: number, c: any) => s + (c.quantity ?? 0), 0);
+      const totalAssetValue  = comps.reduce((s: number, c: any) =>
+        s + ((c.purchase_price ?? 0) * (c.quantity ?? 0)), 0);
+      const brokenComponents = comps.filter((c: any) => c.status === 'Broken').length;
+      const lowStock         = comps.filter((c: any) =>
+        (c.minimum_stock ?? 0) > 0 && c.quantity < c.minimum_stock);
+
+      const activeRegions    = regions.filter((r: any) => r.status === 'active').length;
+      const activeWarehouses = warehouses.filter((w: any) => w.status === 'active').length;
+
+      // Components MoM
+      const componentsThisMonth = comps.filter((c: any) => c.created_at >= thisMonthStart).length;
+      const componentsLastMonth = comps.filter((c: any) =>
+        c.created_at >= lastMonthStart && c.created_at < thisMonthStart).length;
+
+      // ── 5. Monthly trend chart (last 6 months vs prev 6) ──────────────────
+      const now = new Date();
+      const monthlyTrend: MonthPoint[] = Array.from({ length: 6 }, (_, i) => {
+        const monthOffset = 5 - i;
+        const d = new Date(now);
+        d.setDate(1);
+        d.setMonth(d.getMonth() - monthOffset);
+        const mStart = d.toISOString();
+        const mEnd = new Date(d.setMonth(d.getMonth() + 1)).toISOString();
+        // prev year equivalent
+        const pStart = new Date(new Date(mStart).setFullYear(new Date(mStart).getFullYear() - 1)).toISOString();
+        const pEnd   = new Date(new Date(mEnd).setFullYear(new Date(mEnd).getFullYear() - 1)).toISOString();
+
+        const value     = (trendCompsRaw ?? []).filter((c: any) => c.created_at >= mStart && c.created_at < mEnd).length;
+        const prevValue = (trendPrevRaw  ?? []).filter((c: any) => c.created_at >= pStart && c.created_at < pEnd).length;
+
+        return {
+          month: MONTH_NAMES[new Date(mStart).getMonth()],
+          value,
+          prevValue,
+        };
+      });
+
+      // ── 6. Charts ──────────────────────────────────────────────────────────
+      const typeAcc: Record<string, { name: string; qty: number }> = {};
+      comps.forEach((c: any) => {
+        const tid = c.component_type_id;
+        if (!tid) {
+          typeAcc['__none'] ??= { name: 'Unassigned', qty: 0 };
+          typeAcc['__none'].qty += c.quantity ?? 0;
+          return;
+        }
+        typeAcc[tid] ??= { name: types.find((t: any) => t.id === tid)?.type_name ?? 'Unknown', qty: 0 };
+        typeAcc[tid].qty += c.quantity ?? 0;
+      });
+      const componentsByType = Object.values(typeAcc)
+        .map((t) => ({ name: t.name, value: t.qty }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8);
+
+      const regionAcc: Record<string, { name: string; count: number; qty: number }> = {};
+      regions.forEach((r: any) => { regionAcc[r.id] = { name: r.name, count: 0, qty: 0 }; });
+      comps.forEach((c: any) => {
+        if (c.region_id && regionAcc[c.region_id]) {
+          regionAcc[c.region_id].count++;
+          regionAcc[c.region_id].qty += c.quantity ?? 0;
+        }
+      });
+      const componentsByRegion = Object.values(regionAcc)
+        .map((r) => ({ region: r.name, count: r.count, quantity: r.qty }))
+        .sort((a, b) => b.quantity - a.quantity);
+
+      const statusAcc: Record<string, number> = {};
+      comps.forEach((c: any) => {
+        const s = c.status ?? 'Unknown';
+        statusAcc[s] = (statusAcc[s] ?? 0) + 1;
+      });
+      const componentsByStatus = Object.entries(statusAcc)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
+      // ── 7. Low stock ───────────────────────────────────────────────────────
+      const lowStockItems = lowStock
+        .sort((a: any, b: any) =>
+          (a.quantity / Math.max(a.minimum_stock, 1)) -
+          (b.quantity / Math.max(b.minimum_stock, 1))
+        )
+        .slice(0, 8)
+        .map((c: any) => ({
+          id: c.id,
+          item_name: c.item_name,
+          quantity: c.quantity,
+          minimum_stock: c.minimum_stock,
+          type_name:   types.find((t: any) => t.id === c.component_type_id)?.type_name ?? '—',
+          region_name: regions.find((r: any) => r.id === c.region_id)?.name ?? '—',
+        }));
+
+      // ── 8. Recent activity ─────────────────────────────────────────────────
+      const recentActivity: ActivityEntry[] = logs.map((l: any) => ({
+        id:        l.id,
+        user_id:   l.user_id,
+        user_name: l.user_id ? (nameMap[l.user_id] ?? 'Unknown') : 'System',
+        action:    l.action,
+        module:    l.module,
+        record_id: l.record_id,
+        timestamp: l.timestamp,
+      }));
+
+      // ── 9. Commit ──────────────────────────────────────────────────────────
+      set({
+        metrics: {
+          totalComponents,
+          totalQuantity,
+          componentTypes:   types.length,
+          totalRegions:     regions.length,
+          activeRegions,
+          totalWarehouses:  warehouses.length,
+          activeWarehouses,
+          totalCustomers:   customerCountTotal ?? 0,
+          activeUsers:      userCount ?? 0,
+          totalAssetValue,
+          brokenComponents,
+          lowStockCount:    lowStock.length,
+          componentsThisMonth,
+          componentsLastMonth,
+          customersThisMonth:  customerCountThis ?? 0,
+          customersLastMonth:  customerCountLast ?? 0,
+          auditThisMonth:  auditThis ?? 0,
+          auditLastMonth:  auditLast ?? 0,
+        },
+        componentsByType,
+        componentsByRegion,
+        componentsByStatus,
+        monthlyTrend,
+        lowStockItems,
+        recentActivity,
+        lastUpdated: new Date(),
+        isLoading: false,
+      });
+    } catch (err) {
+      console.error('[Dashboard] fetchDashboard error:', err);
+      set({ isLoading: false });
+    }
+  },
+}));

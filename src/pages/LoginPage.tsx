@@ -93,8 +93,14 @@ export function LoginPage() {
     setForgotLoading(true);
     setError('');
     try {
+      // Step 1: Invalidate the old password via Edge Function (fire-and-forget — don't reveal if email exists)
+      await supabase.functions.invoke('admin-user-actions', {
+        body: { action: 'forgot_password', email: email.trim() },
+      }).catch(() => {}); // Silent — user doesn't know if email exists
+
+      // Step 2: Send Supabase's built-in password reset email
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}`,
       });
       if (error) throw error;
       setForgotSent(true);

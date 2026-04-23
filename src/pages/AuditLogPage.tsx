@@ -85,27 +85,35 @@ export function AuditLogPage() {
   async function fetchLogs(p = 0) {
     setLoading(true);
     try {
+      // audit_logs.user_id → auth.users.id (no FK to user_profiles), so we join separately
       let query = supabase
         .from('audit_logs')
-        .select(`
-          id, user_id, action, module, record_id,
-          old_value, new_value, ip_address, timestamp,
-          user_profiles!audit_logs_user_id_fkey(name)
-        `, { count: 'exact' })
+        .select('id, user_id, action, module, record_id, old_value, new_value, ip_address, timestamp', { count: 'exact' })
         .order('timestamp', { ascending: false })
         .range(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE - 1);
 
       // Non-admins only see their own logs
       if (!isAdmin) {
-        query = query.eq('user_id', currentUser.id);
+        query = query.eq('user_id', currentUser!.id);
       }
       if (actionFilter !== 'all') query = query.eq('action', actionFilter);
       if (moduleFilter !== 'all') query = query.eq('module', moduleFilter);
 
-      const { data, error, count } = await query;
+      const { data: logsData, error, count } = await query;
       if (error) throw error;
 
-      const entries: AuditEntry[] = (data ?? []).map((row: any) => ({
+      // Resolve user names: fetch user_profiles for unique user_ids in this page
+      const userIds = [...new Set((logsData ?? []).map((r: any) => r.user_id).filter(Boolean))];
+      let nameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, name')
+          .in('user_id', userIds);
+        (profiles ?? []).forEach((pr: any) => { nameMap[pr.user_id] = pr.name; });
+      }
+
+      const entries: AuditEntry[] = (logsData ?? []).map((row: any) => ({
         id: row.id,
         user_id: row.user_id,
         action: row.action,
@@ -115,7 +123,7 @@ export function AuditLogPage() {
         new_value: row.new_value,
         ip_address: row.ip_address,
         timestamp: row.timestamp,
-        user_name: row.user_profiles?.name ?? null,
+        user_name: row.user_id ? (nameMap[row.user_id] ?? undefined) : undefined,
       }));
 
       setLogs(entries);

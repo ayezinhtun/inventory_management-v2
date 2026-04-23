@@ -57,8 +57,55 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Parse body early so we can handle unauthenticated actions
+  let body: Record<string, any>;
   try {
-    const body = await req.json();
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // ── FORGOT PASSWORD (unauthenticated) ──────────────────────────────────
+  // Invalidates the user's current password by setting a random temp one,
+  // so the old password no longer works. The client then sends a reset email.
+  if (body.action === 'forgot_password') {
+    const { email } = body;
+    if (!email) {
+      return new Response(JSON.stringify({ error: 'email is required' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    try {
+      // Find user by email
+      const { data: users, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
+      if (listErr) throw listErr;
+      const targetUser = users.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+      if (!targetUser) {
+        // Return success even when not found (security: don't reveal if email exists)
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // Set a random temporary password — old password is immediately invalid
+      const tempPwd = generatePassword();
+      const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(
+        targetUser.id, { password: tempPwd }
+      );
+      if (updateErr) throw updateErr;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message ?? 'Internal error' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
+  try {
     const { action } = body;
 
     // ── CREATE USER ────────────────────────────────────────────────────────
@@ -76,14 +123,17 @@ Deno.serve(async (req: Request) => {
       });
       if (createErr) throw createErr;
 
-      await supabaseAdmin.from('user_profiles').update({
+      // Use upsert so it works whether or not a trigger auto-created the profile row
+      await supabaseAdmin.from('user_profiles').upsert({
+        user_id: authUser.user.id,
         name,
+        email,
         role,
         region_id: region_id || null,
         warehouse_id: warehouse_id || null,
         force_password_change: true,
         status: 'active',
-      }).eq('user_id', authUser.user.id);
+      }, { onConflict: 'user_id' });
 
       await supabaseAdmin.from('user_activity_logs').insert({
         user_id: authUser.user.id,

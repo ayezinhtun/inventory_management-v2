@@ -20,22 +20,24 @@ interface SelectProps {
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
+  disabled?: boolean;
 }
 
-const Select: React.FC<SelectProps> = ({ children, value, defaultValue, onValueChange }) => {
+const Select: React.FC<SelectProps> = ({ children, value, defaultValue, onValueChange, disabled }) => {
   const [internalValue, setInternalValue] = React.useState(defaultValue ?? "");
   const [open, setOpen] = React.useState(false);
   const controlledValue = value !== undefined ? value : internalValue;
 
   const handleChange = (newValue: string) => {
+    if (disabled) return;
     if (value === undefined) setInternalValue(newValue);
     onValueChange?.(newValue);
     setOpen(false);
   };
 
   return (
-    <SelectContext.Provider value={{ value: controlledValue, onValueChange: handleChange, open, setOpen }}>
-      <div data-slot="select" className="relative inline-block">
+    <SelectContext.Provider value={{ value: controlledValue, onValueChange: handleChange, open, setOpen: disabled ? () => {} : setOpen }}>
+      <div data-slot="select" className={`relative inline-block${disabled ? ' opacity-50 pointer-events-none' : ''}`}>
         {children}
       </div>
     </SelectContext.Provider>);
@@ -75,13 +77,17 @@ SelectTrigger.displayName = "SelectTrigger";
 
 interface SelectValueProps {
   placeholder?: string;
+  /** Override what is displayed in the trigger (e.g. pass the item name when value is an ID) */
+  displayValue?: string;
 }
 
-const SelectValue: React.FC<SelectValueProps> = ({ placeholder }) => {
+const SelectValue: React.FC<SelectValueProps> = ({ placeholder, displayValue }) => {
   const { value } = React.useContext(SelectContext);
+  // Use displayValue if provided, otherwise fall back to raw value
+  const display = displayValue || (value && value !== 'none' ? value : undefined);
   return (
-    <span data-slot="select-value" data-placeholder={!value || undefined} className={cn(!value && "text-muted-foreground")}>
-      {value || placeholder}
+    <span data-slot="select-value" data-placeholder={!display || undefined} className={cn(!display && "text-muted-foreground")}>
+      {display || placeholder}
     </span>);
 
 };

@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
+import { auditLog } from "../lib/auditLog";
 
 export interface Region {
     id: string;
     name: string;
     description: string;
-    status: string; 
-    created_at: string; 
+    status: string;
+    created_at: string;
     updated_at: string;
 }
 
@@ -17,22 +18,21 @@ interface RegionState {
     fetchRegions: () => Promise<void>;
 
     addRegion: (
-        Payload: Omit<Region, "id" | "created_at" | "updated_at">
+        payload: Omit<Region, "id" | "created_at" | "updated_at">
     ) => Promise<Region>;
 
     deleteRegion: (id: string) => Promise<void>;
 
     updateRegion: (
-      id: string, 
+      id: string,
       payload: Partial<Omit<Region, 'id' | 'created_at' | 'updated_at'>>,
     ) => Promise<Region>;
 }
 
-
 export const useRegionStore = create<RegionState>((set, get) => ({
   regions: [],
   isLoading: false,
- 
+
   fetchRegions: async () => {
     set({ isLoading: true });
     const { data, error } = await supabase
@@ -46,7 +46,6 @@ export const useRegionStore = create<RegionState>((set, get) => ({
     }
     set({ regions: data || [], isLoading: false });
   },
- 
 
   addRegion: async (payload) => {
     const { data, error } = await supabase
@@ -56,32 +55,37 @@ export const useRegionStore = create<RegionState>((set, get) => ({
       .single();
     if (error) throw error;
     await get().fetchRegions();
+
+    auditLog({ action: 'CREATE', module: 'Regions', record_id: data!.id, new_value: data! });
+
     return data!;
   },
 
-  //for delete region
   deleteRegion: async (id: string) => {
-    const {error} = await supabase.from('regions').delete().eq('id', id);
+    const existing = get().regions.find((r) => r.id === id);
 
-    if(error) throw error;
+    const { error } = await supabase.from('regions').delete().eq('id', id);
+    if (error) throw error;
+
+    auditLog({ action: 'DELETE', module: 'Regions', record_id: id, old_value: existing ?? null });
 
     await get().fetchRegions();
-  }, 
-
-  // for update region
+  },
 
   updateRegion: async (id: string, payload: Partial<Omit<Region, 'id' | 'created_at' | 'updated_at'>>) => {
-    const {data, error} = await supabase
+    const existing = get().regions.find((r) => r.id === id);
+
+    const { data, error } = await supabase
       .from('regions')
       .update(payload)
       .eq('id', id)
       .select()
       .single();
+    if (error) throw error;
 
-    if(error) throw error;
+    auditLog({ action: 'UPDATE', module: 'Regions', record_id: id, old_value: existing ?? null, new_value: data! });
 
     await get().fetchRegions();
     return data!;
-  }
-
+  },
 }));

@@ -250,10 +250,9 @@ export function UsersPage() {
         warehouse_id: editForm.warehouse_id !== 'none' ? editForm.warehouse_id : null,
         status: editForm.status,
       });
-      toast.success('User updated');
-      // Refresh sheet user from updated list
-      const updated = useUsersStore.getState().users.find((u) => u.user_id === sheetUser.user_id);
-      if (updated) setSheetUser(updated);
+      toast.success(`${editForm.name.trim()} updated successfully`);
+      // Close the sheet after save
+      setSheetUser(null);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update user');
     } finally {
@@ -558,7 +557,7 @@ export function UsersPage() {
                     <div className="space-y-2">
                       <Label>Assigned Region</Label>
                       <Select value={createForm.region_id} onValueChange={(v) => setCreateForm({ ...createForm, region_id: v, warehouse_id: 'none' })}>
-                        <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                        <SelectTrigger><SelectValue displayValue={regions.find((r) => r.id === createForm.region_id)?.name} placeholder="Select region" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">None</SelectItem>
                           {regions.filter((r) => r.status === 'active').map((r) => (
@@ -574,7 +573,7 @@ export function UsersPage() {
                         onValueChange={(v) => setCreateForm({ ...createForm, warehouse_id: v })}
                         disabled={createForm.region_id === 'none'}
                       >
-                        <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+                        <SelectTrigger><SelectValue displayValue={availableWarehouses.find((w) => w.id === createForm.warehouse_id)?.name} placeholder="Select warehouse" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">None</SelectItem>
                           {availableWarehouses.map((w) => (
@@ -693,7 +692,7 @@ export function UsersPage() {
                         <div className="space-y-1.5">
                           <Label>Region</Label>
                           <Select value={editForm.region_id} onValueChange={(v) => setEditForm({ ...editForm, region_id: v, warehouse_id: 'none' })}>
-                            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                            <SelectTrigger><SelectValue displayValue={regions.find((r) => r.id === editForm.region_id)?.name} placeholder="None" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
                               {regions.filter((r) => r.status === 'active').map((r) => (
@@ -709,7 +708,7 @@ export function UsersPage() {
                             onValueChange={(v) => setEditForm({ ...editForm, warehouse_id: v })}
                             disabled={editForm.region_id === 'none'}
                           >
-                            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                            <SelectTrigger><SelectValue displayValue={editAvailableWarehouses.find((w) => w.id === editForm.warehouse_id)?.name} placeholder="None" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
                               {editAvailableWarehouses.map((w) => (
