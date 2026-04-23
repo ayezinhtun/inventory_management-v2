@@ -1,6 +1,6 @@
 /**
  * Administration → Mail
- * Modern email client: Inbox | Sent | Compose | Pending | Failed | Mail Logs
+ * Full email client: Inbox | Sent | Compose | Pending | Failed | Mail Logs
  */
 import React, {
   useEffect, useState, useCallback, useRef, useMemo,
@@ -18,62 +18,57 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Skeleton } from '../components/ui/Skeleton';
-import { Avatar, AvatarFallback } from '../components/ui/Avatar';
+import { Separator } from '../components/ui/Separator';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../components/ui/Table';
 import {
   Inbox, Send, PenSquare, Clock, MailX, BarChart2,
   RefreshCw, Search, Trash2, Reply, Forward,
-  RotateCcw, X, Bold, Italic,
-  Underline, List, ListOrdered, Mail, AlertCircle,
-  CheckCircle2, MailCheck, MailOpen,
-  Star, Archive, MoreHorizontal, ChevronRight,
+  RotateCcw, ChevronDown, X, Plus, Bold, Italic,
+  Underline, List, ListOrdered, User, Mail, AlertCircle,
+  CheckCircle2, MailCheck, MailOpen, Download,
+  ArrowUpRight, Filter,
 } from 'lucide-react';
 import { formatDateTime } from '../lib/utils';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Folder config ─────────────────────────────────────────────────────────────
 
 type Folder = 'inbox' | 'sent' | 'compose' | 'pending' | 'failed' | 'logs';
 
 interface FolderDef {
-  key:       Folder;
-  label:     string;
-  icon:      React.ElementType;
+  key: Folder;
+  label: string;
+  icon: React.ElementType;
   adminOnly?: boolean;
 }
 
 const FOLDERS: FolderDef[] = [
   { key: 'inbox',   label: 'Inbox',     icon: Inbox     },
   { key: 'sent',    label: 'Sent',      icon: Send      },
+  { key: 'compose', label: 'Compose',   icon: PenSquare },
   { key: 'pending', label: 'Pending',   icon: Clock     },
   { key: 'failed',  label: 'Failed',    icon: MailX     },
   { key: 'logs',    label: 'Mail Logs', icon: BarChart2, adminOnly: true },
 ];
 
-const STATUS_CFG: Record<string, { cls: string; label: string }> = {
-  sent:      { cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',  label: 'Sent'      },
-  failed:    { cls: 'bg-red-50 text-red-600 border-red-200',              label: 'Failed'    },
-  pending:   { cls: 'bg-amber-50 text-amber-700 border-amber-200',        label: 'Pending'   },
-  sending:   { cls: 'bg-blue-50 text-blue-700 border-blue-200',           label: 'Sending'   },
-  scheduled: { cls: 'bg-violet-50 text-violet-700 border-violet-200',     label: 'Scheduled' },
-  draft:     { cls: 'bg-muted text-muted-foreground border-border',       label: 'Draft'     },
+const STATUS_CFG: Record<string, { class: string; label: string; icon: React.ElementType }> = {
+  sent:      { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Sent',      icon: MailCheck  },
+  failed:    { class: 'bg-red-100    text-red-700    border-red-200',       label: 'Failed',    icon: MailX      },
+  pending:   { class: 'bg-amber-100  text-amber-700  border-amber-200',     label: 'Pending',   icon: Clock      },
+  sending:   { class: 'bg-blue-100   text-blue-700   border-blue-200',      label: 'Sending',   icon: Send       },
+  scheduled: { class: 'bg-violet-100 text-violet-700 border-violet-200',    label: 'Scheduled', icon: Clock      },
+  draft:     { class: 'bg-gray-100   text-gray-600   border-gray-200',      label: 'Draft',     icon: PenSquare  },
 };
 
-const ACTION_COLOR: Record<string, string> = {
-  sent:        'bg-emerald-50 text-emerald-700 border-emerald-200',
-  failed:      'bg-red-50 text-red-600 border-red-200',
-  retried:     'bg-amber-50 text-amber-700 border-amber-200',
-  read:        'bg-blue-50 text-blue-700 border-blue-200',
-  deleted:     'bg-muted text-muted-foreground border-border',
-  draft_saved: 'bg-violet-50 text-violet-700 border-violet-200',
-  received:    'bg-sky-50 text-sky-700 border-sky-200',
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function stripHtml(html: string): string {
-  return html ? html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CFG[status] ?? STATUS_CFG.draft;
+  const Icon = cfg.icon;
+  return (
+    <Badge variant="outline" className={`text-[10px] gap-1 ${cfg.class}`}>
+      <Icon className="h-2.5 w-2.5" />{cfg.label}
+    </Badge>
+  );
 }
 
 function timeAgo(d: string) {
@@ -82,98 +77,45 @@ function timeAgo(d: string) {
   const hours = Math.floor(diff / 3_600_000);
   const days  = Math.floor(diff / 86_400_000);
   if (mins < 1)   return 'just now';
-  if (mins < 60)  return `${mins}m`;
-  if (hours < 24) return `${hours}h`;
-  if (days < 7)   return `${days}d`;
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
-}
-
-// Avatar color pool (deterministic based on name)
-const AVATAR_COLORS = [
-  'bg-blue-100 text-blue-700',
-  'bg-violet-100 text-violet-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-rose-100 text-rose-700',
-  'bg-cyan-100 text-cyan-700',
-  'bg-indigo-100 text-indigo-700',
-  'bg-orange-100 text-orange-700',
-];
-function avatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash + name.charCodeAt(i)) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[hash];
-}
-
-// ── Status Badge ──────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG.draft;
-  return (
-    <Badge variant="outline" className={`text-[10px] font-medium px-1.5 py-0.5 ${cfg.cls}`}>
-      {cfg.label}
-    </Badge>
-  );
+  if (mins < 60)  return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7)   return `${days}d ago`;
+  return formatDateTime(d);
 }
 
 // ── Message Row ───────────────────────────────────────────────────────────────
 
 function MessageRow({
-  name, email, subject, preview, date, status, unread, selected, onClick,
+  label, sublabel, subject, preview, date, status, unread, selected, onClick,
 }: {
-  name: string; email?: string; subject: string; preview: string;
+  label: string; sublabel?: string; subject: string; preview: string;
   date: string; status?: string; unread?: boolean; selected: boolean;
   onClick: () => void;
 }) {
-  const color = avatarColor(name || email || '?');
   return (
     <button
       onClick={onClick}
-      className={`group w-full text-left px-4 py-3 flex items-start gap-3 border-b border-border/40 transition-all duration-200 ${
+      className={`w-full text-left px-4 py-3 border-b border-slate-200 transition-all hover:bg-slate-50 ${
         selected
-          ? 'bg-blue-50/80 border-l-2 border-l-blue-500'
-          : unread
-            ? 'bg-white hover:bg-slate-50'
-            : 'bg-slate-50/50 hover:bg-slate-50'
+          ? 'bg-blue-50 border-l-2 border-l-blue-500 pl-3.5'
+          : 'border-l-2 border-l-transparent'
       }`}
     >
-      {/* Avatar */}
-      <div className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5 ${color}`}>
-        {initials(name || email || '?') || '?'}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span className={`text-sm truncate ${unread ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>
-            {name || email}
-          </span>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {status && <StatusBadge status={status} />}
-            <span className={`text-[11px] tabular-nums ${unread ? 'text-blue-600 font-semibold' : 'text-slate-500'}`}>
-              {timeAgo(date)}
-            </span>
-          </div>
-        </div>
-        <p className={`text-sm truncate leading-snug ${unread ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>
-          {subject || '(no subject)'}
-        </p>
-        <div className="flex items-center gap-2 mt-1">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2 min-w-0">
           {unread && <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />}
-          <p className="text-xs text-slate-500 truncate leading-relaxed flex-1">
-            {preview || '—'}
-          </p>
+          <span className={`text-sm truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+            {label}
+          </span>
+          {sublabel && <span className="text-[11px] text-slate-500 truncate hidden sm:block">&lt;{sublabel}&gt;</span>}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {status && <StatusBadge status={status} />}
+          <span className="text-[11px] text-slate-500 whitespace-nowrap">{timeAgo(date)}</span>
         </div>
       </div>
+      <p className={`text-sm truncate mb-0.5 ${unread ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>{subject}</p>
+      <p className="text-xs text-slate-500 truncate leading-relaxed">{preview}</p>
     </button>
   );
 }
@@ -184,20 +126,18 @@ interface RecipientChipInputProps {
   label: string;
   recipients: MailRecipient[];
   type: 'to' | 'cc' | 'bcc';
-  onChange: (r: MailRecipient[]) => void;
-  placeholder?: string;
+  onChange: (recipients: MailRecipient[]) => void;
 }
 
-function RecipientChipInput({ label, recipients, type, onChange, placeholder }: RecipientChipInputProps) {
-  const [query,   setQuery]   = useState('');
-  const [results, setResults] = useState<any[]>([]);
-  const [open,    setOpen]    = useState(false);
-  const containerRef          = useRef<HTMLDivElement>(null);
-  const inputRef              = useRef<HTMLInputElement>(null);
+function RecipientChipInput({ label, recipients, type, onChange }: RecipientChipInputProps) {
+  const [query, setQuery]       = useState('');
+  const [results, setResults]   = useState<any[]>([]);
+  const [open, setOpen]         = useState(false);
+  const containerRef            = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (query.length < 2) { setResults([]); setOpen(false); return; }
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       const { data } = await supabase
         .from('user_profiles')
         .select('user_id, name, email')
@@ -205,63 +145,49 @@ function RecipientChipInput({ label, recipients, type, onChange, placeholder }: 
         .limit(8);
       setResults(data ?? []);
       setOpen(true);
-    }, 220);
-    return () => clearTimeout(t);
+    }, 250);
+    return () => clearTimeout(timer);
   }, [query]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const add = (r: { user_id?: string; name: string; email: string }) => {
+  const addRecipient = (r: { user_id?: string; name: string; email: string }) => {
     if (recipients.some((x) => x.email === r.email)) return;
     onChange([...recipients, { user_id: r.user_id, email: r.email, name: r.name, type }]);
     setQuery('');
     setOpen(false);
-    inputRef.current?.focus();
   };
 
   const addRaw = () => {
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query)) add({ name: query, email: query });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(query)) return;
+    addRecipient({ name: query, email: query });
   };
 
   const remove = (email: string) => onChange(recipients.filter((r) => r.email !== email));
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex items-start gap-0 min-h-[48px] border-b border-slate-200 focus-within:border-blue-300 focus-within:ring-1 focus-within:ring-blue-100"
-      onClick={() => inputRef.current?.focus()}
-    >
-      {/* Label */}
-      <span className="flex-shrink-0 w-16 text-sm font-medium text-slate-600 self-center pl-4 pr-2">
-        {label}
-      </span>
-
-      {/* Chips + input */}
-      <div className="flex flex-wrap items-center gap-1.5 flex-1 py-2.5 pr-3">
+    <div className="flex items-start gap-2 px-3 py-2 border-b border-slate-200" ref={containerRef}>
+      <span className="text-xs text-slate-600 font-medium pt-1.5 flex-shrink-0 w-7">{label}</span>
+      <div className="flex-1 flex flex-wrap gap-1.5 items-center min-h-[28px] relative">
         {recipients.map((r) => (
-          <span
-            key={r.email}
-            className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 text-xs px-2.5 py-1 font-medium border border-blue-100"
-          >
-            {r.name && r.name !== r.email ? r.name : r.email}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); remove(r.email); }}
-              className="text-blue-500 hover:text-blue-800 transition-colors ml-0.5"
-            >
+          <span key={r.email} className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 text-xs px-2 py-0.5 font-medium">
+            {r.name || r.email}
+            <button onClick={() => remove(r.email)} className="hover:text-blue-900 transition-colors">
               <X className="h-3 w-3" />
             </button>
           </span>
         ))}
         <input
-          ref={inputRef}
-          className="flex-1 min-w-[120px] text-sm bg-transparent outline-none placeholder:text-slate-400 py-1"
+          className="flex-1 min-w-[140px] text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-700"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -269,44 +195,36 @@ function RecipientChipInput({ label, recipients, type, onChange, placeholder }: 
             if (e.key === 'Backspace' && !query && recipients.length) {
               remove(recipients[recipients.length - 1].email);
             }
-            if (e.key === 'Escape') setOpen(false);
           }}
-          placeholder={recipients.length === 0 ? (placeholder ?? 'Add people…') : ''}
+          placeholder={recipients.length === 0 ? 'Add recipients…' : ''}
         />
-      </div>
 
-      {/* Dropdown */}
-      {open && results.length > 0 && (
-        <div className="absolute left-0 top-full mt-1 w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-100">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Suggestions</p>
-          </div>
-          {results.map((r) => {
-            const color = avatarColor(r.name || r.email);
-            return (
+        {/* Dropdown */}
+        {open && results.length > 0 && (
+          <div className="absolute left-0 top-full mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 overflow-hidden">
+            {results.map((r) => (
               <button
                 key={r.user_id}
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); add(r); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left"
+                onMouseDown={(e) => { e.preventDefault(); addRecipient(r); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50 transition-colors text-left"
               >
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${color}`}>
-                  {initials(r.name || r.email)}
-                </div>
+                <span className="h-6 w-6 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center font-bold flex-shrink-0">
+                  {r.name.charAt(0).toUpperCase()}
+                </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">{r.name}</p>
-                  <p className="text-xs text-slate-500 truncate">{r.email}</p>
+                  <p className="font-medium text-slate-900 truncate">{r.name}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{r.email}</p>
                 </div>
               </button>
-            );
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Rich Toolbar ──────────────────────────────────────────────────────────────
+// ── Rich Text Toolbar ─────────────────────────────────────────────────────────
 
 function RichToolbar({ editorRef }: { editorRef: React.RefObject<HTMLDivElement> }) {
   const exec = (cmd: string, value?: string) => {
@@ -314,32 +232,37 @@ function RichToolbar({ editorRef }: { editorRef: React.RefObject<HTMLDivElement>
     document.execCommand(cmd, false, value);
   };
 
-  const Btn = ({ icon: Icon, cmd, title }: { icon: React.ElementType; cmd: string; title: string }) => (
+  const ToolBtn = ({ onClick, icon: Icon, title }: { onClick: () => void; icon: React.ElementType; title: string }) => (
     <button
       type="button"
       title={title}
-      onMouseDown={(e) => { e.preventDefault(); exec(cmd); }}
-      className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+      className="h-7 w-7 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3.5 w-3.5" />
     </button>
   );
 
   return (
-    <div className="flex items-center gap-1 px-4 py-2 border-b border-slate-200 bg-slate-50">
-      <Btn icon={Bold}        cmd="bold"               title="Bold (⌘B)"       />
-      <Btn icon={Italic}      cmd="italic"             title="Italic (⌘I)"     />
-      <Btn icon={Underline}   cmd="underline"          title="Underline (⌘U)"  />
-      <div className="w-px h-5 bg-slate-300 mx-2" />
-      <Btn icon={List}        cmd="insertUnorderedList" title="Bullet list"    />
-      <Btn icon={ListOrdered} cmd="insertOrderedList"   title="Numbered list"  />
+    <div className="flex items-center gap-0.5 px-3 py-1.5 border-b bg-muted/20">
+      <ToolBtn icon={Bold}         title="Bold"           onClick={() => exec('bold')}                 />
+      <ToolBtn icon={Italic}       title="Italic"         onClick={() => exec('italic')}               />
+      <ToolBtn icon={Underline}    title="Underline"      onClick={() => exec('underline')}            />
+      <div className="w-px h-4 bg-border mx-1" />
+      <ToolBtn icon={List}         title="Bullet List"    onClick={() => exec('insertUnorderedList')}  />
+      <ToolBtn icon={ListOrdered}  title="Numbered List"  onClick={() => exec('insertOrderedList')}   />
     </div>
   );
 }
 
 // ── Compose Panel ─────────────────────────────────────────────────────────────
 
-function ComposePanel({ onSent, onCancel }: { onSent: () => void; onCancel: () => void }) {
+function ComposePanel({
+  onSent, onDraft,
+}: {
+  onSent: () => void;
+  onDraft: () => void;
+}) {
   const { sendMail, saveDraft, isSending } = useMailStore();
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -353,17 +276,18 @@ function ComposePanel({ onSent, onCancel }: { onSent: () => void; onCancel: () =
   const [success, setSuccess] = useState('');
 
   const getBodyHtml = () => editorRef.current?.innerHTML ?? '';
-  const getBodyText = () => editorRef.current?.innerText  ?? '';
+  const getBodyText = () => editorRef.current?.innerText ?? '';
 
-  const params = (): ComposeParams => ({
-    to, cc: showCc ? cc : [], bcc: showBcc ? bcc : [], subject,
-    body_html: getBodyHtml(), body_text: getBodyText(),
+  const buildParams = (): ComposeParams => ({
+    to, cc, bcc, subject,
+    body_html: getBodyHtml(),
+    body_text: getBodyText(),
   });
 
   const validate = () => {
-    if (!to.length)            return 'Add at least one recipient.';
-    if (!subject.trim())       return 'Subject is required.';
-    if (!getBodyText().trim()) return 'Message body is empty.';
+    if (to.length === 0) return 'Please add at least one recipient.';
+    if (!subject.trim()) return 'Subject is required.';
+    if (!getBodyText().trim()) return 'Message body cannot be empty.';
     return '';
   };
 
@@ -372,9 +296,9 @@ function ComposePanel({ onSent, onCancel }: { onSent: () => void; onCancel: () =
     if (err) { setError(err); return; }
     setError('');
     try {
-      await sendMail(params());
-      setSuccess('Message sent!');
-      setTimeout(() => { setSuccess(''); onSent(); }, 1200);
+      await sendMail(buildParams());
+      setSuccess('Email sent successfully!');
+      setTimeout(() => { setSuccess(''); onSent(); }, 1500);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to send');
     }
@@ -382,9 +306,9 @@ function ComposePanel({ onSent, onCancel }: { onSent: () => void; onCancel: () =
 
   const handleDraft = async () => {
     try {
-      await saveDraft(params());
+      await saveDraft(buildParams());
       setSuccess('Draft saved.');
-      setTimeout(() => setSuccess(''), 2000);
+      setTimeout(() => { setSuccess(''); onDraft(); }, 1200);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to save draft');
     }
@@ -392,98 +316,58 @@ function ComposePanel({ onSent, onCancel }: { onSent: () => void; onCancel: () =
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 flex-shrink-0 bg-slate-50">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">New Message</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Compose and send a message</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {!showCc && (
-            <button onClick={() => setShowCc(true)} className="text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors hover:bg-white hover:shadow-sm">
-              + Cc
-            </button>
-          )}
-          {!showBcc && (
-            <button onClick={() => setShowBcc(true)} className="text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 transition-colors hover:bg-white hover:shadow-sm">
-              + Bcc
-            </button>
-          )}
-          <button onClick={onCancel} className="h-9 w-9 rounded-lg flex items-center justify-center hover:bg-white hover:shadow-sm text-slate-500 hover:text-slate-900 transition-colors ml-1">
-            <X className="h-4 w-4" />
-          </button>
+      {/* Compose header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+        <h2 className="text-sm font-semibold text-slate-900">New Message</h2>
+        <div className="flex items-center gap-1.5">
+          {!showCc  && <button onClick={() => setShowCc(true)}  className="text-xs text-blue-600 hover:text-blue-700 hover:underline">+ Cc</button>}
+          {!showBcc && <button onClick={() => setShowBcc(true)} className="text-xs text-blue-600 hover:text-blue-700 hover:underline">+ Bcc</button>}
         </div>
       </div>
 
-      {/* Scrollable form area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Recipients */}
-        <div className="flex-shrink-0">
-          <RecipientChipInput label="To"  recipients={to}  type="to"  onChange={setTo}  placeholder="Recipients…" />
-          {showCc  && <RecipientChipInput label="Cc"  recipients={cc}  type="cc"  onChange={setCc}  />}
-          {showBcc && <RecipientChipInput label="Bcc" recipients={bcc} type="bcc" onChange={setBcc} />}
+      {/* Recipients */}
+      <RecipientChipInput label="To"  recipients={to}  type="to"  onChange={setTo}  />
+      {showCc  && <RecipientChipInput label="Cc"  recipients={cc}  type="cc"  onChange={setCc}  />}
+      {showBcc && <RecipientChipInput label="Bcc" recipients={bcc} type="bcc" onChange={setBcc} />}
 
-          {/* Subject */}
-          <div className="flex items-center gap-0 border-b border-slate-200 min-h-[48px]">
-            <span className="flex-shrink-0 w-16 text-sm font-medium text-slate-600 pl-4 pr-2">
-              Subject
-            </span>
-            <input
-              className="flex-1 text-sm bg-transparent outline-none py-3 pr-4 font-medium placeholder:text-slate-400 placeholder:font-normal"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Email subject…"
-            />
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <RichToolbar editorRef={editorRef as React.RefObject<HTMLDivElement>} />
-
-        {/* Body */}
-        <div
-          ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          data-placeholder="Write your message here…"
-          className={`
-            flex-1 overflow-y-auto px-6 py-5 text-sm leading-relaxed outline-none text-slate-700
-            [&:empty]:before:content-[attr(data-placeholder)]
-            [&:empty]:before:text-slate-400
-            [&:empty]:before:pointer-events-none
-          `}
-          style={{ minHeight: '280px' }}
+      {/* Subject */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200">
+        <span className="text-xs text-slate-600 font-medium flex-shrink-0">Subject</span>
+        <input
+          className="flex-1 text-sm bg-transparent outline-none placeholder:text-slate-400 font-medium text-slate-700"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Email subject…"
         />
       </div>
 
+      {/* Rich text toolbar */}
+      <RichToolbar editorRef={editorRef as React.RefObject<HTMLDivElement>} />
+
+      {/* Body */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        data-placeholder="Write your message here…"
+        className="flex-1 p-4 text-sm outline-none overflow-y-auto leading-relaxed text-slate-700
+          [&[contenteditable=true]:empty]:before:content-[attr(data-placeholder)]
+          [&[contenteditable=true]:empty]:before:text-slate-400"
+        style={{ minHeight: '200px' }}
+      />
+
       {/* Footer */}
-      <div className="flex-shrink-0 border-t border-slate-200 px-6 py-4 flex items-center gap-3 bg-slate-50">
-        <Button
-          size="sm"
-          onClick={handleSend}
-          disabled={isSending}
-          className="gap-2 h-9 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm"
-        >
-          {isSending ? (
-            <><RefreshCw className="h-4 w-4 animate-spin" />Sending…</>
-          ) : (
-            <><Send className="h-4 w-4" />Send message</>
-          )}
+      <div className="border-t border-slate-200 px-4 py-3 flex items-center gap-3 bg-slate-50">
+        <Button size="sm" onClick={handleSend} disabled={isSending} className="bg-blue-600 hover:bg-blue-700 text-white">
+          {isSending
+            ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending…</>
+            : <><Send className="h-3.5 w-3.5 mr-1.5" />Send</>}
         </Button>
-        <Button size="sm" variant="outline" onClick={handleDraft} disabled={isSending} className="h-9 border-slate-200 text-slate-700 hover:bg-white hover:border-slate-300">
-          Save draft
+        <Button size="sm" variant="outline" onClick={handleDraft} disabled={isSending} className="border-slate-200 text-slate-700 hover:bg-white">
+          Save Draft
         </Button>
-        <div className="flex-1" />
-        {error   && (
-          <p className="text-sm text-red-600 flex items-center gap-1.5">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" />{error}
-          </p>
-        )}
-        {success && (
-          <p className="text-sm text-emerald-600 flex items-center gap-1.5">
-            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />{success}
-          </p>
-        )}
+        {error   && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{error}</p>}
+        {success && <p className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{success}</p>}
       </div>
     </div>
   );
@@ -492,94 +376,71 @@ function ComposePanel({ onSent, onCancel }: { onSent: () => void; onCancel: () =
 // ── Message Detail ────────────────────────────────────────────────────────────
 
 function MessageDetail({
-  message, onReply, onDelete,
+  message, onReply, onDelete, kind,
 }: {
   message: EmailMessage;
   onReply: () => void;
   onDelete: () => void;
+  kind: 'inbox' | 'sent';
 }) {
-  const toList  = (message.recipients ?? []).filter((r) => r.type === 'to');
-  const color   = avatarColor(message.sender_name || message.sender_email || '?');
-  const initStr = initials(message.sender_name || message.sender_email || '?');
+  const toList = (message.recipients ?? []).filter((r) => r.type === 'to');
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-6 border-b border-slate-200 space-y-5">
-        {/* Subject + status */}
-        <div className="flex items-start justify-between gap-4">
-          <h2 className="text-xl font-bold leading-tight flex-1 tracking-tight text-slate-900">
-            {message.subject || '(no subject)'}
-          </h2>
+      <div className="p-5 border-b border-slate-200 space-y-3 flex-shrink-0">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-base font-bold leading-tight flex-1 text-slate-900">{message.subject}</h2>
           <StatusBadge status={message.status} />
         </div>
-
-        {/* Sender row */}
-        <div className="flex items-center gap-4">
-          <div className={`h-12 w-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${color}`}>
-            {initStr || '?'}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-base font-semibold text-slate-900">{message.sender_name || 'Unknown'}</span>
-              {message.sender_email && (
-                <span className="text-sm text-slate-500">
-                  &lt;{message.sender_email}&gt;
-                </span>
-              )}
-            </div>
-            {toList.length > 0 && (
-              <p className="text-sm text-slate-500 mt-1">
-                To: {toList.map((r) => r.name || r.email).join(', ')}
-              </p>
-            )}
-          </div>
-          <span className="text-sm text-slate-500 flex-shrink-0 self-start mt-1">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <User className="h-3 w-3" />
+            <strong className="text-slate-700">From:</strong> {message.sender_name}
+            {message.sender_email && <span className="text-slate-500">&lt;{message.sender_email}&gt;</span>}
+          </span>
+          {toList.length > 0 && (
+            <span className="flex items-center gap-1.5">
+              <Mail className="h-3 w-3" />
+              <strong className="text-slate-700">To:</strong>{' '}
+              {toList.map((r) => r.name || r.email).join(', ')}
+            </span>
+          )}
+          <span className="flex items-center gap-1.5">
+            <Clock className="h-3 w-3" />
             {formatDateTime(message.sent_at ?? message.created_at)}
           </span>
         </div>
-
-        {/* Action bar */}
+        {/* Actions */}
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={onReply} className="gap-2 h-9 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300">
-            <Reply className="h-4 w-4" />Reply
+          <Button size="sm" variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50" onClick={onReply}>
+            <Reply className="h-3.5 w-3.5 mr-1.5" />Reply
           </Button>
-          <Button size="sm" variant="outline" className="gap-2 h-9 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300">
-            <Forward className="h-4 w-4" />Forward
+          <Button size="sm" variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50">
+            <Forward className="h-3.5 w-3.5 mr-1.5" />Forward
           </Button>
-          <div className="flex-1" />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onDelete}
-            className="gap-2 h-9 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 border-slate-200"
-          >
-            <Trash2 className="h-4 w-4" />Delete
+          <Button size="sm" variant="outline" onClick={onDelete} className="ml-auto text-red-600 hover:text-red-700 hover:border-red-300 border-slate-200">
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
           </Button>
         </div>
-
-        {/* Error banner */}
+        {/* Error message for failed */}
         {message.error_message && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex items-start gap-2.5">
-            <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-semibold text-red-700">Delivery failed</p>
-              <p className="text-xs text-red-600 mt-0.5">{message.error_message}</p>
-            </div>
+          <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-xs flex items-center gap-2">
+            <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+            {message.error_message}
           </div>
         )}
       </div>
-
       {/* Body */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 overflow-y-auto p-5">
         {message.body_html ? (
           <div
-            className="prose prose-sm max-w-none text-slate-800 [&_a]:text-blue-600 [&_a]:underline [&_a]:hover:text-blue-700"
+            className="prose prose-sm max-w-none text-slate-800"
             dangerouslySetInnerHTML={{ __html: message.body_html }}
           />
         ) : (
           <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-            {message.body_text || <span className="text-slate-400 italic">(no message body)</span>}
+            {message.body_text || '(no message body)'}
           </p>
         )}
       </div>
@@ -595,111 +456,95 @@ function MailLogsPanel() {
 
   useEffect(() => { fetchMailLogs(); }, [fetchMailLogs]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return q
-      ? mailLogs.filter((l) =>
-          [l.user_name, l.action, l.message?.subject, l.message?.sender_email]
-            .some((f) => f?.toLowerCase().includes(q))
-        )
-      : mailLogs;
-  }, [mailLogs, search]);
+  const filtered = search.trim()
+    ? mailLogs.filter((l) =>
+        [l.user_name, l.action, l.message?.subject, l.message?.sender_email]
+          .some((f) => f?.toLowerCase().includes(search.toLowerCase()))
+      )
+    : mailLogs;
+
+  const ACTION_COLOR: Record<string, string> = {
+    sent:        'bg-emerald-100 text-emerald-700 border-emerald-200',
+    failed:      'bg-red-100    text-red-700    border-red-200',
+    retried:     'bg-amber-100  text-amber-700  border-amber-200',
+    read:        'bg-blue-100   text-blue-700   border-blue-200',
+    deleted:     'bg-gray-100   text-gray-600   border-gray-200',
+    draft_saved: 'bg-violet-100 text-violet-700 border-violet-200',
+    received:    'bg-sky-100    text-sky-700    border-sky-200',
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4 px-6 py-5 border-b border-slate-200 flex-shrink-0 bg-slate-50">
+      <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Mail Logs</h3>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Full audit trail of all users' email activity
-          </p>
+          <h3 className="text-sm font-semibold text-slate-900">Mail Logs</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Complete audit of all users' email activity</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search logs…"
-              className="pl-10 h-9 text-sm bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-100 w-64"
+              className="pl-8 h-8 text-xs w-52 bg-slate-50 border-slate-200"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={fetchMailLogs} disabled={isLogLoading} className="gap-2 h-9 border-slate-200 text-slate-700 hover:bg-white hover:border-slate-300">
-            <RefreshCw className={`h-4 w-4 ${isLogLoading ? 'animate-spin' : ''}`} />
-            Refresh
+          <Button variant="outline" size="sm" onClick={fetchMailLogs} disabled={isLogLoading} className="border-slate-200 text-slate-700 hover:bg-white">
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLogLoading ? 'animate-spin' : ''}`} />Refresh
           </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {isLogLoading ? (
-          <div className="p-6 space-y-3">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
-                <Skeleton className="h-4 flex-1" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-32" />
-              </div>
-            ))}
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400">
-            <div className="h-16 w-16 rounded-2xl bg-slate-200 flex items-center justify-center mb-4">
-              <BarChart2 className="h-7 w-7 opacity-40" />
-            </div>
-            <p className="text-sm font-semibold text-slate-600">
-              {search ? 'No matching logs' : 'No activity yet'}
-            </p>
-            <p className="text-xs mt-1">
-              {search ? 'Try a different search term' : 'Mail activity will appear here'}
-            </p>
+          <div className="flex flex-col items-center justify-center h-full text-slate-400">
+            <BarChart2 className="h-10 w-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium text-slate-600">No logs found</p>
+            <p className="text-xs mt-1">{search ? 'Try a different search term' : 'Mail activity will appear here'}</p>
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent bg-slate-50">
-                <TableHead className="pl-6 text-xs font-semibold text-slate-600 w-[180px]">User</TableHead>
-                <TableHead className="text-xs font-semibold text-slate-600 w-[110px]">Action</TableHead>
+                <TableHead className="pl-5 text-xs font-semibold text-slate-600">User</TableHead>
+                <TableHead className="text-xs font-semibold text-slate-600">Action</TableHead>
                 <TableHead className="text-xs font-semibold text-slate-600">Subject</TableHead>
-                <TableHead className="text-xs font-semibold text-slate-600 w-[150px]">Sender</TableHead>
-                <TableHead className="text-xs font-semibold text-slate-600 text-right pr-6 w-[150px]">Timestamp</TableHead>
+                <TableHead className="text-xs font-semibold text-slate-600">From</TableHead>
+                <TableHead className="text-xs font-semibold text-slate-600 text-right pr-5 whitespace-nowrap">Date / Time</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((log) => {
-                const color = avatarColor(log.user_name ?? '');
-                return (
-                  <TableRow key={log.id} className="text-sm hover:bg-slate-50 border-b border-slate-100">
-                    <TableCell className="pl-6 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${color}`}>
-                          {initials(log.user_name ?? '?')}
-                        </div>
-                        <span className="text-xs font-medium truncate text-slate-700">{log.user_name ?? '—'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-semibold capitalize ${ACTION_COLOR[log.action] ?? 'bg-slate-100 text-slate-600'}`}
-                      >
-                        {log.action.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-3 text-xs text-slate-600 max-w-[200px] truncate">
-                      {log.message?.subject ?? <span className="italic">—</span>}
-                    </TableCell>
-                    <TableCell className="py-3 text-xs text-slate-600 truncate">
-                      {log.message?.sender_name ?? '—'}
-                    </TableCell>
-                    <TableCell className="py-3 text-right pr-6 text-xs text-slate-500 tabular-nums whitespace-nowrap">
-                      {formatDateTime(log.created_at)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {filtered.map((log) => (
+                <TableRow key={log.id} className="text-sm hover:bg-slate-50 border-b border-slate-100">
+                  <TableCell className="pl-5 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-6 w-6 rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                        {(log.user_name ?? '?').charAt(0).toUpperCase()}
+                      </span>
+                      <span className="text-xs font-medium truncate max-w-[100px] text-slate-700">{log.user_name ?? '—'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-2.5">
+                    <Badge variant="outline" className={`text-[10px] font-semibold px-1.5 py-0.5 capitalize ${ACTION_COLOR[log.action] ?? 'bg-slate-100 text-slate-600'}`}>
+                      {log.action.replace('_', ' ')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="py-2.5 text-xs text-slate-600 max-w-[180px] truncate">
+                    {log.message?.subject ?? '—'}
+                  </TableCell>
+                  <TableCell className="py-2.5 text-xs text-slate-600 truncate max-w-[140px]">
+                    {log.message?.sender_name ?? '—'}
+                  </TableCell>
+                  <TableCell className="py-2.5 text-right pr-5 text-[11px] text-slate-500 whitespace-nowrap">
+                    {formatDateTime(log.created_at)}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         )}
@@ -719,51 +564,43 @@ interface MessageListProps {
   isLoading: boolean;
 }
 
-const EMPTY_MSG: Record<Folder, { icon: React.ElementType; title: string; sub: string }> = {
-  inbox:   { icon: Inbox,    title: 'Inbox is empty',        sub: 'No messages to display' },
-  sent:    { icon: Send,     title: 'No sent mail',           sub: 'Sent messages appear here' },
-  compose: { icon: PenSquare,title: '',                       sub: '' },
-  pending: { icon: Clock,    title: 'Nothing pending',        sub: 'Pending messages appear here' },
-  failed:  { icon: MailX,    title: 'No failed deliveries',   sub: 'Failed messages appear here' },
-  logs:    { icon: BarChart2, title: '',                      sub: '' },
-};
-
 function MessageListPanel({ messages, folder, selected, onSelect, onRetry, isLoading }: MessageListProps) {
   const [search, setSearch] = useState('');
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return q
-      ? messages.filter((m) =>
-          [m.subject, m.sender_name, m.sender_email,
-           (m.recipients ?? []).map((r) => r.email).join(' ')]
-            .some((f) => f?.toLowerCase().includes(q))
-        )
-      : messages;
-  }, [messages, search]);
+  const filtered = search.trim()
+    ? messages.filter((m) =>
+        [m.subject, m.sender_name, m.sender_email,
+         (m.recipients ?? []).map((r) => r.email).join(' ')]
+          .some((f) => f?.toLowerCase().includes(search.toLowerCase()))
+      )
+    : messages;
 
-  const empty = EMPTY_MSG[folder];
-  const EmptyIcon = empty.icon;
+  const emptyMsg: Record<Folder, string> = {
+    inbox:   'Your inbox is empty',
+    sent:    'No sent emails yet',
+    compose: '',
+    pending: 'No pending emails',
+    failed:  'No failed emails',
+    logs:    '',
+  };
 
   return (
     <div className="flex flex-col h-full border-r border-slate-200 bg-white">
       {/* Search */}
       <div className="p-3 border-b border-slate-200 flex-shrink-0">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search messages…"
-            className="pl-10 h-9 text-sm bg-slate-50 border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+            placeholder="Search…"
+            className="pl-8 h-8 text-xs bg-slate-50 border-slate-200"
           />
         </div>
       </div>
-
-      {/* Count row */}
-      <div className="px-4 py-2 border-b border-slate-100 flex-shrink-0 flex items-center justify-between">
-        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-          {filtered.length} {filtered.length === 1 ? 'message' : 'messages'}
+      <div className="px-3 py-1.5 border-b border-slate-100 flex-shrink-0">
+        <p className="text-[10px] text-slate-600 font-medium uppercase tracking-wide">
+          {filtered.length} message{filtered.length !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -771,40 +608,35 @@ function MessageListPanel({ messages, folder, selected, onSelect, onRetry, isLoa
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="p-3 space-y-3">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="flex gap-3 px-1 py-1">
-                <Skeleton className="h-9 w-9 rounded-full flex-shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="flex justify-between">
-                    <Skeleton className="h-3 w-28" />
-                    <Skeleton className="h-3 w-10" />
-                  </div>
-                  <Skeleton className="h-3 w-44" />
-                  <Skeleton className="h-3 w-36" />
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-1 px-1">
+                <div className="flex justify-between">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-3 w-12" />
                 </div>
+                <Skeleton className="h-3 w-44" />
+                <Skeleton className="h-3 w-56" />
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
-            <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
-              <EmptyIcon className="h-6 w-6 opacity-40" />
-            </div>
-            <p className="text-sm font-semibold text-foreground">{empty.title}</p>
-            <p className="text-xs mt-1 text-center px-6">{empty.sub}</p>
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+            <MailOpen className="h-10 w-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium text-slate-600">{emptyMsg[folder]}</p>
+            {folder === 'failed' && (
+              <p className="text-xs mt-1 text-center px-4">Failed emails will appear here with error details</p>
+            )}
           </div>
         ) : (
           filtered.map((m) => {
             const isInbox = folder === 'inbox';
-            const name    = isInbox ? m.sender_name : (
-              (m.recipients ?? []).filter((r) => r.type === 'to').map((r) => r.name || r.email).join(', ')
-              || m.sender_email
-            );
+            const toNames = (m.recipients ?? []).filter((r) => r.type === 'to').map((r) => r.name || r.email).join(', ');
+
             return (
               <div key={m.id} className="relative group">
                 <MessageRow
-                  name={name}
-                  email={isInbox ? m.sender_email : undefined}
+                  label={isInbox ? m.sender_name : (toNames || m.sender_email)}
+                  sublabel={isInbox ? m.sender_email : undefined}
                   subject={m.subject}
                   preview={m.body_text || stripHtml(m.body_html)}
                   date={m.sent_at ?? m.created_at}
@@ -813,13 +645,14 @@ function MessageListPanel({ messages, folder, selected, onSelect, onRetry, isLoa
                   selected={selected?.id === m.id}
                   onClick={() => onSelect(m)}
                 />
+                {/* Retry button for failed */}
                 {folder === 'failed' && onRetry && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onRetry(m.id); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Retry sending"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 flex items-center justify-center shadow-sm"
                   >
-                    <RotateCcw className="h-4 w-4" />
+                    <RotateCcw className="h-3.5 w-3.5 text-amber-600 hover:text-amber-700" />
                   </button>
                 )}
               </div>
@@ -836,12 +669,13 @@ function MessageListPanel({ messages, folder, selected, onSelect, onRetry, isLoa
 export function MailPage() {
   const { profile } = useAuthStore();
   const {
-    inbox, sent, pending, failed,
-    isLoading, fetchAll, fetchMailLogs,
-    markRead, deleteMail, retrySend, fetchSent,
+    inbox, sent, pending, failed, mailLogs,
+    isLoading, fetchInbox, fetchSent, fetchPending,
+    fetchFailed, fetchMailLogs, fetchAll,
+    markRead, deleteMail, retrySend,
   } = useMailStore();
 
-  const isAdmin  = profile?.role === 'Admin';
+  const isAdmin = profile?.role === 'Admin';
   const [folder,   setFolder]   = useState<Folder>('inbox');
   const [selected, setSelected] = useState<EmailMessage | null>(null);
 
@@ -852,7 +686,11 @@ export function MailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const switchFolder = (f: Folder) => { setFolder(f); setSelected(null); };
+  // When switching folders, clear selection
+  const switchFolder = (f: Folder) => {
+    setFolder(f);
+    setSelected(null);
+  };
 
   const handleSelect = (m: EmailMessage) => {
     setSelected(m);
@@ -871,76 +709,74 @@ export function MailPage() {
     try { await retrySend(id); } catch {}
   };
 
-  // Badge counts
-  const unreadCount = inbox.filter((m) => !m.is_read).length;
+  // Counts for sidebar badges
+  const unreadInbox = inbox.filter((m) => !m.is_read).length;
   const counts: Partial<Record<Folder, number>> = {
-    inbox:   unreadCount,
+    inbox:   unreadInbox,
     pending: pending.length,
     failed:  failed.length,
   };
 
-  const visibleFolders = FOLDERS.filter((f) => !f.adminOnly || isAdmin);
+  const folders = FOLDERS.filter((f) => !f.adminOnly || isAdmin);
 
-  const currentMessages: EmailMessage[] = (
-    { inbox, sent, compose: [], pending, failed, logs: [] } as Record<Folder, EmailMessage[]>
-  )[folder] ?? [];
-
-  const isFullWidth = folder === 'compose' || folder === 'logs';
+  // Current message list
+  const currentMessages: EmailMessage[] = {
+    inbox, sent, compose: [], pending, failed, logs: [],
+  }[folder] ?? [];
 
   return (
     <div className="flex h-[calc(100vh-56px)] overflow-hidden bg-white">
 
-      {/* ── SIDEBAR ── */}
-      <aside className="w-56 flex-shrink-0 border-r border-slate-200 flex flex-col bg-slate-50">
-        {/* User account */}
-        <div className="p-4 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${avatarColor(profile?.name ?? 'Admin')}`}>
-              {initials(profile?.name ?? 'Admin') || 'AU'}
-            </div>
+      {/* ── LEFT SIDEBAR ── */}
+      <aside className="w-52 flex-shrink-0 border-r border-slate-700 flex flex-col bg-slate-900">
+        {/* Account header */}
+        <div className="p-4 border-b border-slate-700">
+          <div className="flex items-center gap-2.5">
+            <span className="h-9 w-9 rounded-full bg-blue-600 text-white text-sm flex items-center justify-center font-bold flex-shrink-0">
+              {(profile?.name ?? 'A').charAt(0).toUpperCase()}
+            </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold truncate text-slate-900">{profile?.name ?? 'Admin'}</p>
-              <p className="text-xs text-slate-500 truncate">{profile?.email ?? ''}</p>
+              <p className="text-sm font-semibold truncate text-white">{profile?.name ?? 'Admin'}</p>
+              <p className="text-[10px] text-slate-400 truncate">{profile?.email ?? ''}</p>
             </div>
           </div>
         </div>
 
-        {/* Compose */}
-        <div className="px-3 pt-4 pb-2">
+        {/* Compose button */}
+        <div className="px-3 pt-3 pb-1">
           <Button
             size="sm"
-            className="w-full justify-center gap-2 h-10 shadow-md bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold"
+            className="w-full justify-start gap-2 bg-blue-600 hover:bg-blue-700 text-white"
             onClick={() => switchFolder('compose')}
           >
-            <PenSquare className="h-4 w-4" />
+            <PenSquare className="h-3.5 w-3.5" />
             Compose
           </Button>
         </div>
 
         {/* Folder nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {visibleFolders.map(({ key, label, icon: Icon }) => {
-            const cnt      = counts[key] ?? 0;
+        <nav className="flex-1 overflow-y-auto py-2">
+          {folders.filter((f) => f.key !== 'compose').map(({ key, label, icon: Icon }) => {
+            const cnt     = counts[key] ?? 0;
             const isActive = folder === key;
             return (
               <button
                 key={key}
                 onClick={() => switchFolder(key)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+                className={`w-full flex items-center justify-between px-3 py-2 mx-1 rounded-lg text-sm transition-colors ${
                   isActive
-                    ? 'bg-blue-600 text-white font-semibold shadow-sm'
-                    : 'text-slate-700 hover:bg-white hover:shadow-sm font-medium'
+                    ? 'bg-blue-600 text-white font-medium'
+                    : 'text-slate-300 hover:bg-slate-800'
                 }`}
+                style={{ width: 'calc(100% - 8px)' }}
               >
-                <div className="flex items-center gap-3">
-                  <Icon className="h-4.5 w-4.5 flex-shrink-0" />
-                  <span>{label}</span>
+                <div className="flex items-center gap-2.5">
+                  <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                  {label}
                 </div>
                 {cnt > 0 && (
-                  <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 min-w-[20px] text-center leading-none ${
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : 'bg-blue-100 text-blue-700'
+                  <span className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-blue-600 text-white'
                   }`}>
                     {cnt > 99 ? '99+' : cnt}
                   </span>
@@ -951,38 +787,29 @@ export function MailPage() {
         </nav>
 
         {/* Refresh */}
-        <div className="p-3 border-t border-slate-200">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-xs text-slate-600 hover:text-slate-900 hover:bg-white gap-1.5 h-9 rounded-lg"
-            onClick={load}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+        <div className="p-3 border-t border-slate-700">
+          <Button variant="outline" size="sm" className="w-full text-xs border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white" onClick={load} disabled={isLoading}>
+            <RefreshCw className={`h-3 w-3 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />Refresh
           </Button>
         </div>
       </aside>
 
-      {/* ── MAIN CONTENT ── */}
+      {/* ── COMPOSE (full width center+right) ── */}
       {folder === 'compose' ? (
-        /* Compose: full width */
         <div className="flex-1 overflow-hidden">
           <ComposePanel
             onSent={() => { switchFolder('sent'); fetchSent(); }}
-            onCancel={() => switchFolder('inbox')}
+            onDraft={() => {}}
           />
         </div>
       ) : folder === 'logs' ? (
-        /* Logs: full width */
         <div className="flex-1 overflow-hidden">
           <MailLogsPanel />
         </div>
       ) : (
         <>
-          {/* CENTER: Message list */}
-          <div className="w-96 flex-shrink-0 flex flex-col overflow-hidden">
+          {/* ── CENTER: Message list ── */}
+          <div className="w-80 flex-shrink-0 flex flex-col overflow-hidden">
             <MessageListPanel
               messages={currentMessages}
               folder={folder}
@@ -993,28 +820,26 @@ export function MailPage() {
             />
           </div>
 
-          {/* RIGHT: Detail pane */}
+          {/* ── RIGHT: Detail pane ── */}
           <main className="flex-1 overflow-hidden bg-slate-50">
             {selected ? (
               <MessageDetail
                 message={selected}
+                kind={folder === 'inbox' ? 'inbox' : 'sent'}
                 onReply={() => switchFolder('compose')}
                 onDelete={handleDelete}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50">
-                <div className="h-24 w-24 rounded-3xl bg-slate-200 flex items-center justify-center mb-6">
-                  <Mail className="h-10 w-10 opacity-40" />
+                <div className="h-20 w-20 rounded-full bg-slate-200 flex items-center justify-center mb-4">
+                  <Mail className="h-9 w-9 opacity-40" />
                 </div>
-                <p className="text-lg font-semibold text-slate-600">Select a message</p>
-                <p className="text-sm mt-2 text-slate-500">
-                  Choose a message from the list to read it
-                </p>
-                {folder === 'inbox' && unreadCount > 0 && (
-                  <div className="mt-5 flex items-center gap-2 text-sm bg-blue-50 border border-blue-100 text-blue-700 rounded-full px-4 py-2 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" />
-                    {unreadCount} unread {unreadCount === 1 ? 'message' : 'messages'}
-                  </div>
+                <p className="text-base font-semibold text-slate-600">No message selected</p>
+                <p className="text-sm mt-1.5 text-slate-500">Select a message from the list to view it</p>
+                {folder === 'inbox' && unreadInbox > 0 && (
+                  <p className="text-xs text-blue-600 mt-2 font-medium">
+                    {unreadInbox} unread message{unreadInbox !== 1 ? 's' : ''}
+                  </p>
                 )}
               </div>
             )}
@@ -1024,3 +849,10 @@ export function MailPage() {
     </div>
   );
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function stripHtml(html: string): string {
+  return html ? html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+}
+
