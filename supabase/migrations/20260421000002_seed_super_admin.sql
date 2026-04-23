@@ -1,7 +1,7 @@
 -- =============================================================
 -- Seed Super Admin account
 -- Safe to re-run (idempotent).
--- Credentials: admin@1cng.com / Admin@1CNG2026!
+-- Credentials: admin@1cng.com / Admin@1CNG2027!
 -- =============================================================
 
 -- Ensure pgcrypto is available. On Supabase cloud it lives in the
