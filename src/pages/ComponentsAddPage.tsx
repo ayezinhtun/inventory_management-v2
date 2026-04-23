@@ -72,8 +72,14 @@ export function ComponentsAddPage() {
   };
 
   const handleSave = async () => {
-    if (!formData.item_name || !formData.component_type_id || !formData.region_id || !formData.warehouse_id) {
-      toast.error('Please fill in all required fields (Name, Type, Region, Warehouse)');
+    // Report ONLY the specific missing fields
+    const missing: string[] = [];
+    if (!formData.item_name.trim())       missing.push('Component Name');
+    if (!formData.component_type_id)      missing.push('Component Type');
+    if (!formData.region_id)              missing.push('Region');
+    if (!formData.warehouse_id)           missing.push('Warehouse');
+    if (missing.length > 0) {
+      toast.error(`Please fill in: ${missing.join(', ')}`);
       return;
     }
 
@@ -287,9 +293,11 @@ export function ComponentsAddPage() {
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {regions.filter((r) => r.status === 'active').map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                  ))}
+                  {regions
+                    .filter((r) => (r.status ?? '').toLowerCase() === 'active')
+                    .map((r) => (
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

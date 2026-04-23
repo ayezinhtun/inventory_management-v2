@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -22,6 +22,7 @@ import {
   Plus, Tags, Edit, Trash2, GripVertical, X, Eye, ListFilter,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '../lib/supabase';
 import type { ComponentType, FormField } from '../lib/types';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -122,13 +123,34 @@ export function TypeManagementPage() {
     setDialogOpen(true);
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!formData.type_name.trim()) {
       toast.error('Type name is required');
       return;
     }
-    const payload = { ...formData, fields };
+    // When spec toggle is OFF, clear all fields so no stale data is saved
+    const resolvedFields = formData.requires_specification ? fields : [];
+    const payload = { ...formData, fields: resolvedFields };
+
     if (editingType) {
+      // Direct Supabase update with explicit error handling (no silent catch)
+      const { error } = await supabase
+        .from('component_types')
+        .update({
+          type_name: payload.type_name,
+          category: payload.category,
+          description: payload.description,
+          requires_specification: payload.requires_specification,
+          is_active: payload.is_active,
+          fields: resolvedFields,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingType.id);
+      if (error) {
+        toast.error(`Failed to save: ${error.message}`);
+        return;
+      }
+      // Also update in-memory store
       updateComponentType(editingType.id, payload);
       toast.success('Component type updated');
     } else {
@@ -285,21 +307,30 @@ export function TypeManagementPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Tabs */}
+          {/* Tabs — Form Fields tab only visible when requires_specification is ON */}
           <div className="flex gap-1 border-b mb-4">
-            {(['info', 'fields'] as const).map((tab) => (
+            <button
+              onClick={() => setActiveTab('info')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === 'info'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Basic Info
+            </button>
+            {formData.requires_specification && (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => setActiveTab('fields')}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                  activeTab === tab
+                  activeTab === 'fields'
                     ? 'border-primary text-primary'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {tab === 'info' ? 'Basic Info' : `Form Fields (${fields.length})`}
+                Form Fields {fields.length > 0 && `(${fields.length})`}
               </button>
-            ))}
+            )}
           </div>
 
           {/* Tab: Basic Info */}
@@ -353,7 +384,11 @@ export function TypeManagementPage() {
                   </div>
                   <Switch
                     checked={formData.requires_specification}
-                    onCheckedChange={(v) => setFormData({ ...formData, requires_specification: v })}
+                    onCheckedChange={(v) => {
+                      setFormData({ ...formData, requires_specification: v });
+                      // Auto-navigate: ON → go to fields tab, OFF → go back to info
+                      setActiveTab(v ? 'fields' : 'info');
+                    }}
                   />
                 </div>
 
