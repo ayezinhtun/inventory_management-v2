@@ -9,6 +9,8 @@ export interface UserRecord {
   email: string;
   role: string;
   username?: string | null;
+  assigned_region_ids?: string[];
+  assigned_warehouse_ids?: string[];
   region_id?: string | null;
   warehouse_id?: string | null;
   status: string;
@@ -38,14 +40,16 @@ interface UsersState {
     email: string;
     name: string;
     role: string;
-    region_id?: string | null;
-    warehouse_id?: string | null;
+    region_ids?: string[];
+    warehouse_ids?: string[];
   }) => Promise<string>;
   deleteUser: (userId: string) => Promise<void>;
   resetUserPassword: (userId: string) => Promise<string>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
   fetchUserActivity: (userId: string) => Promise<UserActivityLog[]>;
   subscribeToPresence: () => () => void;
+  fetchUserAssignments: (userId: string) => Promise<{ regions: string[]; warehouses: string[] }>;
+  updateUserAssignments: (userId: string, regionIds: string[], warehouseIds: string[]) => Promise<void>;
 }
 
 export const useUsersStore = create<UsersState>((set, get) => ({
@@ -55,12 +59,32 @@ export const useUsersStore = create<UsersState>((set, get) => ({
   fetchUsers: async () => {
     set({ isLoading: true });
     try {
-      const { data, error } = await supabase
+      // Fetch users
+      const { data: usersData, error: usersError } = await supabase
         .from('user_profiles')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      set({ users: (data ?? []) as UserRecord[] });
+      if (usersError) throw usersError;
+
+      // Fetch all assignments
+      const [regionsRes, warehousesRes] = await Promise.all([
+        supabase.from('user_regions').select('user_id, region_id'),
+        supabase.from('user_warehouses').select('user_id, warehouse_id'),
+      ]);
+
+      // Map assignments to users
+      const users = (usersData ?? []).map(user => {
+        const userRegions = regionsRes.data?.filter(r => r.user_id === user.user_id) ?? [];
+        const userWarehouses = warehousesRes.data?.filter(w => w.user_id === user.user_id) ?? [];
+
+        return {
+          ...user,
+          assigned_region_ids: userRegions.map(r => r.region_id),
+          assigned_warehouse_ids: userWarehouses.map(w => w.warehouse_id),
+        };
+      });
+
+      set({ users });
     } finally {
       set({ isLoading: false });
     }
@@ -149,7 +173,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
         body: JSON.stringify({
           action: 'delete',
           target_user_id: userId,
-          _token: token,  
+          _token: token,
         }),
       }
     );
@@ -163,6 +187,32 @@ export const useUsersStore = create<UsersState>((set, get) => ({
 
     auditLog({ action: 'DELETE', module: 'User Management', record_id: userId, old_value: existing ? { name: existing.name, email: existing.email } : null });
     set((s) => ({ users: s.users.filter((u) => u.user_id !== userId) }));
+  },
+
+  fetchUserAssignments: async (userId) => {
+    const [regionsRes, warehousesRes] = await Promise.all([
+      supabase.from('user_regions').select('region_id').eq('user_id', userId),
+      supabase.from('user_warehouses').select('warehouse_id').eq('user_id', userId),
+    ]);
+    return {
+      regions: (regionsRes.data ?? []).map(r => r.region_id),
+      warehouses: (warehousesRes.data ?? []).map(w => w.warehouse_id),
+    };
+  },
+
+  updateUserAssignments: async (userId, regionIds, warehouseIds) => {
+    // Delete existing
+    await Promise.all([
+      supabase.from('user_regions').delete().eq('user_id', userId),
+      supabase.from('user_warehouses').delete().eq('user_id', userId),
+    ]);
+
+    // Insert new
+    const regionRows = regionIds.map(rid => ({ user_id: userId, region_id: rid }));
+    const warehouseRows = warehouseIds.map(wid => ({ user_id: userId, warehouse_id: wid }));
+
+    if (regionRows.length > 0) await supabase.from('user_regions').insert(regionRows);
+    if (warehouseRows.length > 0) await supabase.from('user_warehouses').insert(warehouseRows);
   },
 
   resetUserPassword: async (userId) => {

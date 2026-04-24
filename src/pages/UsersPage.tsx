@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { getInitials, formatDate } from '../lib/utils';
 import type { UserRole } from '../lib/types';
+import { MultiSelect } from '../components/ui/MultiSelect';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -97,20 +98,11 @@ export function UsersPage() {
   const { regions, fetchRegions } = useRegionStore();
   const { warehouses, fetchWarehouses } = useWarehouseStore();
 
-  // Name lookup helpers using the dedicated stores (always have fresh Supabase data)
-  function getRegionName(id?: string | null) {
-    if (!id) return '—';
-    return regions.find((r) => r.id === id)?.name ?? '—';
-  }
-  function getWarehouseName(id?: string | null) {
-    if (!id) return '—';
-    return warehouses.find((w) => w.id === id)?.name ?? '—';
-  }
   const {
     users, isLoading,
     fetchUsers, updateUserRecord, createUser, deleteUser,
     resetUserPassword, sendPasswordResetEmail, fetchUserActivity,
-    subscribeToPresence,
+    subscribeToPresence, fetchUserAssignments, updateUserAssignments,
   } = useUsersStore();
 
   const [search, setSearch] = useState('');
@@ -119,7 +111,7 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: '', email: '', role: 'Engineer' as UserRole,
-    region_id: 'none', warehouse_id: 'none',
+    region_ids: [] as string[], warehouse_ids: [] as string[],
   });
   const [createLoading, setCreateLoading] = useState(false);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
@@ -128,7 +120,7 @@ export function UsersPage() {
   // User detail sheet
   const [sheetUser, setSheetUser] = useState<UserRecord | null>(null);
   const [editForm, setEditForm] = useState({
-    name: '', username: '', role: '', region_id: 'none', warehouse_id: 'none', status: 'active',
+    name: '', username: '', role: '', region_ids: [] as string[], warehouse_ids: [] as string[], status: 'active',
   });
   const [editSaving, setEditSaving] = useState(false);
 
@@ -159,17 +151,20 @@ export function UsersPage() {
   // Sync edit form when sheet user changes
   useEffect(() => {
     if (sheetUser) {
-      setEditForm({
-        name: sheetUser.name,
-        username: sheetUser.username ?? '',
-        role: sheetUser.role,
-        region_id: sheetUser.region_id ?? 'none',
-        warehouse_id: sheetUser.warehouse_id ?? 'none',
-        status: sheetUser.status,
+      // Load user's assignments
+      fetchUserAssignments(sheetUser.user_id).then(({ regions, warehouses }) => {
+        setEditForm({
+          name: sheetUser.name,
+          username: sheetUser.username ?? '',
+          role: sheetUser.role,
+          region_ids: regions,
+          warehouse_ids: warehouses,
+          status: sheetUser.status,
+        });
       });
       loadActivity(sheetUser.user_id);
     }
-  }, [sheetUser]);
+  }, [sheetUser, fetchUserAssignments]);
 
   async function loadActivity(userId: string) {
     setActivityLoading(true);
@@ -214,11 +209,11 @@ export function UsersPage() {
         name: createForm.name.trim(),
         email: createForm.email.trim(),
         role: createForm.role,
-        region_id: createForm.region_id !== 'none' ? createForm.region_id : null,
-        warehouse_id: createForm.warehouse_id !== 'none' ? createForm.warehouse_id : null,
+        region_ids: createForm.region_ids,  // Now an array
+        warehouse_ids: createForm.warehouse_ids,  // Now an array
       });
       setCreatedPassword(generatedPwd);
-      setCreateForm({ name: '', email: '', role: 'Engineer', region_id: 'none', warehouse_id: 'none' });
+      setCreateForm({ name: '', email: '', role: 'Engineer', region_ids: [], warehouse_ids: [] });
     } catch (err: any) {
       console.error('Create failed:', err);
       toast.error(err?.message || 'Failed to create user');
@@ -242,16 +237,23 @@ export function UsersPage() {
     if (!editForm.name.trim()) { toast.error('Name cannot be empty'); return; }
     setEditSaving(true);
     try {
+      // Update profile
       await updateUserRecord(sheetUser.user_id, {
         name: editForm.name.trim(),
         username: editForm.username.trim() || null,
         role: editForm.role,
-        region_id: editForm.region_id !== 'none' ? editForm.region_id : null,
-        warehouse_id: editForm.warehouse_id !== 'none' ? editForm.warehouse_id : null,
         status: editForm.status,
       });
+      // Update assignments
+      await updateUserAssignments(
+        sheetUser.user_id,
+        editForm.region_ids,
+        editForm.warehouse_ids
+      );
+      
+      await fetchUsers();
+
       toast.success(`${editForm.name.trim()} updated successfully`);
-      // Close the sheet after save
       setSheetUser(null);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update user');
@@ -304,14 +306,6 @@ export function UsersPage() {
       setDeleteLoading(false);
     }
   }
-
-  const availableWarehouses = createForm.region_id !== 'none'
-    ? warehouses.filter((w) => w.region_id === createForm.region_id && w.status === 'active')
-    : warehouses.filter((w) => w.status === 'active');
-
-  const editAvailableWarehouses = editForm.region_id !== 'none'
-    ? warehouses.filter((w) => w.region_id === editForm.region_id && w.status === 'active')
-    : warehouses.filter((w) => w.status === 'active');
 
   // ── UI ─────────────────────────────────────────────────────────────────────
 
@@ -422,10 +416,36 @@ export function UsersPage() {
                         <Badge variant={roleBadgeVariant(user.role)}>{user.role}</Badge>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {user.region_id ? getRegionName(user.region_id) : <span className="text-muted-foreground">—</span>}
+                        {user.assigned_region_ids && user.assigned_region_ids.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.assigned_region_ids.map(id => {
+                              const region = regions.find(r => r.id === id);
+                              return (
+                                <Badge key={id} variant="outline" className="text-xs">
+                                  {region?.name || 'Unknown'}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {user.warehouse_id ? getWarehouseName(user.warehouse_id) : <span className="text-muted-foreground">—</span>}
+                        {user.assigned_warehouse_ids && user.assigned_warehouse_ids.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.assigned_warehouse_ids.map(id => {
+                              const warehouse = warehouses.find(w => w.id === id);
+                              return (
+                                <Badge key={id} variant="outline" className="text-xs">
+                                  {warehouse?.name || 'Unknown'}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={user.status === 'active' ? 'default' : 'secondary'}
@@ -547,7 +567,7 @@ export function UsersPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
-                  <Select value={createForm.role} onValueChange={(v: UserRole) => setCreateForm({ ...createForm, role: v })}>
+                  <Select value={createForm.role} onValueChange={(v) => setCreateForm({ ...createForm, role: v as UserRole })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Admin">Admin</SelectItem>
@@ -559,32 +579,30 @@ export function UsersPage() {
                 {createForm.role !== 'Admin' && (
                   <>
                     <div className="space-y-2">
-                      <Label>Assigned Region</Label>
-                      <Select value={createForm.region_id} onValueChange={(v) => setCreateForm({ ...createForm, region_id: v, warehouse_id: 'none' })}>
-                        <SelectTrigger><SelectValue displayValue={regions.find((r) => r.id === createForm.region_id)?.name} placeholder="Select region" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {regions.filter((r) => r.status === 'active').map((r) => (
-                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Assigned Regions</Label>
+                      <MultiSelect
+                        options={regions.filter((r) => r.status === 'active').map(r => ({ id: r.id, name: r.name }))}
+                        selected={createForm.region_ids}
+                        onChange={(ids) => setCreateForm({ ...createForm, region_ids: ids })}
+                        placeholder="Select regions..."
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Assigned Warehouse</Label>
-                      <Select
-                        value={createForm.warehouse_id}
-                        onValueChange={(v) => setCreateForm({ ...createForm, warehouse_id: v })}
-                        disabled={createForm.region_id === 'none'}
-                      >
-                        <SelectTrigger><SelectValue displayValue={availableWarehouses.find((w) => w.id === createForm.warehouse_id)?.name} placeholder="Select warehouse" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {availableWarehouses.map((w) => (
-                            <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Assigned Warehouses</Label>
+                      <MultiSelect
+                        options={warehouses
+                          .filter((w) => w.status === 'active')
+                          .filter((w) => createForm.region_ids.length === 0 || createForm.region_ids.includes(w.region_id))
+                          .map(w => ({ id: w.id, name: w.name }))}
+                        selected={createForm.warehouse_ids}
+                        onChange={(ids) => setCreateForm({ ...createForm, warehouse_ids: ids })}
+                        placeholder="Select warehouses..."
+                      />
+                      {createForm.region_ids.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Showing warehouses from selected regions
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
@@ -692,36 +710,34 @@ export function UsersPage() {
                     </div>
 
                     {editForm.role !== 'Admin' && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label>Region</Label>
-                          <Select value={editForm.region_id} onValueChange={(v) => setEditForm({ ...editForm, region_id: v, warehouse_id: 'none' })}>
-                            <SelectTrigger><SelectValue displayValue={regions.find((r) => r.id === editForm.region_id)?.name} placeholder="None" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {regions.filter((r) => r.status === 'active').map((r) => (
-                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <>
+                        <div className="space-y-2">
+                          <Label>Assigned Regions</Label>
+                          <MultiSelect
+                            options={regions.filter((r) => r.status === 'active').map(r => ({ id: r.id, name: r.name }))}
+                            selected={editForm.region_ids}
+                            onChange={(ids) => setEditForm({ ...editForm, region_ids: ids })}
+                            placeholder="Select regions..."
+                          />
                         </div>
-                        <div className="space-y-1.5">
-                          <Label>Warehouse</Label>
-                          <Select
-                            value={editForm.warehouse_id}
-                            onValueChange={(v) => setEditForm({ ...editForm, warehouse_id: v })}
-                            disabled={editForm.region_id === 'none'}
-                          >
-                            <SelectTrigger><SelectValue displayValue={editAvailableWarehouses.find((w) => w.id === editForm.warehouse_id)?.name} placeholder="None" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {editAvailableWarehouses.map((w) => (
-                                <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-2">
+                          <Label>Assigned Warehouses</Label>
+                          <MultiSelect
+                            options={warehouses
+                              .filter((w) => w.status === 'active')
+                              .filter((w) => editForm.region_ids.length === 0 || editForm.region_ids.includes(w.region_id))
+                              .map(w => ({ id: w.id, name: w.name }))}
+                            selected={editForm.warehouse_ids}
+                            onChange={(ids) => setEditForm({ ...editForm, warehouse_ids: ids })}
+                            placeholder="Select warehouses..."
+                          />
+                          {editForm.region_ids.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Showing warehouses from selected regions
+                            </p>
+                          )}
                         </div>
-                      </div>
+                      </>
                     )}
 
                     <div className="flex items-center justify-between p-3 rounded-lg border">

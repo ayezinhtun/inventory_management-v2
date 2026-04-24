@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
 
     // ── CREATE USER ──────────────────────────────────────────────────────────
     if (action === 'create') {
-      const { email, name, role, region_id, warehouse_id } = body;
+      const { email, name, role, region_ids, warehouse_ids } = body;
       if (!email || !name || !role) throw new Error('email, name, and role are required');
 
       const password = generatePassword();
@@ -134,11 +134,19 @@ Deno.serve(async (req: Request) => {
         name,
         email,
         role,
-        region_id: region_id || null,
-        warehouse_id: warehouse_id || null,
         force_password_change: true,
         status: 'active',
       }, { onConflict: 'user_id' });
+
+      if (region_ids && Array.isArray(region_ids) && region_ids.length > 0) {
+        const rows = region_ids.map(rid => ({ user_id: authUser.user.id, region_id: rid }));
+        await supabaseAdmin.from('user_regions').insert(rows);
+      }
+
+      if (warehouse_ids && Array.isArray(warehouse_ids) && warehouse_ids.length > 0) {
+        const rows = warehouse_ids.map(wid => ({ user_id: authUser.user.id, warehouse_id: wid }));
+        await supabaseAdmin.from('user_warehouses').insert(rows);
+      }
 
       await supabaseAdmin.from('user_activity_logs').insert({
         user_id: authUser.user.id,
@@ -167,6 +175,8 @@ Deno.serve(async (req: Request) => {
       });
 
       await supabaseAdmin.from('user_profiles').delete().eq('user_id', target_user_id);
+      await supabaseAdmin.from('user_regions').delete().eq('user_id', target_user_id);
+      await supabaseAdmin.from('user_warehouses').delete().eq('user_id', target_user_id);
 
       const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(target_user_id);
       if (delErr) throw delErr;

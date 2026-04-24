@@ -19,7 +19,7 @@ export function generateRequestNumber(prefix: string): string {
   return `${prefix}-${year}-${num}`;
 }
 
-export function formatDate(date: string | null): string {
+export function formatDate(date: string | null | undefined): string {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',
