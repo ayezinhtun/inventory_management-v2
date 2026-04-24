@@ -84,7 +84,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
           action: 'PROFILE_UPDATED',
           details: updates,
         });
-      })().catch(() => {});
+      })().catch(() => { });
     }
 
     set((s) => ({
@@ -93,11 +93,37 @@ export const useUsersStore = create<UsersState>((set, get) => ({
   },
 
   createUser: async (data) => {
-    const { data: result, error } = await supabase.functions.invoke('admin-user-actions', {
-      body: { action: 'create', ...data },
-    });
-    if (error) throw new Error(error.message);
-    if (result?.error) throw new Error(result.error);
+    // Get the current user's session token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    console.log('Creating user with data:', data);
+
+    // Use regular fetch instead of supabase.functions.invoke
+    // This lets us control the headers (no automatic Authorization header)
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-user-actions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // ADD THIS
+        },
+        body: JSON.stringify({
+          action: 'create',
+          ...data,
+          _token: token,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to create user');
+    }
+
     await get().fetchUsers();
     auditLog({ action: 'CREATE', module: 'User Management', record_id: result.user_id ?? null, new_value: { name: data.name, email: data.email, role: data.role } });
     return result.password as string;
@@ -105,11 +131,36 @@ export const useUsersStore = create<UsersState>((set, get) => ({
 
   deleteUser: async (userId) => {
     const existing = get().users.find((u) => u.user_id === userId);
-    const { data: result, error } = await supabase.functions.invoke('admin-user-actions', {
-      body: { action: 'delete', target_user_id: userId },
-    });
-    if (error) throw new Error(error.message);
+
+    // Get token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    // Use fetch instead of supabase.functions.invoke
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-user-actions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          action: 'delete',
+          target_user_id: userId,
+          _token: token,  
+        }),
+      }
+    );
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to delete user');
+    }
+
     if (result?.error) throw new Error(result.error);
+
     auditLog({ action: 'DELETE', module: 'User Management', record_id: userId, old_value: existing ? { name: existing.name, email: existing.email } : null });
     set((s) => ({ users: s.users.filter((u) => u.user_id !== userId) }));
   },

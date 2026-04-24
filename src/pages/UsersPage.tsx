@@ -51,9 +51,8 @@ function isOnline(lastSeenAt?: string | null): boolean {
 function OnlineDot({ online }: { online: boolean }) {
   return (
     <span
-      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-        online ? 'bg-green-500' : 'bg-muted-foreground/30'
-      }`}
+      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${online ? 'bg-green-500' : 'bg-muted-foreground/30'
+        }`}
       title={online ? 'Online' : 'Offline'}
     />
   );
@@ -221,6 +220,7 @@ export function UsersPage() {
       setCreatedPassword(generatedPwd);
       setCreateForm({ name: '', email: '', role: 'Engineer', region_id: 'none', warehouse_id: 'none' });
     } catch (err: any) {
+      console.error('Create failed:', err);
       toast.error(err?.message || 'Failed to create user');
       setCreateLoading(false);
     } finally {
@@ -288,6 +288,10 @@ export function UsersPage() {
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleteLoading(true);
+    console.log('=== DELETE DEBUG ===');
+    console.log('deleteTarget:', deleteTarget);
+    console.log('deleteTarget.user_id:', deleteTarget?.user_id);
+    console.log('deleteTarget.id:', deleteTarget?.id);
     try {
       await deleteUser(deleteTarget.user_id);
       toast.success(`${deleteTarget.name} has been deleted`);

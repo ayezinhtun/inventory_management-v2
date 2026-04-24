@@ -24,8 +24,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    Deno.env.get('VITE_SUPABASE_URL')!,
+    Deno.env.get('VITE_SUPABASE_SERVICE_ROLE_KEY')!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
@@ -74,33 +74,42 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── All other actions require Admin auth ───────────────────────────────────
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+  // Get token from body instead of Authorization header
+  const { _token, ...restBody } = body;
+  body = restBody; // Remove _token from body for rest of processing
+
+  if (!_token) {
+    return new Response(JSON.stringify({ error: 'No token provided' }), {
       status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(
-    authHeader.replace('Bearer ', '')
-  );
-  if (authErr || !user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+  // Decode JWT manually (just get user ID from payload)
+  let userId: string;
+  try {
+    const parts = _token.split('.');
+    const payload = JSON.parse(atob(parts[1]));
+    userId = payload.sub;
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid token' }), {
       status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
+  // Check if user is admin
   const { data: callerProfile } = await supabaseAdmin
     .from('user_profiles')
-    .select('role')
-    .eq('user_id', user.id)
+    .select('role, email')
+    .eq('user_id', userId)
     .single();
 
   if (callerProfile?.role !== 'Admin') {
-    return new Response(JSON.stringify({ error: 'Forbidden: Admin access required' }), {
+    return new Response(JSON.stringify({ error: 'Admin access required' }), {
       status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
+  const user = { id: userId, email: callerProfile?.email || '' };
 
   try {
     const { action } = body;
@@ -155,10 +164,9 @@ Deno.serve(async (req: Request) => {
         actor_id: user.id,
         action: 'ACCOUNT_DELETED',
         details: { deleted_by: user.email },
-      }).catch(() => {});
+      });
 
-      // Remove from user_profiles first to avoid FK issues
-      await supabaseAdmin.from('user_profiles').delete().eq('user_id', target_user_id).catch(() => {});
+      await supabaseAdmin.from('user_profiles').delete().eq('user_id', target_user_id);
 
       const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(target_user_id);
       if (delErr) throw delErr;

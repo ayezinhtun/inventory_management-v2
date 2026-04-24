@@ -255,12 +255,12 @@ export function AppSidebar() {
           icon: Users,
           roles: ["Admin"],
         },
-        {
-          id: "mail",
-          label: "Mail",
-          icon: Mail,
-          roles: ["Admin"],
-        },
+        // {
+        //   id: "mail",
+        //   label: "Mail",
+        //   icon: Mail,
+        //   roles: ["Admin"],
+        // },
         {
           id: "audit-log",
           label: "Audit Log",

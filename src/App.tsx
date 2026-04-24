@@ -81,7 +81,7 @@ export function App() {
     getUnreadNotificationCount,
   } = useStore();
 
-  const { initializeAuth, logout, isInitializing, isPasswordRecovery, profile } = useAuthStore();
+  const { initializeAuth, logout, isInitializing, isPasswordRecovery, profile, user } = useAuthStore();
   const { unreadCount: realUnreadCount, fetchNotifications, subscribeToRealtime } = useNotificationsStore();
 
   useEffect(() => {
@@ -140,8 +140,9 @@ export function App() {
       </TooltipProvider>);
 
   }
+
   // Force password change (admin-created or admin-reset account)
-  if (isAuthenticated && profile?.force_password_change) {
+  if (user && profile?.force_password_change) {
     return (
       <TooltipProvider>
         <ForcePasswordChangePage />
