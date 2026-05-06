@@ -22,6 +22,16 @@ CREATE POLICY "Admin can manage user_warehouses"
         )
     );
 
+-- Allow users to read their own region assignments
+CREATE POLICY "Users can view own region assignments"
+    ON public.user_regions FOR SELECT TO authenticated
+    USING (user_id = auth.uid());
+
+-- Allow users to read their own warehouse assignments  
+CREATE POLICY "Users can view own warehouse assignments"
+    ON public.user_warehouses FOR SELECT TO authenticated
+    USING (user_id = auth.uid());
+
 -- Indexes
 CREATE INDEX idx_user_warehouses_user_id ON public.user_warehouses(user_id);
 CREATE INDEX idx_user_warehouses_warehouse_id ON public.user_warehouses(warehouse_id);

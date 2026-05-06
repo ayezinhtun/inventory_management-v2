@@ -30,31 +30,31 @@ import {
 import { formatDate } from '../lib/utils';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
-const PRIMARY   = '#6366f1';
+const PRIMARY = '#6366f1';
 const SECONDARY = '#a5b4fc';
-const PALETTE   = ['#6366f1','#22c55e','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#14b8a6','#f97316'];
+const PALETTE = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#14b8a6', '#f97316'];
 
 const STATUS_COLORS: Record<string, string> = {
-  Working:     '#22c55e',
-  'In Use':    '#6366f1',
-  Available:   '#3b82f6',
-  Reserved:    '#f59e0b',
-  Broken:      '#ef4444',
+  Working: '#22c55e',
+  'In Use': '#6366f1',
+  Available: '#3b82f6',
+  Reserved: '#f59e0b',
+  Broken: '#ef4444',
   Maintenance: '#f97316',
-  Retired:     '#8b5cf6',
+  Retired: '#8b5cf6',
 };
 
 const ACTION_BADGE: Record<string, string> = {
   CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   UPDATE: 'bg-blue-100   text-blue-800   border-blue-200',
   DELETE: 'bg-red-100    text-red-800    border-red-200',
-  VIEW:   'bg-gray-100   text-gray-600   border-gray-200',
+  VIEW: 'bg-gray-100   text-gray-600   border-gray-200',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtCurrency(v: number) {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
-  if (v >= 1_000)     return `$${(v / 1_000).toFixed(1)}K`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
   return `$${v.toFixed(0)}`;
 }
 
@@ -68,7 +68,7 @@ function DeltaBadge({ pct }: { pct: number }) {
   return (
     <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${up ? 'text-emerald-600' : 'text-red-500'}`}>
       {up
-        ? <ArrowUpRight   className="h-3.5 w-3.5" />
+        ? <ArrowUpRight className="h-3.5 w-3.5" />
         : <ArrowDownRight className="h-3.5 w-3.5" />}
       {Math.abs(pct)}%
     </span>
@@ -134,23 +134,23 @@ export function DashboardPage() {
     monthlyTrend, isLoading, lastUpdated, fetchDashboard,
   } = useDashboardStore();
 
-  const role     = profile?.role     ?? 'Engineer';
+  const role = profile?.role ?? 'Engineer';
   const regionId = profile?.region_id ?? null;
   const firstName = (profile?.name ?? 'User').split(' ')[0];
-  const isAdmin   = role === 'Admin';
+  const isAdmin = role === 'Admin';
 
   const refresh = useCallback(() => fetchDashboard({ role, regionId }), [role, regionId, fetchDashboard]);
   useEffect(() => { refresh(); }, [refresh]);
 
   // Month-over-month deltas
-  const compDelta     = delta(metrics.componentsThisMonth, metrics.componentsLastMonth);
-  const custDelta     = delta(metrics.customersThisMonth, metrics.customersLastMonth);
-  const auditDelta    = delta(metrics.auditThisMonth, metrics.auditLastMonth);
-  const totalUnits    = metrics.totalQuantity;
-  const hasAlerts     = metrics.brokenComponents + metrics.lowStockCount;
+  const compDelta = delta(metrics.componentsThisMonth, metrics.componentsLastMonth);
+  const custDelta = delta(metrics.customersThisMonth, metrics.customersLastMonth);
+  const auditDelta = delta(metrics.auditThisMonth, metrics.auditLastMonth);
+  const totalUnits = metrics.totalQuantity;
+  const hasAlerts = metrics.brokenComponents + metrics.lowStockCount;
 
   // Component status total for percentage
-  const statusTotal   = componentsByStatus.reduce((s, c) => s + c.value, 0);
+  const statusTotal = componentsByStatus.reduce((s, c) => s + c.value, 0);
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-[1600px] mx-auto">
@@ -217,13 +217,16 @@ export function DashboardPage() {
               sub={`${metrics.componentsThisMonth} added this month`}
               icon={Cpu}
             />
-            <KpiCard
-              label="Total Customers"
-              value={metrics.totalCustomers.toLocaleString()}
-              pct={custDelta}
-              sub={`${metrics.customersThisMonth} new this month`}
-              icon={Users}
-            />
+            {(role === "Admin" || role === 'Manager') && (
+              <KpiCard
+                label="Total Customers"
+                value={metrics.totalCustomers.toLocaleString()}
+                pct={custDelta}
+                sub={`${metrics.customersThisMonth} new this month`}
+                icon={Users}
+              />
+            )}
+
             <KpiCard
               label="Needs Attention"
               value={hasAlerts}
@@ -273,12 +276,12 @@ export function DashboardPage() {
                 <AreaChart data={monthlyTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gradThis" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"   stopColor={PRIMARY}   stopOpacity={0.25} />
-                      <stop offset="95%"  stopColor={PRIMARY}   stopOpacity={0}    />
+                      <stop offset="5%" stopColor={PRIMARY} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={PRIMARY} stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="gradPrev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"   stopColor="#94a3b8"  stopOpacity={0.2}  />
-                      <stop offset="95%"  stopColor="#94a3b8"  stopOpacity={0}    />
+                      <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -286,7 +289,7 @@ export function DashboardPage() {
                   <YAxis tickLine={false} axisLine={false} fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                   <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="prevValue" name="Prev Year" stroke="#94a3b8" strokeWidth={2} fill="url(#gradPrev)" dot={false} strokeDasharray="4 3" />
-                  <Area type="monotone" dataKey="value"     name="This Year" stroke={PRIMARY}  strokeWidth={2.5} fill="url(#gradThis)" dot={false} />
+                  <Area type="monotone" dataKey="value" name="This Year" stroke={PRIMARY} strokeWidth={2.5} fill="url(#gradThis)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -345,10 +348,10 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent className="p-0">
               {[
-                { label: 'Active Regions',    value: metrics.activeRegions,    total: metrics.totalRegions,    icon: Globe     },
+                { label: 'Active Regions', value: metrics.activeRegions, total: metrics.totalRegions, icon: Globe },
                 { label: 'Active Warehouses', value: metrics.activeWarehouses, total: metrics.totalWarehouses, icon: Warehouse },
-                { label: 'Component Types',   value: metrics.componentTypes,   total: null,                    icon: Layers    },
-                { label: 'Active Users',      value: metrics.activeUsers,      total: null,                    icon: Users     },
+                { label: 'Component Types', value: metrics.componentTypes, total: null, icon: Layers },
+                { label: 'Active Users', value: metrics.activeUsers, total: null, icon: Users },
               ].map(({ label, value, total, icon: Icon }, i) => (
                 <div key={label} className={`flex items-center justify-between px-5 py-2.5 ${i < 3 ? 'border-b' : ''}`}>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -464,7 +467,7 @@ export function DashboardPage() {
                   <div className="space-y-1.5 mt-1">
                     {componentsByType.slice(0, 5).map((t, i) => {
                       const total = componentsByType.reduce((s, x) => s + x.value, 0);
-                      const pct   = total > 0 ? Math.round((t.value / total) * 100) : 0;
+                      const pct = total > 0 ? Math.round((t.value / total) * 100) : 0;
                       return (
                         <div key={t.name} className="flex items-center justify-between text-[11px]">
                           <span className="flex items-center gap-1.5 truncate max-w-[130px]">
@@ -506,7 +509,7 @@ export function DashboardPage() {
               ) : (
                 <div className="space-y-2">
                   {lowStockItems.slice(0, 5).map((item) => {
-                    const pct   = Math.round((item.quantity / Math.max(item.minimum_stock, 1)) * 100);
+                    const pct = Math.round((item.quantity / Math.max(item.minimum_stock, 1)) * 100);
                     const empty = item.quantity === 0;
                     return (
                       <div key={item.id} className={`rounded-lg border p-2.5 ${empty ? 'border-red-200 bg-red-50/50' : 'border-amber-200 bg-amber-50/30'}`}>
@@ -546,8 +549,8 @@ export function DashboardPage() {
                 <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis type="category" dataKey="region" tickLine={false} axisLine={false} fontSize={11} width={90} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="quantity" name="Units"   fill={PRIMARY}   radius={[0, 4, 4, 0]} maxBarSize={20} />
-                <Bar dataKey="count"    name="Records" fill={SECONDARY} radius={[0, 4, 4, 0]} maxBarSize={20} />
+                <Bar dataKey="quantity" name="Units" fill={PRIMARY} radius={[0, 4, 4, 0]} maxBarSize={20} />
+                <Bar dataKey="count" name="Records" fill={SECONDARY} radius={[0, 4, 4, 0]} maxBarSize={20} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
               </BarChart>
             </ResponsiveContainer>

@@ -9,8 +9,8 @@ export interface UserProfile {
   email: string;
   role: string;
   username?: string | null;
-  region_id?: string | null;
-  warehouse_id?: string | null;
+  assigned_region_ids?: string[];
+  assigned_warehouse_ids?: string[];
   status: string;
   force_password_change?: boolean;
   last_login_at?: string | null;
@@ -35,6 +35,8 @@ interface AuthState {
   isInitializing: boolean;
   mfaRequired: boolean;
   isPasswordRecovery: boolean; // true when user clicked a password-reset email link
+  resetCode: string | null;
+  resetEmail: string | null;
 
   initializeAuth: () => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
@@ -44,6 +46,8 @@ interface AuthState {
   logout: () => Promise<void>;
   fetchProfile: () => Promise<UserProfile | null>;
   clearPasswordRecovery: () => void;
+  setResetCode: (code: string, email: string) => void;
+  clearResetCode: () => void;
 
   // Profile self-service
   updateProfile: (updates: { name?: string; username?: string }) => Promise<void>;
@@ -55,6 +59,7 @@ interface AuthState {
   verifyTOTP: (factorId: string, code: string) => Promise<void>;
   unenrollTOTP: (factorId: string) => Promise<void>;
   refreshMFAFactors: () => Promise<void>;
+
 }
 
 // ─── Session expiry (1 hour hard limit) ───────────────────────────────────
@@ -109,13 +114,22 @@ function stopHeartbeat() {
 // Dynamic import avoids circular dependency.
 const SESSION_PAGE_KEY = "ims-current-page";
 
-async function syncToAppStore(profile: UserProfile | null) {
+async function syncToAppStore(profile: UserProfile | null, isPasswordRecovery: boolean = false) {
   const { useStore } = await import("./useStore");
   if (profile) {
+    // Fetch user assignments from user_regions and user_warehouses tables
+    const [regionsRes, warehousesRes] = await Promise.all([
+      supabase.from('user_regions').select('region_id').eq('user_id', profile.user_id),
+      supabase.from('user_warehouses').select('warehouse_id').eq('user_id', profile.user_id),
+    ]);
+
+    const assigned_region_ids = (regionsRes.data ?? []).map(r => r.region_id);
+    const assigned_warehouse_ids = (warehousesRes.data ?? []).map(w => w.warehouse_id);
+
     const currentPage = useStore.getState().currentPage;
     const shouldNavigate = currentPage === "login" || currentPage === "signup";
-    // Restore the page the user was on before a refresh
     const savedPage = sessionStorage.getItem(SESSION_PAGE_KEY) as any | null;
+
     useStore.setState({
       isAuthenticated: true,
       currentUser: {
@@ -125,17 +139,17 @@ async function syncToAppStore(profile: UserProfile | null) {
         password_hash: "",
         full_name: profile.name,
         role: profile.role as any,
-        assigned_region_id: profile.region_id ?? null,
-        assigned_warehouse_id: profile.warehouse_id ?? null,
+        assigned_region_ids,      //using arrays from assignments
+        assigned_warehouse_ids,   //using arrays from assignments
         is_active: profile.status === "active",
         last_login: profile.last_login_at ?? null,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
       },
-      ...(shouldNavigate ? { currentPage: savedPage || "dashboard" } : {}),
+      // Only navigate if not in password recovery mode
+      ...(shouldNavigate && !isPasswordRecovery ? { currentPage: savedPage || "dashboard" } : {}),
     });
-    // Load regions, warehouses, component types from Supabase
-    useStore.getState().fetchAppData().catch(() => {});
+    await useStore.getState().fetchAppData();
   } else {
     sessionStorage.removeItem(SESSION_PAGE_KEY);
     useStore.setState({
@@ -178,6 +192,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isInitializing: true,
   mfaRequired: false,
   isPasswordRecovery: false,
+  resetCode: null,
+  resetEmail: null,
 
   initializeAuth: async () => {
     set({ isInitializing: true });
@@ -185,6 +201,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
+      // Check if this is a password recovery flow (URL contains /password-recovery)
+      const isPasswordRecoveryFlow = window.location.pathname === '/password-recovery';
+      if (isPasswordRecoveryFlow) {
+        set({ isPasswordRecovery: true });
+      }
 
       if (session?.user) {
         // Enforce 1-hour session limit
@@ -201,7 +223,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         set({ user: session.user, session });
         const profile = await get().fetchProfile();
-        await syncToAppStore(profile);
+        await syncToAppStore(profile, get().isPasswordRecovery);
         await get().refreshMFAFactors();
         startHeartbeat(session.user.id);
 
@@ -219,7 +241,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             },
             async () => {
               const fresh = await get().fetchProfile();
-              await syncToAppStore(fresh);
+              await syncToAppStore(fresh, get().isPasswordRecovery);
             }
           )
           .subscribe();
@@ -232,14 +254,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         set({ isPasswordRecovery: true });
-        return;
+        // Don't return - let it process the session that comes with password recovery
       }
 
       if (session?.user) {
         set({ user: session.user, session });
         if (event === "SIGNED_IN") {
           const profile = await get().fetchProfile();
-          await syncToAppStore(profile);
+          await syncToAppStore(profile, get().isPasswordRecovery);
           await get().refreshMFAFactors();
           startHeartbeat(session.user.id);
           (async () => {
@@ -249,10 +271,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               action: "LOGIN",
               details: { method: "oauth" },
             });
-          })().catch(() => {});
+          })().catch(() => { });
         } else if (event === "TOKEN_REFRESHED") {
           const profile = await get().fetchProfile();
-          await syncToAppStore(profile);
+          await syncToAppStore(profile, get().isPasswordRecovery);
         }
       } else if (event === "SIGNED_OUT") {
         stopHeartbeat();
@@ -260,6 +282,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await syncToAppStore(null);
       }
     });
+  },
+
+  setResetCode: (code, email) => {
+    set({ resetCode: code, resetEmail: email });
+  },
+
+  clearResetCode: () => {
+    set({ resetCode: null, resetEmail: null });
   },
 
   signup: async (email, password, name) => {
@@ -303,7 +333,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await supabase.from("user_profiles").update({ last_login_at: new Date().toISOString() }).eq("user_id", data.user.id);
 
       const profile = await get().fetchProfile();
-      await syncToAppStore(profile);
+      await syncToAppStore(profile, false);
       await get().refreshMFAFactors();
       startHeartbeat(data.user.id);
       (async () => {
@@ -313,7 +343,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           action: "LOGIN",
           details: { method: "password" },
         });
-      })().catch(() => {});
+      })().catch(() => { });
       set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -349,7 +379,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const profile = await get().fetchProfile();
-      await syncToAppStore(profile);
+      await syncToAppStore(profile, false);
       await get().refreshMFAFactors();
       const uid = get().user?.id;
       if (uid) {
@@ -361,7 +391,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             action: "LOGIN",
             details: { method: "totp_mfa" },
           });
-        })().catch(() => {});
+        })().catch(() => { });
       }
       set({ isLoading: false });
     } catch (err) {
@@ -426,7 +456,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) throw error;
 
       const fresh = await get().fetchProfile();
-      await syncToAppStore(fresh);
+      await syncToAppStore(fresh, get().isPasswordRecovery);
 
       await writeAuditLog(profile.user_id, "UPDATE", "Settings — Profile", profile.user_id,
         { name: profile.name, username: profile.username ?? null },
@@ -460,7 +490,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           .update({ force_password_change: false, updated_at: new Date().toISOString() })
           .eq("user_id", profile.user_id);
         const fresh = await get().fetchProfile();
-        await syncToAppStore(fresh);
+        await syncToAppStore(fresh, get().isPasswordRecovery);
       }
 
       await writeAuditLog(profile.user_id, "UPDATE", "Settings — Password", profile.user_id, null, { changed: true });

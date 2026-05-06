@@ -79,7 +79,6 @@ export type Page =
 'relocation-admin' |
 'physical-relocation' |
 'reserved-stock' |
-'customers' |
 'customer-inventory' |
 'vendors' |
 'purchase-orders' |
@@ -93,14 +92,20 @@ export type Page =
 'notifications-page' |
 'mail' |
 'reports' |
-'settings';
+'settings' |
+'forgot-password' |
+'verify-code' |
+'reset-password' |
+'password-reset-success';
 
 interface AppState {
   // Auth
   currentUser: User | null;
   isAuthenticated: boolean;
+  isAppDataLoading: boolean;
   login: (username: string, password: string) => boolean;
   logout: () => void;
+
 
   // Navigation
   currentPage: Page;
@@ -309,6 +314,8 @@ export const useStore = create<AppState>((set, get) => ({
     currentPage: 'login',
     selectedId: null
   }),
+
+  isAppDataLoading: false,
 
   // Navigation
   currentPage: 'login',
@@ -1503,6 +1510,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   // ── Load shared reference data from Supabase ──────────────────────────────
   fetchAppData: async () => {
+    set({isAppDataLoading: true});
     try {
       // Regions
       const { data: regionsRaw } = await supabase
@@ -1565,6 +1573,9 @@ export const useStore = create<AppState>((set, get) => ({
       }
     } catch (err) {
       console.error('[fetchAppData] Error loading reference data:', err);
+      throw err;
+    } finally {
+      set({isAppDataLoading: false});
     }
   },
 }));

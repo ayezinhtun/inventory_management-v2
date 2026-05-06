@@ -265,7 +265,7 @@ export function AppSidebar() {
           id: "audit-log",
           label: "Audit Log",
           icon: ShieldAlert,
-          roles: ["Admin", "Engineer"],
+          roles: ["Admin", "Engineer", "PM"],
         },
         {
           id: "reports",

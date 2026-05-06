@@ -71,6 +71,7 @@ import {
 import { Avatar, AvatarFallback } from './components/ui/Avatar';
 import { Badge } from './components/ui/Badge';
 import { getInitials } from './lib/utils';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 export function App() {
   const {
     isAuthenticated,
@@ -121,10 +122,11 @@ export function App() {
     );
   }
 
-  if (currentPage === 'signup') {
+  if (currentPage === 'signup' || currentPage === 'forgot-password') {
     return (
       <TooltipProvider>
-        <SignupPage />
+        {currentPage === 'signup' && <SignupPage />}
+        {currentPage === 'forgot-password' && <ForgotPasswordPage />}
         <Toaster position="top-right" richColors />
       </TooltipProvider>
     );
@@ -155,8 +157,10 @@ export function App() {
   if (
     currentUser && (
       !currentUser.role ||
-      !currentUser.assigned_region_id && currentUser.role !== 'Admin' ||
-      !currentUser.assigned_warehouse_id && currentUser.role !== 'Admin')) {
+      (!currentUser.assigned_region_ids || currentUser.assigned_region_ids.length === 0) && currentUser.role !== 'Admin' ||
+      (!currentUser.assigned_warehouse_ids || currentUser.assigned_warehouse_ids.length === 0) && currentUser.role !== 'Admin'
+    )
+  ) {
     return (
       <TooltipProvider>
         <div className="min-h-screen w-full flex items-center justify-center bg-muted/30 p-4">

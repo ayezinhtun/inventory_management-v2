@@ -88,28 +88,28 @@ export function LoginPage() {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (!email.trim()) { setError('Enter your email address first'); return; }
-    setForgotLoading(true);
-    setError('');
-    try {
-      // Step 1: Invalidate the old password via Edge Function (fire-and-forget — don't reveal if email exists)
-      await supabase.functions.invoke('admin-user-actions', {
-        body: { action: 'forgot_password', email: email.trim() },
-      }).catch(() => {}); // Silent — user doesn't know if email exists
+  // const handleForgotPassword = async () => {
+  //   if (!email.trim()) { setError('Enter your email address first'); return; }
+  //   setForgotLoading(true);
+  //   setError('');
+  //   try {
+  //     // Step 1: Invalidate the old password via Edge Function (fire-and-forget — don't reveal if email exists)
+  //     await supabase.functions.invoke('admin-user-actions', {
+  //       body: { action: 'forgot_password', email: email.trim() },
+  //     }).catch(() => { }); // Silent — user doesn't know if email exists
 
-      // Step 2: Send Supabase's built-in password reset email
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}`,
-      });
-      if (error) throw error;
-      setForgotSent(true);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to send reset email');
-    } finally {
-      setForgotLoading(false);
-    }
-  };
+  //     // Step 2: Send Supabase's built-in password reset email
+  //     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+  //       redirectTo: `${window.location.origin}`,
+  //     });
+  //     if (error) throw error;
+  //     setForgotSent(true);
+  //   } catch (err: any) {
+  //     setError(err?.message || 'Failed to send reset email');
+  //   } finally {
+  //     setForgotLoading(false);
+  //   }
+  // };
 
   const handleGoogleSSO = async () => {
     setError('');
@@ -288,14 +288,6 @@ export function LoginPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
-                    <button
-                      type="button"
-                      className="text-xs text-primary hover:underline"
-                      onClick={handleForgotPassword}
-                      disabled={forgotLoading}
-                    >
-                      {forgotLoading ? 'Sending…' : 'Forgot password?'}
-                    </button>
                   </div>
                   <Input
                     id="password"
@@ -331,6 +323,17 @@ export function LoginPage() {
                     Sign up
                   </button>
                 </p>
+
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    console.log('Forgot password clicked');
+                    navigate('forgot-password');
+                  }}
+                >
+                  Forgot password?
+                </button>
               </div>
             </div>
           </CardContent>

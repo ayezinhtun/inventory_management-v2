@@ -5,85 +5,85 @@
 // --- Enums / Unions ---
 export type UserRole = 'Admin' | 'PM' | 'Engineer';
 export type ItemType =
-'Server' |
-'Switch' |
-'Router' |
-'Firewall' |
-'Storage Array';
+  'Server' |
+  'Switch' |
+  'Router' |
+  'Firewall' |
+  'Storage Array';
 export type ItemStatus = 'Working' | 'Broken';
 export type ItemCondition = 'New' | 'Used' | 'Refurbished';
 export type Urgency = 'Emergency' | 'Critical' | 'High' | 'Medium' | 'Low';
 
 export type InventoryRequestStatus =
-'Draft' |
-'Submitted' |
-'Pending' |
-'Approved' |
-'Rejected' |
-'Fulfilled' |
-'Cancelled';
+  'Draft' |
+  'Submitted' |
+  'Pending' |
+  'Approved' |
+  'Rejected' |
+  'Fulfilled' |
+  'Cancelled';
 
 export type InstallRequestStatus =
-'Draft' |
-'Submitted' |
-'Pending PM Approval' |
-'Rejected by PM' |
-'Pending Admin Approval' |
-'Rejected by Admin' |
-'Approved' |
-'Scheduled' |
-'In Progress' |
-'Testing' |
-'Completed' |
-'Failed' |
-'Rolled Back';
+  'Draft' |
+  'Submitted' |
+  'Pending PM Approval' |
+  'Rejected by PM' |
+  'Pending Admin Approval' |
+  'Rejected by Admin' |
+  'Approved' |
+  'Scheduled' |
+  'In Progress' |
+  'Testing' |
+  'Completed' |
+  'Failed' |
+  'Rolled Back';
 
 export type RelocationRequestStatus =
-'Draft' |
-'Submitted' |
-'Pending PM Approval' |
-'Rejected by PM' |
-'Pending Admin Approval' |
-'Rejected by Admin' |
-'Approved' |
-'Scheduled' |
-'In Progress' |
-'Completed' |
-'Failed' |
-'Rolled Back';
+  'Draft' |
+  'Submitted' |
+  'Pending PM Approval' |
+  'Rejected by PM' |
+  'Pending Admin Approval' |
+  'Rejected by Admin' |
+  'Approved' |
+  'Scheduled' |
+  'In Progress' |
+  'Completed' |
+  'Failed' |
+  'Rolled Back';
 
 export type RelocationType = 'INVENTORY' | 'COMPONENT';
 
 export type POStatus =
-'Draft' |
-'Submitted' |
-'Approved' |
-'Ordered' |
-'Partially Received' |
-'Fully Received' |
-'Cancelled';
+  'Draft' |
+  'Submitted' |
+  'Approved' |
+  'Ordered' |
+  'Partially Received' |
+  'Fully Received' |
+  'Cancelled';
 
 export type RMAStatus =
-'Initiated' |
-'Shipped' |
-'Received by Vendor' |
-'In Process' |
-'Resolved' |
-'Closed';
+  'Initiated' |
+  'Shipped' |
+  'Received by Vendor' |
+  'In Process' |
+  'Resolved' |
+  'Closed';
 
 export type DisposalStatus = 'Pending' | 'Approved' | 'Disposed' | 'Cancelled';
 export type MaintenanceStatus =
-'Scheduled' |
-'In Progress' |
-'Completed' |
-'Overdue' |
-'Cancelled';
+  'Scheduled' |
+  'In Progress' |
+  'Completed' |
+  'Overdue' |
+  'Cancelled';
 export type CheckoutStatus = 'Checked Out' | 'Returned' | 'Overdue' | 'Lost';
 export type StocktakeStatus =
-'Planned' |
-'In Progress' |
-'Completed' |
-'Cancelled';
+  'Planned' |
+  'In Progress' |
+  'Completed' |
+  'Cancelled';
 export type ReservedStockStatus = 'Active' | 'Released' | 'Expired';
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
@@ -91,10 +91,10 @@ export type ComponentMovementType = 'CREATED' | 'INSTALLED' | 'UNINSTALLED' | 'R
 export type NotificationType = 'install' | 'relocation' | 'inventory';
 
 export type GoodsReceiptStatus =
-'Pending' |
-'Partially Received' |
-'Fully Received' |
-'Rejected';
+  'Pending' |
+  'Partially Received' |
+  'Fully Received' |
+  'Rejected';
 
 // --- Core Entities ---
 export interface User {
@@ -104,8 +104,8 @@ export interface User {
   password_hash: string;
   full_name: string;
   role: UserRole;
-  assigned_region_id: string | null;
-  assigned_warehouse_id: string | null;
+  assigned_region_ids: string[];
+  assigned_warehouse_ids: string[];
   is_active: boolean;
   last_login: string | null;
   created_at: string;
