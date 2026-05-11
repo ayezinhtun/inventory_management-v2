@@ -8,7 +8,7 @@ interface ComponentsState {
   isLoading: boolean;
 
   fetchComponents: () => Promise<void>;
-  createComponent: (data: Omit<Component, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>) => Promise<Component>;
+  createComponent: (data: Omit<Component, 'id' | 'created_at' | 'updated_at' | 'is_deleted'> & { quantity?: number }) => Promise<Component>;
   updateComponent: (id: string, updates: Partial<Component>) => Promise<void>;
   deleteComponent: (id: string) => Promise<void>;
 }
@@ -35,63 +35,35 @@ export const useComponentsStore = create<ComponentsState>((set, get) => ({
   },
 
   createComponent: async (data) => {
+    const componentsToInsert = Array.from({ length: data.quantity ?? 1 }, (_, i) => ({
+      name: data.name,
+      component_type_id: data.component_type_id,
+      specifications: data.specifications,
+      manufacturer: data.manufacturer,
+      model: data.model,
+      part_number: data.part_number,
+      compatible_with: data.compatible_with,
+      status: data.status,
+      condition: data.condition,
+      region_id: data.region_id,
+      warehouse_id: data.warehouse_id,
+      installed_in_device_id: data.installed_in_device_id,
+      created_by: data.created_by,
+      updated_by: null,
+      is_deleted: false
+    }));
+
     const { data: result, error } = await supabase
       .from('components')
-      .insert([{
-        item_name:             data.item_name,
-        component_type_id:     data.component_type_id || null,
-        manufacturer:          data.manufacturer || '',
-        model:                 data.model || '',
-        part_number:           data.part_number || '',
-        specifications:        data.specifications || {},
-        region_id:             data.region_id || null,
-        warehouse_id:          data.warehouse_id || null,
-        installed_in_device_id: null,
-        device_slot:           data.device_slot || '',
-        bin_location:          data.bin_location || '',
-        quantity:              data.quantity ?? 1,
-        reserved_quantity:     data.reserved_quantity ?? 0,
-        minimum_stock:         data.minimum_stock ?? 0,
-        reorder_quantity:      data.reorder_quantity ?? 0,
-        status:                data.status || 'Working',
-        condition:             data.condition || 'New',
-        tested:                data.tested ?? false,
-        test_date:             data.test_date || null,
-        test_results:          data.test_results || '',
-        purchase_date:         data.purchase_date || null,
-        purchase_price:        data.purchase_price ?? null,
-        vendor:                data.vendor || '',
-        purchase_order_number: data.purchase_order_number || '',
-        warranty_type:         data.warranty_type || '',
-        warranty_expiry_date:  data.warranty_expiry_date || null,
-        compatible_with:       data.compatible_with || '',
-        notes:                 data.notes || '',
-        tags:                  data.tags ?? [],
-        barcode:               data.barcode || '',
-        created_by:            data.created_by || null,
-        updated_by:            null,
-        is_deleted:            false,
-      }])
-      .select()
-      .single();
+      .insert(componentsToInsert)
+      .select();
+
     if (error) throw error;
 
-    const component = result as Component;
-    set((s) => ({ components: [component, ...s.components] }));
+    const newComponents = result as Component[];
+    set((s) => ({ components: [...newComponents, ...s.components] }));
 
-    auditLog({
-      action: 'CREATE',
-      module: 'Components',
-      record_id: component.id,
-      new_value: {
-        item_name:  component.item_name,
-        quantity:   component.quantity,
-        status:     component.status,
-        condition:  component.condition,
-      },
-    });
-
-    return component;
+    return newComponents[0]; // Return first component
   },
 
   updateComponent: async (id, updates) => {
@@ -113,19 +85,25 @@ export const useComponentsStore = create<ComponentsState>((set, get) => ({
       action: 'UPDATE',
       module: 'Components',
       record_id: id,
-      old_value: existing ? { item_name: existing.item_name, status: existing.status, quantity: existing.quantity } : null,
+      old_value: existing ? { name: existing.name, status: existing.status, quantity: existing.quantity } : null,
       new_value: { ...updates },
     });
   },
+
+
 
   deleteComponent: async (id) => {
     const existing = get().components.find((c) => c.id === id);
 
     const { error } = await supabase
       .from('components')
-      .update({ is_deleted: true, updated_at: new Date().toISOString() })
+      .delete()
       .eq('id', id);
-    if (error) throw error;
+    
+    if (error) {
+      console.error('Delete component error:', error);
+      throw error;
+    }
 
     set((s) => ({ components: s.components.filter((c) => c.id !== id) }));
 
@@ -133,7 +111,7 @@ export const useComponentsStore = create<ComponentsState>((set, get) => ({
       action: 'DELETE',
       module: 'Components',
       record_id: id,
-      old_value: existing ? { item_name: existing.item_name, quantity: existing.quantity } : null,
+      old_value: existing ? { name: existing.name, status: existing.status } : null,
     });
   },
 }));

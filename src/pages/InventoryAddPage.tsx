@@ -1,415 +1,404 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../store/useStore';
+import { useHardwareInventoryStore } from '../store/useHardwareInventoryStore';
+import { useRegionStore } from '../store/useRegionStore';
+import { useWarehouseStore } from '../store/useWarehouseStore';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue } from
-'../components/ui/Select';
-import { Textarea } from '../components/ui/Textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
+import { Badge } from '../components/ui/Badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, X } from 'lucide-react';
-import type { ItemType, ItemStatus, ItemCondition } from '../lib/types';
+import { Save, X, Loader2, Plus, Trash2, ArrowLeft } from 'lucide-react';
+import type { HardwareInventory } from '../lib/types';
+
+interface FormData {
+  name: string;
+  item_type: string;
+  manufacturer: string;
+  model: string;
+  serial_number: string;
+  asset_tag: string;
+  specifications: Record<string, string>;
+  status: HardwareInventory['status'];
+  condition: HardwareInventory['condition'];
+  region_id: string;
+  warehouse_id: string;
+}
+
 export function InventoryAddPage() {
-  const {
-    currentUser,
-    regions,
-    warehouses,
-    racks,
-    addInventoryItem,
-    navigate
-  } = useStore();
-  const [formData, setFormData] = useState({
-    item_name: '',
-    item_type: 'Server' as ItemType,
+  const { navigate, selectedId, currentUser } = useStore();
+  const { hardwareInventory, createHardwareInventory, updateHardwareInventory } = useHardwareInventoryStore();
+  const { regions, fetchRegions } = useRegionStore();
+  const { warehouses, fetchWarehouses } = useWarehouseStore();
+
+  const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editingHardware, setEditingHardware] = useState<HardwareInventory | null>(null);
+
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    item_type: '',
     manufacturer: '',
     model: '',
     serial_number: '',
     asset_tag: '',
+    specifications: {},
+    status: 'available',
+    condition: 'working',
     region_id: '',
-    warehouse_id: '',
-    rack_id: '',
-    rack_position: '',
-    floor: '',
-    room: '',
-    cabinet: '',
-    quantity: 1,
-    status: 'Working' as ItemStatus,
-    condition: 'New' as ItemCondition,
-    purchase_date: '',
-    purchase_price: '',
-    vendor: '',
-    warranty_expiry_date: '',
-    notes: '',
-    tags: ''
+    warehouse_id: ''
   });
-  const filteredWarehouses = warehouses.filter(
-    (w) => w.region_id === formData.region_id && w.is_active
-  );
-  const filteredRacks = racks.filter(
-    (r) => r.warehouse_id === formData.warehouse_id && r.is_active
-  );
-  const handleChange = (field: string, value: any) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-  const handleSave = () => {
-    if (
-    !formData.item_name ||
-    !formData.serial_number ||
-    !formData.region_id ||
-    !formData.warehouse_id)
-    {
-      toast.error(
-        'Please fill in all required fields (Name, Serial Number, Region, Warehouse)'
-      );
-      return;
+
+  const [specFields, setSpecFields] = useState<Array<{ key: string, value: string }>>([
+    { key: '', value: '' }
+  ]);
+
+  // Load data on mount
+  useEffect(() => {
+    fetchRegions();
+    fetchWarehouses();
+  }, []);
+
+
+  // Check for edit mode
+  useEffect(() => {
+    if (selectedId) {
+      setEditMode(true);
+      const hardware = hardwareInventory.find(h => h.id === selectedId);
+      if (hardware) {
+        setEditingHardware(hardware);
+        setFormData({
+          name: hardware.name,
+          item_type: hardware.item_type,
+          manufacturer: hardware.manufacturer,
+          model: hardware.model,
+          serial_number: hardware.serial_number,
+          asset_tag: hardware.asset_tag,
+          specifications: hardware.specifications || {},
+          status: hardware.status,
+          condition: hardware.condition,
+          region_id: hardware.region_id || '',
+          warehouse_id: hardware.warehouse_id || ''
+        });
+        // Convert specs to array
+        const specArray = Object.entries(hardware.specifications || {}).map(([key, value]) => ({
+          key, value: String(value)
+        }));
+        setSpecFields(specArray.length > 0 ? specArray : [{ key: '', value: '' }]);
+      }
     }
-    addInventoryItem({
-      item_name: formData.item_name,
-      item_type: formData.item_type,
-      manufacturer: formData.manufacturer,
-      model: formData.model,
-      serial_number: formData.serial_number,
-      asset_tag: formData.asset_tag,
-      specifications: {},
-      region_id: formData.region_id,
-      warehouse_id: formData.warehouse_id,
-      rack_id: formData.rack_id || null,
-      rack_position: formData.rack_position,
-      floor: formData.floor,
-      room: formData.room,
-      cabinet: formData.cabinet,
-      network_config: {},
-      ownership: {},
-      quantity: Number(formData.quantity) || 1,
-      reserved_quantity: 0,
-      status: formData.status,
-      condition: formData.condition,
-      lifecycle: {},
-      maintenance: {},
-      notes: formData.notes,
-      tags: formData.tags ? formData.tags.split(',').map((t) => t.trim()) : [],
-      purchase_date: formData.purchase_date || null,
-      purchase_price: formData.purchase_price ?
-      Number(formData.purchase_price) :
-      null,
-      vendor: formData.vendor,
-      warranty_expiry_date: formData.warranty_expiry_date || null,
-      created_by: currentUser?.id || '',
-      updated_by: null
-    });
-    toast.success('Inventory item added successfully');
-    navigate('inventory');
+  }, [selectedId, hardwareInventory, regions, warehouses]);
+
+  const addSpecField = () => {
+    setSpecFields([...specFields, { key: '', value: '' }]);
   };
+
+  const removeSpecField = (index: number) => {
+    if (specFields.length > 1) {
+      setSpecFields(specFields.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateSpecField = (index: number, field: 'key' | 'value', value: string) => {
+    const newFields = [...specFields];
+    newFields[index][field] = value;
+    setSpecFields(newFields);
+  };
+
+  const buildSpecifications = () => {
+    const specs: Record<string, string> = {};
+    specFields.forEach(({ key, value }) => {
+      if (key.trim()) {
+        specs[key.trim()] = value;
+      }
+    });
+    return specs;
+  };
+
+  const handleChange = (field: keyof FormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      toast.error('Hardware name is required');
+      return false;
+    }
+    if (!formData.item_type) {
+      toast.error('Item type is required');
+      return false;
+    }
+    if (!formData.serial_number.trim()) {
+      toast.error('Serial number is required');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!validateForm()) return;
+
+    setSaving(true);
+    try {
+      const specs = buildSpecifications();
+      const data = {
+        ...formData,
+        specifications: specs,
+        created_by: currentUser?.id,
+        updated_by: currentUser?.id
+      };
+
+      if (editMode && editingHardware) {
+        await updateHardwareInventory(editingHardware.id, data);
+        toast.success('Hardware updated successfully');
+        navigate('inventory');
+      } else {
+        await createHardwareInventory(data);
+        toast.success('Hardware added successfully');
+        navigate('inventory');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save hardware');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const filteredWarehouses = warehouses.filter(
+    w => w.region_id === formData.region_id
+  );
+
+  // Compute display names for SelectValue
+  const selectedRegionName = useMemo(() => {
+    return regions.find(r => r.id === formData.region_id)?.name;
+  }, [regions, formData.region_id]);
+
+  const selectedWarehouseName = useMemo(() => {
+    return filteredWarehouses.find(w => w.id === formData.warehouse_id)?.name;
+  }, [filteredWarehouses, formData.warehouse_id]);
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('inventory')}>
-            
-            <ArrowLeft className="h-5 w-5" />
+          <Button variant="ghost" size="icon" onClick={() => navigate('inventory')}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-heading">
-              Add Inventory Item
+            <h1 className="text-3xl font-bold tracking-tight">
+              {editMode ? 'Edit Hardware' : 'Add Hardware'}
             </h1>
             <p className="text-muted-foreground">
-              Register a new hardware device into the system
+              {editMode ? 'Update hardware information' : 'Register new hardware asset'}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate('inventory')}>
-            <X className="h-4 w-4 mr-2" />
-            Cancel
+          <Button variant="outline" onClick={() => navigate('inventory')} disabled={saving}>
+            <X className="h-4 w-4 mr-2" />Cancel
           </Button>
-          <Button onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            Save Item
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
+            ) : (
+              <><Save className="h-4 w-4 mr-2" />{editMode ? 'Update' : 'Save'}</>
+            )}
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                Item Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                value={formData.item_name}
-                onChange={(e) => handleChange('item_name', e.target.value)}
-                placeholder="e.g. Web Server 01" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Item Type</Label>
-              <Select
-                value={formData.item_type}
-                onValueChange={(v) => handleChange('item_type', v)}>
-                
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Server">Server</SelectItem>
-                  <SelectItem value="Switch">Switch</SelectItem>
-                  <SelectItem value="Router">Router</SelectItem>
-                  <SelectItem value="Firewall">Firewall</SelectItem>
-                  <SelectItem value="Storage Array">Storage Array</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Manufacturer</Label>
-              <Input
-                value={formData.manufacturer}
-                onChange={(e) => handleChange('manufacturer', e.target.value)}
-                placeholder="e.g. Dell" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Model</Label>
-              <Input
-                value={formData.model}
-                onChange={(e) => handleChange('model', e.target.value)}
-                placeholder="e.g. PowerEdge R740" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>
-                Serial Number <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                value={formData.serial_number}
-                onChange={(e) => handleChange('serial_number', e.target.value)}
-                placeholder="Enter serial number" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Asset Tag</Label>
-              <Input
-                value={formData.asset_tag}
-                onChange={(e) => handleChange('asset_tag', e.target.value)}
-                placeholder="Enter asset tag" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(v) => handleChange('status', v)}>
-                
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Working">Working</SelectItem>
-                  <SelectItem value="Broken">Broken</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Condition</Label>
-              <Select
-                value={formData.condition}
-                onValueChange={(v) => handleChange('condition', v)}>
-                
-                <SelectTrigger>
-                  <SelectValue placeholder="Select condition" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="New">New</SelectItem>
-                  <SelectItem value="Used">Used</SelectItem>
-                  <SelectItem value="Refurbished">Refurbished</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Basic Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Basic Information</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Hardware Name <span className="text-destructive">*</span></Label>
+            <Input
+              value={formData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="e.g., Dell PowerEdge R740"
+            />
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Location</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                Region <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.region_id}
-                onValueChange={(v) => {
-                  handleChange('region_id', v);
-                  handleChange('warehouse_id', '');
-                  handleChange('rack_id', '');
-                }}>
-                
-                <SelectTrigger>
-                  <SelectValue placeholder="Select region" />
-                </SelectTrigger>
-                <SelectContent>
-                  {regions.map((r) =>
-                  <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>
-                Warehouse <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.warehouse_id}
-                onValueChange={(v) => {
-                  handleChange('warehouse_id', v);
-                  handleChange('rack_id', '');
-                }}
-                disabled={!formData.region_id}>
-                
-                <SelectTrigger>
-                  <SelectValue placeholder="Select warehouse" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredWarehouses.map((w) =>
-                  <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Rack</Label>
-              <Select
-                value={formData.rack_id}
-                onValueChange={(v) => handleChange('rack_id', v)}
-                disabled={!formData.warehouse_id}>
-                
-                <SelectTrigger>
-                  <SelectValue placeholder="Select rack" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredRacks.map((r) =>
-                  <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Rack Position</Label>
-              <Input
-                value={formData.rack_position}
-                onChange={(e) => handleChange('rack_position', e.target.value)}
-                placeholder="e.g. U12-U14" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Floor</Label>
-              <Input
-                value={formData.floor}
-                onChange={(e) => handleChange('floor', e.target.value)}
-                placeholder="e.g. 1st Floor" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Room</Label>
-              <Input
-                value={formData.room}
-                onChange={(e) => handleChange('room', e.target.value)}
-                placeholder="e.g. Server Room A" />
-              
-            </div>
-          </CardContent>
-        </Card>
+          <div className="space-y-2">
+            <Label>Item Type <span className="text-destructive">*</span></Label>
+            <Select value={formData.item_type} onValueChange={(v) => handleChange('item_type', v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Server">Server</SelectItem>
+                <SelectItem value="Laptop">Laptop</SelectItem>
+                <SelectItem value="Desktop">Desktop</SelectItem>
+                <SelectItem value="Router">Router</SelectItem>
+                <SelectItem value="Switch">Switch</SelectItem>
+                <SelectItem value="Storage">Storage</SelectItem>
+                <SelectItem value="Network">Network</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Purchase Information</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Vendor</Label>
-              <Input
-                value={formData.vendor}
-                onChange={(e) => handleChange('vendor', e.target.value)}
-                placeholder="Vendor name" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Purchase Price (USD)</Label>
-              <Input
-                type="number"
-                value={formData.purchase_price}
-                onChange={(e) => handleChange('purchase_price', e.target.value)}
-                placeholder="0.00" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Purchase Date</Label>
-              <Input
-                type="date"
-                value={formData.purchase_date}
-                onChange={(e) => handleChange('purchase_date', e.target.value)} />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Warranty Expiry Date</Label>
-              <Input
-                type="date"
-                value={formData.warranty_expiry_date}
-                onChange={(e) =>
-                handleChange('warranty_expiry_date', e.target.value)
-                } />
-              
-            </div>
-          </CardContent>
-        </Card>
+          <div className="space-y-2">
+            <Label>Manufacturer</Label>
+            <Input
+              value={formData.manufacturer}
+              onChange={(e) => handleChange('manufacturer', e.target.value)}
+              placeholder="e.g., Dell"
+            />
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Additional Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tags (comma-separated)</Label>
-              <Input
-                value={formData.tags}
-                onChange={(e) => handleChange('tags', e.target.value)}
-                placeholder="e.g. production, database, critical" />
-              
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => handleChange('notes', e.target.value)}
-                placeholder="Add any additional notes here..."
-                rows={4} />
-              
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>);
+          <div className="space-y-2">
+            <Label>Model</Label>
+            <Input
+              value={formData.model}
+              onChange={(e) => handleChange('model', e.target.value)}
+              placeholder="e.g., PowerEdge R740"
+            />
+          </div>
 
+          <div className="space-y-2">
+            <Label>Serial Number <span className="text-destructive">*</span></Label>
+            <Input
+              value={formData.serial_number}
+              onChange={(e) => handleChange('serial_number', e.target.value)}
+              placeholder="Unique serial number"
+              disabled={editMode}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Asset Tag</Label>
+            <Input
+              value={formData.asset_tag}
+              onChange={(e) => handleChange('asset_tag', e.target.value)}
+              placeholder="Internal asset tag"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Specifications */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Specifications</CardTitle>
+          <Button type="button" variant="outline" size="sm" onClick={addSpecField}>
+            <Plus className="h-4 w-4 mr-2" />Add Spec
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {specFields.map((field, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                placeholder="Spec name (e.g., CPU)"
+                value={field.key}
+                onChange={(e) => updateSpecField(index, 'key', e.target.value)}
+                className="flex-1"
+              />
+              <Input
+                placeholder="Value (e.g., Intel Xeon)"
+                value={field.value}
+                onChange={(e) => updateSpecField(index, 'value', e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removeSpecField(index)}
+                disabled={specFields.length === 1}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Location & Status */}
+      <Card className='overflow-visible'>
+        <CardHeader>
+          <CardTitle>Location & Status</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Region</Label>
+            <Select 
+              value={formData.region_id} 
+              onValueChange={(v) => handleChange('region_id', v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select region" displayValue={selectedRegionName} />
+              </SelectTrigger>
+              <SelectContent>
+                {regions.map((region) => (
+                  <SelectItem key={region.id} value={region.id}>
+                    {region.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Warehouse</Label>
+            <Select
+              value={formData.warehouse_id}
+              onValueChange={(v) => handleChange('warehouse_id', v)}
+              disabled={!formData.region_id}
+            >
+              <SelectTrigger>
+                <SelectValue 
+                  placeholder={formData.region_id ? "Select warehouse" : "Select region first"} 
+                  displayValue={selectedWarehouseName} 
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredWarehouses.map((warehouse) => (
+                  <SelectItem key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={formData.status} onValueChange={(v: any) => handleChange('status', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="assigned">Assigned</SelectItem>
+                <SelectItem value="maintenance">Maintenance</SelectItem>
+                <SelectItem value="reserved">Reserved</SelectItem>
+                <SelectItem value="disposed">Disposed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Condition</Label>
+            <Select value={formData.condition} onValueChange={(v: any) => handleChange('condition', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="working">Working</SelectItem>
+                <SelectItem value="repairing">Repairing</SelectItem>
+                <SelectItem value="broken">Broken</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

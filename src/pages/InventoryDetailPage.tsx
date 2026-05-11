@@ -1,12 +1,15 @@
-import React, { useState, Component } from 'react';
+import React, { useState, Component, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { useHardwareInventoryStore } from '../store/useHardwareInventoryStore';
+import { RelocationRequestDialog } from '../components/RelocationRequestDialog';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle } from
-'../components/ui/Card';
+  CardTitle
+} from
+  '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
@@ -16,8 +19,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow } from
-'../components/ui/Table';
+  TableRow
+} from
+  '../components/ui/Table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,22 +31,26 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger } from
-'../components/ui/AlertDialog';
+  AlertDialogTrigger
+} from
+  '../components/ui/AlertDialog';
 import {
   ArrowLeft,
   Edit,
   Trash2,
+  Package,
   Server,
   MapPin,
   Calendar,
   Shield,
   Cpu,
-  Activity } from
-'lucide-react';
+  Activity
+} from
+  'lucide-react';
 import { formatDate, formatCurrency, getStatusColor } from '../lib/utils';
 import { toast } from 'sonner';
 export function InventoryDetailPage() {
+  const { hardwareInventory, fetchHardwareInventory, deleteHardwareInventory } = useHardwareInventoryStore();
   const {
     inventory,
     components,
@@ -52,11 +60,27 @@ export function InventoryDetailPage() {
     currentUser,
     getRegionName,
     getWarehouseName,
-    getRackName,
-    deleteInventoryItem
   } = useStore();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  if (!selectedId) {
+
+  const [isRelocationDialogOpen, setIsRelocationDialogOpen] = useState(false);
+
+  // Fetch hardware inventory data on component mount
+  useEffect(() => {
+    fetchHardwareInventory();
+  }, []);
+
+  // Restore selectedId from sessionStorage immediately
+  const effectiveSelectedId = selectedId || sessionStorage.getItem('ims-selected-id');
+
+  // Trigger navigation if ID was restored from sessionStorage
+  useEffect(() => {
+    if (!selectedId && effectiveSelectedId) {
+      navigate('inventory-detail', effectiveSelectedId);
+    }
+  }, [selectedId, effectiveSelectedId, navigate]);
+
+  if (!effectiveSelectedId) {
     return (
       <div className="p-6 text-center">
         <p className="text-muted-foreground">No item selected.</p>
@@ -66,7 +90,19 @@ export function InventoryDetailPage() {
       </div>);
 
   }
-  const item = inventory.find((i) => i.id === selectedId);
+
+
+  const item = hardwareInventory.find((i) => i.id === effectiveSelectedId);
+
+  // Show loading if hardwareInventory is empty but we have an ID
+  if (hardwareInventory.length === 0 && effectiveSelectedId) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
   if (!item || item.is_deleted) {
     return (
       <div className="p-6 text-center">
@@ -92,7 +128,7 @@ export function InventoryDetailPage() {
       return;
     }
     // In a real app, we'd also check for pending requests here
-    deleteInventoryItem(item.id);
+    deleteHardwareInventory(item.id);
     toast.success('Item deleted successfully');
     navigate('inventory');
   };
@@ -104,13 +140,13 @@ export function InventoryDetailPage() {
             variant="ghost"
             size="icon"
             onClick={() => navigate('inventory')}>
-            
+
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight font-heading">
-                {item.item_name}
+                {item.name}
               </h1>
               <Badge variant="outline">{item.item_type}</Badge>
               <Badge className={getStatusColor(item.status)}>
@@ -124,19 +160,19 @@ export function InventoryDetailPage() {
           </div>
         </div>
 
-        {currentUser?.role === 'Admin' &&
-        <div className="flex items-center gap-2">
+        {(currentUser?.role === 'Admin' || currentUser?.role === 'Engineer') &&
+          <div className="flex items-center gap-2">
             <Button
-            variant="outline"
-            onClick={() => toast.info('Edit feature coming soon')}>
-            
+              variant="outline"
+              onClick={() => navigate('inventory-add', effectiveSelectedId)}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
+
             <AlertDialog
-            open={isDeleteDialogOpen}
-            onOpenChange={setIsDeleteDialogOpen}>
-            
+              open={isDeleteDialogOpen}
+              onOpenChange={setIsDeleteDialogOpen}>
+
               <AlertDialogTrigger asChild>
                 <Button variant="destructive">
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -154,9 +190,9 @@ export function InventoryDetailPage() {
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                  onClick={handleDelete}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  
+                    onClick={handleDelete}
+                    className="bg-destructive text-white hover:bg-destructive/90">
+
                     Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -167,21 +203,65 @@ export function InventoryDetailPage() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-3xl">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="specifications">Specifications</TabsTrigger>
-          <TabsTrigger value="network">Network</TabsTrigger>
-          <TabsTrigger value="components">
-            Components
-            <Badge variant="secondary" className="ml-2 bg-background/50">
-              {installedComponents.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
+        <div className='flex items-center justify-between'>
+          <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="specifications">Specifications</TabsTrigger>
+            <TabsTrigger value="network">Network</TabsTrigger>
+            <TabsTrigger value="components">
+              Components
+              <Badge variant="secondary" className="ml-2 bg-background/50">
+                {installedComponents.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+
+          <Button
+            variant="outline"
+            onClick={() => setIsRelocationDialogOpen(true)}>
+            <Package className="h-4 w-4 mr-2" />
+            Relocate
+          </Button>
+        </div>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center">
+                  <Server className="h-5 w-5 mr-2 text-muted-foreground" />
+                  Basic Info
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Name:</span>
+                  <span className="col-span-2 font-medium">{item.name}</span>
+                </div>
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Type:</span>
+                  <span className="col-span-2 font-medium">{item.item_type}</span>
+                </div>
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Manufacturer:</span>
+                  <span className="col-span-2 font-medium">{item.manufacturer}</span>
+                </div>
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Model:</span>
+                  <span className="col-span-2 font-medium">{item.model}</span>
+                </div>
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Serial:</span>
+                  <span className="col-span-2 font-medium font-mono">{item.serial_number}</span>
+                </div>
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Asset Tag:</span>
+                  <span className="col-span-2 font-medium">{item.asset_tag || '—'}</span>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center">
@@ -192,74 +272,11 @@ export function InventoryDetailPage() {
               <CardContent className="space-y-2">
                 <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Region:</span>
-                  <span className="col-span-2 font-medium">
-                    {getRegionName(item.region_id)}
-                  </span>
+                  <span className="col-span-2 font-medium">{item.region_id ? getRegionName(item.region_id) : '—'}</span>
                 </div>
                 <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Warehouse:</span>
-                  <span className="col-span-2 font-medium">
-                    {getWarehouseName(item.warehouse_id)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Rack:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.rack_id ? getRackName(item.rack_id) : '—'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Position:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.rack_position || '—'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Room:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.room || '—'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center">
-                  <Calendar className="h-5 w-5 mr-2 text-muted-foreground" />
-                  Purchase Info
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Date:</span>
-                  <span className="col-span-2 font-medium">
-                    {formatDate(item.purchase_date)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Price:</span>
-                  <span className="col-span-2 font-medium">
-                    {formatCurrency(item.purchase_price)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Vendor:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.vendor || '—'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Asset Tag:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.asset_tag || '—'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Ownership:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.ownership?.owned_by || 'Company Owned'}
-                  </span>
+                  <span className="col-span-2 font-medium">{item.warehouse_id ? getWarehouseName(item.warehouse_id) : '—'}</span>
                 </div>
               </CardContent>
             </Card>
@@ -268,62 +285,21 @@ export function InventoryDetailPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center">
                   <Shield className="h-5 w-5 mr-2 text-muted-foreground" />
-                  Warranty & Maintenance
+                  Status
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Expires:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.warranty_expiry_date ?
-                    <span
-                      className={
-                      new Date(item.warranty_expiry_date) < new Date() ?
-                      'text-destructive' :
-                      ''
-                      }>
-                      
-                        {formatDate(item.warranty_expiry_date)}
-                      </span> :
-
-                    '—'
-                    }
-                  </span>
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className="col-span-2 font-medium">{item.status}</span>
                 </div>
                 <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Schedule:</span>
-                  <span className="col-span-2 font-medium">
-                    {item.maintenance?.schedule || '—'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Last Maint:</span>
-                  <span className="col-span-2 font-medium">
-                    {formatDate(item.maintenance?.last_date)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Deployed:</span>
-                  <span className="col-span-2 font-medium">
-                    {formatDate(item.lifecycle?.deployment_date)}
-                  </span>
+                  <span className="text-muted-foreground">Condition:</span>
+                  <span className="col-span-2 font-medium">{item.condition}</span>
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {item.notes &&
-          <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {item.notes}
-                </p>
-              </CardContent>
-            </Card>
-          }
         </TabsContent>
 
         <TabsContent value="specifications" className="mt-6">
@@ -339,20 +315,20 @@ export function InventoryDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
                 {Object.entries(item.specifications || {}).map(
                   ([key, value]) =>
-                  <div key={key} className="border-b border-border/50 pb-2">
+                    <div key={key} className="border-b border-border/50 pb-2">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                         {key.replace(/_/g, ' ')}
                       </p>
                       <p className="font-medium text-sm">
                         {Array.isArray(value) ?
-                      value.join(', ') :
-                      String(value || '—')}
+                          value.join(', ') :
+                          String(value || '—')}
                       </p>
                     </div>
 
                 )}
                 {Object.keys(item.specifications || {}).length === 0 &&
-                <p className="text-muted-foreground text-sm col-span-full">
+                  <p className="text-muted-foreground text-sm col-span-full">
                     No specifications recorded.
                   </p>
                 }
@@ -370,7 +346,7 @@ export function InventoryDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
                 {Object.entries(item.network_config || {}).map(
                   ([key, value]) =>
-                  <div key={key} className="border-b border-border/50 pb-2">
+                    <div key={key} className="border-b border-border/50 pb-2">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                         {key.replace(/_/g, ' ')}
                       </p>
@@ -381,7 +357,7 @@ export function InventoryDetailPage() {
 
                 )}
                 {Object.keys(item.network_config || {}).length === 0 &&
-                <p className="text-muted-foreground text-sm col-span-full">
+                  <p className="text-muted-foreground text-sm col-span-full">
                     No network configuration recorded.
                   </p>
                 }
@@ -399,20 +375,20 @@ export function InventoryDetailPage() {
                   Hardware components currently installed in this device
                 </CardDescription>
               </div>
-              {currentUser?.role === 'Admin' &&
-              <Button
-                size="sm"
-                onClick={() =>
-                toast.info('Install component feature coming soon')
-                }>
-                
+              {(currentUser?.role === 'Admin' || currentUser?.role === 'Engineer') &&
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    toast.info('Install component feature coming soon')
+                  }
+                >
                   Install Component
                 </Button>
               }
             </CardHeader>
             <CardContent>
               {installedComponents.length > 0 ?
-              <Table>
+                <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Component</TableHead>
@@ -424,7 +400,7 @@ export function InventoryDetailPage() {
                   </TableHeader>
                   <TableBody>
                     {installedComponents.map((comp) =>
-                  <TableRow key={comp.id}>
+                      <TableRow key={comp.id}>
                         <TableCell className="font-medium">
                           {comp.item_name}
                         </TableCell>
@@ -441,11 +417,11 @@ export function InventoryDetailPage() {
                           </Badge>
                         </TableCell>
                       </TableRow>
-                  )}
+                    )}
                   </TableBody>
                 </Table> :
 
-              <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-muted-foreground">
                   <Cpu className="h-12 w-12 mx-auto mb-3 opacity-20" />
                   <p>No components currently installed.</p>
                 </div>
@@ -464,12 +440,12 @@ export function InventoryDetailPage() {
             </CardHeader>
             <CardContent>
               {itemHistory.length > 0 ?
-              <div className="space-y-4">
+                <div className="space-y-4">
                   {itemHistory.map((log) =>
-                <div
-                  key={log.id}
-                  className="flex gap-4 p-4 rounded-lg border bg-muted/30">
-                  
+                    <div
+                      key={log.id}
+                      className="flex gap-4 p-4 rounded-lg border bg-muted/30">
+
                       <div className="mt-0.5">
                         <Activity className="h-5 w-5 text-muted-foreground" />
                       </div>
@@ -487,10 +463,10 @@ export function InventoryDetailPage() {
                         </p>
                       </div>
                     </div>
-                )}
+                  )}
                 </div> :
 
-              <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-muted-foreground">
                   <p>No history recorded yet.</p>
                 </div>
               }
@@ -498,6 +474,14 @@ export function InventoryDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <RelocationRequestDialog
+        open={isRelocationDialogOpen}
+        onOpenChange={setIsRelocationDialogOpen}
+        inventoryId={item.id}
+        sourceRegionId={item.region_id || ''}
+        sourceWarehouseId={item.warehouse_id || ''}
+      />
     </div>);
 
 }

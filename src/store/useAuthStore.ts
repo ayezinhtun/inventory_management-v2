@@ -129,6 +129,7 @@ async function syncToAppStore(profile: UserProfile | null, isPasswordRecovery: b
     const currentPage = useStore.getState().currentPage;
     const shouldNavigate = currentPage === "login" || currentPage === "signup";
     const savedPage = sessionStorage.getItem(SESSION_PAGE_KEY) as any | null;
+    const savedSelectedId = sessionStorage.getItem('ims-selected-id');
 
     useStore.setState({
       isAuthenticated: true,
@@ -147,11 +148,17 @@ async function syncToAppStore(profile: UserProfile | null, isPasswordRecovery: b
         updated_at: profile.updated_at,
       },
       // Only navigate if not in password recovery mode
-      ...(shouldNavigate && !isPasswordRecovery ? { currentPage: savedPage || "dashboard" } : {}),
+      ...(shouldNavigate && !isPasswordRecovery ? { 
+        currentPage: savedPage || "dashboard",
+        selectedId: savedSelectedId
+      } : {
+        selectedId: savedSelectedId
+      }),
     });
     await useStore.getState().fetchAppData();
   } else {
     sessionStorage.removeItem(SESSION_PAGE_KEY);
+    sessionStorage.removeItem('ims-selected-id');
     useStore.setState({
       isAuthenticated: false,
       currentUser: null,

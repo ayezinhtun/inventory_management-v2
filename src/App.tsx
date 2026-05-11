@@ -72,6 +72,7 @@ import { Avatar, AvatarFallback } from './components/ui/Avatar';
 import { Badge } from './components/ui/Badge';
 import { getInitials } from './lib/utils';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { AdminRelocationPage } from './pages/AdminRelocationPage';
 export function App() {
   const {
     isAuthenticated,
@@ -203,8 +204,6 @@ export function App() {
         return <InstallRequestsPage adminView />;
       case 'physical-install':
         return <InstallRequestsPage physicalView />;
-      case 'relocation-requests':
-        return <RelocationRequestsPage />;
       case 'relocation-pm':
         return <RelocationRequestsPage pmView />;
       case 'relocation-admin':
@@ -260,8 +259,13 @@ export function App() {
       // Map all other routes to PlaceholderPage for now
       case 'customer-inventory':
         return <PlaceholderPage />;
+      case 'relocation-requests':
+        return <RelocationRequestsPage />;
+      case 'admin-relocation':
+        return <AdminRelocationPage />;
       default:
         return <PlaceholderPage />;
+
     }
   };
   // Format breadcrumb based on current page

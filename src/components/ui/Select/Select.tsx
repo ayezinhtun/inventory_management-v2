@@ -104,7 +104,7 @@ const SelectContent = React.forwardRef<HTMLDivElement, SelectContentProps>(
         ref={ref}
         data-slot="select-content"
         className={cn(
-          "absolute top-full left-0 z-50 mt-1 min-w-36 overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
+          "absolute top-full left-0 z-[9999] mt-1 min-w-36 overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
           className
         )}
         {...props}>

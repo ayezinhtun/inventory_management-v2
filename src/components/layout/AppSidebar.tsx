@@ -1,5 +1,5 @@
 import React from "react";
-import { useStore } from "../../store/useStore";
+import { useStore, Page } from "../../store/useStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import logo from '../../assets/image/logo.png';
 import {
@@ -48,6 +48,7 @@ import {
   Activity,
   BoxIcon,
   Mail,
+  Package,
 } from "lucide-react";
 export function AppSidebar() {
   const {
@@ -109,11 +110,25 @@ export function AppSidebar() {
         // },
       ],
     },
+
+    {
+      label: 'Relocation Requests',
+      icon: Package,
+      path: 'relocation-requests',
+      roles: ['PM'],
+    },
+
+    {
+      label: 'Admin Relocation',
+      icon: Wrench,
+      path: 'admin-relocation',
+      roles: ['Admin'],
+    },
     {
       label: "Requests",
       items: [
-       /* This part of the code defines an item in the navigation structure for the "Requests" section
-       of the sidebar. Here's what each property represents: */
+        /* This part of the code defines an item in the navigation structure for the "Requests" section
+        of the sidebar. Here's what each property represents: */
         // {
         //   id: "inventory-requests",
         //   label: "Inventory Requests",
@@ -303,6 +318,30 @@ export function AppSidebar() {
 
       <SidebarContent>
         {navGroups.map((group, idx) => {
+          // Check if group has items, otherwise treat as single item
+          if (!group.items) {
+            // Single item group - check if user has role for this item
+            if (!group.roles.includes(role)) return null;
+            
+            return (
+              <SidebarGroup key={idx}>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        onClick={() => navigate(group.path as Page)}
+                        isActive={currentPage === group.path}
+                      >
+                        <group.icon className="h-4 w-4" />
+                        <span>{group.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            );
+          }
+          
           // Filter items based on user role
           const visibleItems = group.items.filter((item) =>
             item.roles.includes(role),

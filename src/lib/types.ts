@@ -10,9 +10,11 @@ export type ItemType =
   'Router' |
   'Firewall' |
   'Storage Array';
-export type ItemStatus = 'Working' | 'Broken';
-export type ItemCondition = 'New' | 'Used' | 'Refurbished';
+
 export type Urgency = 'Emergency' | 'Critical' | 'High' | 'Medium' | 'Low';
+
+export type ItemStatus = 'available' | 'installed' | 'reserved' | 'broken';
+export type ItemCondition = 'working' | 'broken';
 
 export type InventoryRequestStatus =
   'Draft' |
@@ -166,79 +168,45 @@ export interface ComponentType {
   fields: FormField[];
 }
 
-export interface InventoryItem {
+export interface HardwareInventory {
   id: string;
-  item_name: string;
-  item_type: ItemType;
+  name: string;
+  item_type: string;
+  specifications: Record<string, any>;
   manufacturer: string;
   model: string;
   serial_number: string;
   asset_tag: string;
-  specifications: Record<string, any>;
-  region_id: string;
-  warehouse_id: string;
-  rack_id: string | null;
-  rack_position: string;
-  floor: string;
-  room: string;
-  cabinet: string;
-  network_config: Record<string, any>;
-  ownership: Record<string, any>;
-  quantity: number;
-  reserved_quantity: number;
-  status: ItemStatus;
-  condition: ItemCondition;
-  lifecycle: Record<string, any>;
-  maintenance: Record<string, any>;
-  notes: string;
-  tags: string[];
-  purchase_date: string | null;
-  purchase_price: number | null;
-  vendor: string;
-  warranty_expiry_date: string | null;
-  created_by: string;
+  status: 'available' | 'installed' | 'reserved';
+  condition: 'working' | 'broken';
+  region_id: string | null;
+  warehouse_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
-  updated_by: string | null;
   is_deleted: boolean;
 }
 
+
 export interface Component {
   id: string;
-  item_name: string;
-  component_type_id: string;
+  name: string;
+  component_type_id: string | null;
+  specifications: Record<string, any>;
   manufacturer: string;
   model: string;
   part_number: string;
-  specifications: Record<string, any>;
-  region_id: string;
-  warehouse_id: string;
-  installed_in_device_id: string | null;
-  device_slot: string;
-  bin_location: string;
-  quantity: number;
-  reserved_quantity: number;
-  minimum_stock: number;
-  reorder_quantity: number;
-  status: ItemStatus;
-  condition: ItemCondition;
-  tested: boolean;
-  test_date: string | null;
-  test_results: string;
-  purchase_date: string | null;
-  purchase_price: number | null;
-  vendor: string;
-  purchase_order_number: string;
-  warranty_type: string;
-  warranty_expiry_date: string | null;
   compatible_with: string;
-  notes: string;
-  tags: string[];
-  barcode: string;
-  created_by: string;
+  status: 'available' | 'installed' | 'reserved' | 'broken';
+  condition: 'working' | 'broken';
+  region_id: string | null;
+  warehouse_id: string | null;
+  installed_in_device_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
-  updated_by: string | null;
   is_deleted: boolean;
 }
 

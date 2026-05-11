@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useRegionStore } from '../store/useRegionStore';
 import { useWarehouseStore } from '../store/useWarehouseStore';
@@ -14,15 +15,19 @@ import { Textarea } from '../components/ui/Textarea';
 import { Separator } from '../components/ui/Separator';
 import { toast } from 'sonner';
 import { ArrowLeft, Save, X, Loader2 } from 'lucide-react';
-import type { ItemStatus, ItemCondition, FormField } from '../lib/types';
+import type { ItemStatus, ItemCondition, FormField, Component } from '../lib/types';
 
 export function ComponentsAddPage() {
-  const { currentUser, componentTypes, navigate } = useStore();
+  const { currentUser, componentTypes, navigate, selectedId } = useStore();
   const { regions, fetchRegions } = useRegionStore();
   const { warehouses, fetchWarehouses } = useWarehouseStore();
-  const { createComponent } = useComponentsStore();
+  const { createComponent, updateComponent, components, fetchComponents } = useComponentsStore();
 
   const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editingComponent, setEditingComponent] = useState(null);
+
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [formData, setFormData] = useState({
     item_name: '',
@@ -32,33 +37,64 @@ export function ComponentsAddPage() {
     part_number: '',
     region_id: '',
     warehouse_id: '',
-    bin_location: '',
     quantity: 1,
-    minimum_stock: 0,
-    reorder_quantity: 0,
-    status: 'Working' as ItemStatus,
-    condition: 'New' as ItemCondition,
-    purchase_date: '',
-    purchase_price: '',
-    vendor: '',
-    warranty_expiry_date: '',
+    status: 'available' as ItemStatus,
+    condition: 'working' as ItemCondition,
     compatible_with: '',
-    notes: '',
-    tags: '',
   });
 
   // Specification field values — keyed by FormField id
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
 
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<Component[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestionIndex, setSuggestionIndex] = useState(-1);
+  const [activeField, setActiveField] = useState<string>(''); // Track which field has autocomplete
+  
+  // Autocomplete suggestions for different fields
+  const [manufacturerSuggestions, setManufacturerSuggestions] = useState<string[]>([]);
+  const [modelSuggestions, setModelSuggestions] = useState<string[]>([]);
+  const [partNumberSuggestions, setPartNumberSuggestions] = useState<string[]>([]);
+  const [showManufacturerSuggestions, setShowManufacturerSuggestions] = useState(false);
+  const [showModelSuggestions, setShowModelSuggestions] = useState(false);
+  const [showPartNumberSuggestions, setShowPartNumberSuggestions] = useState(false);
+
   useEffect(() => {
     fetchRegions();
     fetchWarehouses();
+    fetchComponents(); // Fetch existing components for suggestions
   }, []);
 
   // Reset spec values when component type changes
   useEffect(() => {
     setSpecValues({});
   }, [formData.component_type_id]);
+
+  // Handle edit mode using selectedId from store
+  useEffect(() => {
+    if (selectedId) {
+      setEditMode(true);
+      const component = components.find(c => c.id === selectedId);
+      if (component) {
+        setEditingComponent(component);
+        setFormData({
+          item_name: component.name,
+          component_type_id: component.component_type_id,
+          manufacturer: component.manufacturer,
+          model: component.model,
+          part_number: component.part_number,
+          compatible_with: component.compatible_with || '',
+          status: component.status || 'available',
+          condition: component.condition || 'working',
+          region_id: component.region_id || '',
+          warehouse_id: component.warehouse_id || '',
+        });
+        // Set specifications separately
+        setSpecValues(component.specifications || {});
+      }
+    }
+  }, [components, selectedId]);
 
   const selectedType = componentTypes.find((ct) => ct.id === formData.component_type_id);
   const specFields: FormField[] = selectedType?.requires_specification ? (selectedType.fields ?? []) : [];
@@ -69,65 +105,218 @@ export function ComponentsAddPage() {
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    
+    // Handle autocomplete for different fields
+    if (field === 'manufacturer') {
+      const suggestions = getManufacturerSuggestions(value);
+      setManufacturerSuggestions(suggestions);
+      setShowManufacturerSuggestions(suggestions.length > 0);
+    } else if (field === 'model') {
+      const suggestions = getModelSuggestions(value);
+      setModelSuggestions(suggestions);
+      setShowModelSuggestions(suggestions.length > 0);
+    } else if (field === 'part_number') {
+      const suggestions = getPartNumberSuggestions(value);
+      setPartNumberSuggestions(suggestions);
+      setShowPartNumberSuggestions(suggestions.length > 0);
+    }
+  };
+
+  // Get suggestions for manufacturer field
+  const getManufacturerSuggestions = (input: string) => {
+    if (!input) return [];
+    
+    const allComponents = components;
+    
+    const uniqueManufacturers = [...new Set(allComponents.map(c => c.manufacturer).filter(Boolean))];
+    return uniqueManufacturers
+      .filter(name => name.toLowerCase().includes(input.toLowerCase()))
+      .slice(0, 5);
+  };
+
+  // Get suggestions for model field
+  const getModelSuggestions = (input: string) => {
+    if (!input) return [];
+    
+    const allComponents = components;
+    
+    const uniqueModels = [...new Set(allComponents.map(c => c.model).filter(Boolean))];
+    return uniqueModels
+      .filter(name => name.toLowerCase().includes(input.toLowerCase()))
+      .slice(0, 5);
+  };
+
+  // Get suggestions for part number field
+  const getPartNumberSuggestions = (input: string) => {
+    if (!input) return [];
+    
+    const allComponents = components;
+    
+    const uniquePartNumbers = [...new Set(allComponents.map(c => c.part_number).filter(Boolean))];
+    return uniquePartNumbers
+      .filter(name => name.toLowerCase().includes(input.toLowerCase()))
+      .slice(0, 5);
+  };
+
+  // Get component suggestions with full component data
+  const getComponentSuggestions = (input: string) => {
+    if (!input) return [];
+    
+    console.log('Components available:', components);
+    
+    const allComponents = components;
+    
+    // Get unique components by name with their full data
+    const uniqueComponents = allComponents.reduce((acc, component) => {
+      const existing = acc.find(c => c.name === component.name);
+      if (!existing) {
+        acc.push(component);
+      }
+      return acc;
+    }, [] as typeof allComponents);
+    
+    const filtered = uniqueComponents
+      .filter(component => component.name.toLowerCase().includes(input.toLowerCase()))
+      .slice(0, 5); // Limit to 5 suggestions
+    console.log('Filtered suggestions:', filtered);
+    return filtered;
+  };
+
+  // Helper function to update autocomplete position
+  const updateAutocompletePosition = (input: HTMLInputElement) => {
+    const rect = input.getBoundingClientRect();
+    setAutocompletePosition({
+      top: rect.bottom + window.scrollY,
+      left: rect.left + window.scrollX,
+      width: rect.width
+    });
+    setActiveInputRef(input);
+  };
+
+  // Handle input change with suggestions
+  const handleNameChange = (value: string) => {
+    console.log('Input changed to:', value);
+    handleChange('item_name', value);
+    const newSuggestions = getComponentSuggestions(value);
+    console.log('New suggestions:', newSuggestions);
+    setSuggestions(newSuggestions);
+    setShowSuggestions(newSuggestions.length > 0);
+    setSuggestionIndex(-1);
+  };
+
+  // Handle suggestion selection - auto-fill all form fields
+  const handleSuggestionSelect = (component: Component) => {
+
+    // Auto-fill all form fields with component data
+    const newFormData = {
+      ...formData,
+      item_name: component.name,
+      component_type_id: component.component_type_id || '',
+      manufacturer: component.manufacturer || '',
+      model: component.model || '',
+      part_number: component.part_number || '',
+      compatible_with: component.compatible_with || '',
+      status: (component.status || 'available') as ItemStatus,
+      condition: (component.condition || 'working') as ItemCondition,
+      region_id: component.region_id || '',
+      warehouse_id: component.warehouse_id || '',
+    };
+    
+    console.log('New formData to set:', newFormData);
+    
+    setFormData(newFormData);
+    
+    // Auto-fill specifications if they exist
+    if (component.specifications) {
+      console.log('Setting spec values:', component.specifications);
+      setSpecValues(component.specifications);
+    }
+    
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setSuggestionIndex(-1);
+    
+    
+    // Force focus back to input
+    setTimeout(() => {
+      const input = document.querySelector('input[placeholder="e.g. 16GB DDR4 RAM"]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.setSelectionRange(component.name.length, component.name.length);
+      }
+    }, 0);
+  };
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSuggestionIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSuggestionIndex(prev => 
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (suggestionIndex >= 0) {
+          handleSuggestionSelect(suggestions[suggestionIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowSuggestions(false);
+        setSuggestionIndex(-1);
+        break;
+    }
   };
 
   const handleSave = async () => {
-    // Report ONLY the specific missing fields
-    const missing: string[] = [];
-    if (!formData.item_name.trim())       missing.push('Component Name');
-    if (!formData.component_type_id)      missing.push('Component Type');
-    if (!formData.region_id)              missing.push('Region');
-    if (!formData.warehouse_id)           missing.push('Warehouse');
-    if (missing.length > 0) {
-      toast.error(`Please fill in: ${missing.join(', ')}`);
-      return;
-    }
-
-    // Validate required spec fields
-    for (const f of specFields) {
-      if (f.required && !specValues[f.id]?.trim()) {
-        toast.error(`"${f.label}" is required`);
-        return;
-      }
-    }
-
     setSaving(true);
     try {
-      await createComponent({
-        item_name: formData.item_name,
-        component_type_id: formData.component_type_id,
-        manufacturer: formData.manufacturer,
-        model: formData.model,
-        part_number: formData.part_number,
-        specifications: specValues,
-        region_id: formData.region_id,
-        warehouse_id: formData.warehouse_id,
-        installed_in_device_id: null,
-        device_slot: '',
-        bin_location: formData.bin_location,
-        quantity: Number(formData.quantity) || 1,
-        reserved_quantity: 0,
-        minimum_stock: Number(formData.minimum_stock) || 0,
-        reorder_quantity: Number(formData.reorder_quantity) || 0,
-        status: formData.status,
-        condition: formData.condition,
-        tested: false,
-        test_date: null,
-        test_results: '',
-        purchase_date: formData.purchase_date || null,
-        purchase_price: formData.purchase_price ? Number(formData.purchase_price) : null,
-        vendor: formData.vendor,
-        purchase_order_number: '',
-        warranty_type: '',
-        warranty_expiry_date: formData.warranty_expiry_date || null,
-        compatible_with: formData.compatible_with,
-        notes: formData.notes,
-        tags: formData.tags ? formData.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
-        barcode: '',
-        created_by: currentUser?.id || '',
-        updated_by: null,
-      });
-      toast.success('Component added successfully');
+      if (editMode && editingComponent) {
+        // Update existing component
+        await updateComponent(editingComponent.id, {
+          name: formData.item_name,
+          component_type_id: formData.component_type_id,
+          specifications: specValues,
+          manufacturer: formData.manufacturer,
+          model: formData.model,
+          part_number: formData.part_number,
+          compatible_with: formData.compatible_with,
+          status: formData.status,
+          condition: formData.condition,
+          region_id: formData.region_id,
+          warehouse_id: formData.warehouse_id,
+        });
+        toast.success('Component updated successfully');
+      } else {
+        // Create new component
+        await createComponent({
+          name: formData.item_name,
+          component_type_id: formData.component_type_id,
+          specifications: specValues,
+          manufacturer: formData.manufacturer,
+          model: formData.model,
+          part_number: formData.part_number,
+          compatible_with: formData.compatible_with,
+          status: formData.status,
+          condition: formData.condition,
+          region_id: formData.region_id,
+          warehouse_id: formData.warehouse_id,
+          installed_in_device_id: null,
+          created_by: currentUser?.id || '',
+          updated_by: null,
+          quantity: Number(formData.quantity) || 1,
+        });
+        toast.success('Component added successfully');
+      }
       navigate('components');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to save component');
@@ -144,8 +333,12 @@ export function ComponentsAddPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-heading">Add Component</h1>
-            <p className="text-muted-foreground">Register a new spare part or component</p>
+            <h1 className="text-3xl font-bold tracking-tight font-heading">
+              {editMode ? 'Edit Component' : 'Add Component'}
+            </h1>
+            <p className="text-muted-foreground">
+              {editMode ? 'Update component information' : 'Register a new spare part or component'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -153,23 +346,67 @@ export function ComponentsAddPage() {
             <X className="h-4 w-4 mr-2" />Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : <><Save className="h-4 w-4 mr-2" />Save Component</>}
+            {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : <><Save className="h-4 w-4 mr-2" />{editMode ? 'Update Component' : 'Save Component'}</>}
           </Button>
         </div>
       </div>
 
       <div className="grid gap-6">
         {/* ── Basic Information ── */}
-        <Card>
+        <Card className='overflow-visible'>
           <CardHeader><CardTitle>Basic Information</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Component Name <span className="text-destructive">*</span></Label>
-              <Input
-                value={formData.item_name}
-                onChange={(e) => handleChange('item_name', e.target.value)}
-                placeholder="e.g. 16GB DDR4 RAM"
-              />
+              <div className="relative">
+                <Input
+                  value={formData.item_name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => {
+                    if (formData.item_name) {
+                      const newSuggestions = getComponentSuggestions(formData.item_name);
+                      setSuggestions(newSuggestions);
+                      setShowSuggestions(newSuggestions.length > 0);
+                    }
+                  }}
+                  onBlur={() => {
+                    // Delay hiding to allow click on suggestion
+                    setTimeout(() => setShowSuggestions(false), 300);
+                  }}
+                  placeholder="e.g. 16GB DDR4 RAM"
+                />
+                
+                {/* Suggestions Dropdown */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div 
+                    className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto"
+                    onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking dropdown
+                  >
+                    {suggestions.map((component, index) => (
+                      <div
+                        key={component.id}
+                        className={`px-3 py-2 cursor-pointer text-sm ${
+                          index === suggestionIndex 
+                            ? 'bg-blue-50 text-blue-700' 
+                            : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          console.log('Clicked suggestion:', component);
+                          handleSuggestionSelect(component);
+                        }}
+                        onMouseEnter={() => setSuggestionIndex(index)}
+                      >
+                        <div className="font-medium">{component.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {component.manufacturer} {component.part_number}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -194,15 +431,90 @@ export function ComponentsAddPage() {
 
             <div className="space-y-2">
               <Label>Manufacturer</Label>
-              <Input value={formData.manufacturer} onChange={(e) => handleChange('manufacturer', e.target.value)} placeholder="e.g. Samsung" />
+              <div className="relative">
+                <Input 
+                  value={formData.manufacturer} 
+                  onChange={(e) => handleChange('manufacturer', e.target.value)} 
+                  placeholder="e.g. Samsung"
+                  onBlur={() => {
+                    setTimeout(() => setShowManufacturerSuggestions(false), 200);
+                  }}
+                />
+                {showManufacturerSuggestions && manufacturerSuggestions.length > 0 && (
+                  <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto" onMouseDown={(e) => e.preventDefault()}>
+                    {manufacturerSuggestions.map((suggestion, index) => (
+                      <div
+                        key={suggestion}
+                        className="px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
+                        onClick={() => {
+                          handleChange('manufacturer', suggestion);
+                          setShowManufacturerSuggestions(false);
+                        }}
+                      >
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Model</Label>
-              <Input value={formData.model} onChange={(e) => handleChange('model', e.target.value)} placeholder="e.g. EVO Plus" />
+              <div className="relative">
+                <Input 
+                  value={formData.model} 
+                  onChange={(e) => handleChange('model', e.target.value)} 
+                  placeholder="e.g. EVO Plus"
+                  onBlur={() => {
+                    setTimeout(() => setShowModelSuggestions(false), 200);
+                  }}
+                />
+                {showModelSuggestions && modelSuggestions.length > 0 && (
+                  <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto" onMouseDown={(e) => e.preventDefault()}>
+                    {modelSuggestions.map((suggestion, index) => (
+                      <div
+                        key={suggestion}
+                        className="px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
+                        onClick={() => {
+                          handleChange('model', suggestion);
+                          setShowModelSuggestions(false);
+                        }}
+                      >
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Part Number</Label>
-              <Input value={formData.part_number} onChange={(e) => handleChange('part_number', e.target.value)} placeholder="Enter part number" />
+              <div className="relative">
+                <Input 
+                  value={formData.part_number} 
+                  onChange={(e) => handleChange('part_number', e.target.value)} 
+                  placeholder="Enter part number"
+                  onBlur={() => {
+                    setTimeout(() => setShowPartNumberSuggestions(false), 200);
+                  }}
+                />
+                {showPartNumberSuggestions && partNumberSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto" onMouseDown={(e) => e.preventDefault()}>
+                    {partNumberSuggestions.map((suggestion, index) => (
+                      <div
+                        key={suggestion}
+                        className="px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
+                        onClick={() => {
+                          handleChange('part_number', suggestion);
+                          setShowPartNumberSuggestions(false);
+                        }}
+                      >
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Compatible With</Label>
@@ -213,8 +525,9 @@ export function ComponentsAddPage() {
               <Select value={formData.status} onValueChange={(v) => handleChange('status', v)}>
                 <SelectTrigger><SelectValue displayValue={formData.status} placeholder="Select status" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Working">Working</SelectItem>
-                  <SelectItem value="Broken">Broken</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="reserved">Reserved</SelectItem>
+                  <SelectItem value="installed">Installed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -223,9 +536,8 @@ export function ComponentsAddPage() {
               <Select value={formData.condition} onValueChange={(v) => handleChange('condition', v)}>
                 <SelectTrigger><SelectValue displayValue={formData.condition} placeholder="Select condition" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="New">New</SelectItem>
-                  <SelectItem value="Used">Used</SelectItem>
-                  <SelectItem value="Refurbished">Refurbished</SelectItem>
+                  <SelectItem value="working">Working</SelectItem>
+                  <SelectItem value="broken">Broken</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -323,62 +635,15 @@ export function ComponentsAddPage() {
               </Select>
             </div>
 
+
             <div className="space-y-2">
-              <Label>Bin Location</Label>
-              <Input value={formData.bin_location} onChange={(e) => handleChange('bin_location', e.target.value)} placeholder="e.g. Shelf A-12" />
-            </div>
-            <div className="space-y-2">
-              <Label>Initial Quantity</Label>
+              <Label>Quantity</Label>
               <Input type="number" min="1" value={formData.quantity} onChange={(e) => handleChange('quantity', e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Minimum Stock Level</Label>
-              <Input type="number" min="0" value={formData.minimum_stock} onChange={(e) => handleChange('minimum_stock', e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Reorder Quantity</Label>
-              <Input type="number" min="0" value={formData.reorder_quantity} onChange={(e) => handleChange('reorder_quantity', e.target.value)} />
-            </div>
+
           </CardContent>
         </Card>
 
-        {/* ── Purchase Information ── */}
-        <Card>
-          <CardHeader><CardTitle>Purchase Information</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Vendor</Label>
-              <Input value={formData.vendor} onChange={(e) => handleChange('vendor', e.target.value)} placeholder="Vendor name" />
-            </div>
-            <div className="space-y-2">
-              <Label>Purchase Price (USD)</Label>
-              <Input type="number" value={formData.purchase_price} onChange={(e) => handleChange('purchase_price', e.target.value)} placeholder="0.00" />
-            </div>
-            <div className="space-y-2">
-              <Label>Purchase Date</Label>
-              <Input type="date" value={formData.purchase_date} onChange={(e) => handleChange('purchase_date', e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Warranty Expiry Date</Label>
-              <Input type="date" value={formData.warranty_expiry_date} onChange={(e) => handleChange('warranty_expiry_date', e.target.value)} />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ── Additional Details ── */}
-        <Card>
-          <CardHeader><CardTitle>Additional Details</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tags (comma-separated)</Label>
-              <Input value={formData.tags} onChange={(e) => handleChange('tags', e.target.value)} placeholder="e.g. memory, upgrade, spare" />
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea value={formData.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Add any additional notes here…" rows={4} />
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

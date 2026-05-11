@@ -69,6 +69,10 @@ delay: number)
 
 export function getStatusColor(status: string): string {
   const map: Record<string, string> = {
+    available: 'bg-emerald-100 text-emerald-800',
+    reserved: 'bg-amber-100 text-amber-800',
+    installed: 'bg-blue-100 text-blue-800',
+    broken: 'bg-red-100 text-red-800',
     Working: 'bg-emerald-100 text-emerald-800',
     Broken: 'bg-red-100 text-red-800',
     New: 'bg-blue-100 text-blue-800',
