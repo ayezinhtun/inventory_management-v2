@@ -85,6 +85,10 @@ export function AuditLogPage() {
   async function fetchLogs(p = 0) {
     setLoading(true);
     try {
+      console.log('Current user:', currentUser);
+      console.log('currentUser.id:', currentUser?.id);
+      console.log('currentUser.user_id:', currentUser?.user_id);
+
       // audit_logs.user_id → auth.users.id (no FK to user_profiles), so we join separately
       let query = supabase
         .from('audit_logs')
@@ -160,15 +164,15 @@ export function AuditLogPage() {
 
   const visible = search.trim()
     ? logs.filter((l) => {
-        const q = search.toLowerCase();
-        return (
-          l.module.toLowerCase().includes(q) ||
-          l.action.toLowerCase().includes(q) ||
-          (l.user_name ?? '').toLowerCase().includes(q) ||
-          (l.record_id ?? '').toLowerCase().includes(q) ||
-          summarize(l).toLowerCase().includes(q)
-        );
-      })
+      const q = search.toLowerCase();
+      return (
+        l.module.toLowerCase().includes(q) ||
+        l.action.toLowerCase().includes(q) ||
+        (l.user_name ?? '').toLowerCase().includes(q) ||
+        (l.record_id ?? '').toLowerCase().includes(q) ||
+        summarize(l).toLowerCase().includes(q)
+      );
+    })
     : logs;
 
   const totalPages = Math.ceil(total / PAGE_SIZE);

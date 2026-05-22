@@ -111,19 +111,7 @@ export function AppSidebar() {
       ],
     },
 
-    {
-      label: 'Relocation Requests',
-      icon: Package,
-      path: 'relocation-requests',
-      roles: ['PM'],
-    },
 
-    {
-      label: 'Admin Relocation',
-      icon: Wrench,
-      path: 'admin-relocation',
-      roles: ['Admin'],
-    },
     {
       label: "Requests",
       items: [

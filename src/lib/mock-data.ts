@@ -1,31 +1,31 @@
-// import { generateId } from './utils';
-// import type {
-//   User,
-//   Region,
-//   Warehouse,
-//   Rack,
-//   ComponentType,
-//   InventoryItem,
-//   Component,
-//   InventoryRequest,
-//   InstallRequest,
-//   RelocationRequest,
-//   Customer,
-//   Vendor,
-//   AuditLog,
-//   Notification,
-//   ReservedStock,
-//   MaintenanceTask,
-//   PurchaseOrder,
-//   GoodsReceipt,
-//   RMARecord,
-//   DisposalRecord,
-//   StocktakeRecord } from
-// './types';
+import { generateId } from './utils';
+import type {
+  User,
+  Region,
+  Warehouse,
+  Rack,
+  ComponentType,
+  HardwareInventory,
+  Component,
+  InventoryRequest,
+  InstallRequest,
+  RelocationRequest,
+  Customer,
+  Vendor,
+  AuditLog,
+  Notification,
+  ReservedStock,
+  MaintenanceTask,
+  PurchaseOrder,
+  GoodsReceipt,
+  RMARecord,
+  DisposalRecord,
+  StocktakeRecord } from
+'./types';
 
-// const now = new Date().toISOString();
-// const d = (daysAgo: number) =>
-// new Date(Date.now() - daysAgo * 86400000).toISOString();
+const now = new Date().toISOString();
+const d = (daysAgo: number) =>
+new Date(Date.now() - daysAgo * 86400000).toISOString();
 
 // // ---- REGIONS ----
 // export const mockRegions: Region[] = [

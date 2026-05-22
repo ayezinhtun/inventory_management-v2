@@ -101,15 +101,14 @@ export type GoodsReceiptStatus =
 // --- Core Entities ---
 export interface User {
   id: string;
-  username: string;
+  user_id: string;
+  name: string;
   email: string;
-  password_hash: string;
-  full_name: string;
   role: UserRole;
-  assigned_region_ids: string[];
-  assigned_warehouse_ids: string[];
-  is_active: boolean;
-  last_login: string | null;
+  region_id: string | null;
+  warehouse_id: string | null;
+  status: string;
+  last_login_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -274,6 +273,7 @@ export interface RelocationRequest {
   quantity: number;
   source_region_id: string;
   source_warehouse_id: string;
+  source_server_id: string | null;
   destination_region_id: string;
   destination_warehouse_id: string;
   destination_server_id: string | null;

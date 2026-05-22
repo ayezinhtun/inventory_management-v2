@@ -21,6 +21,7 @@ export const useHardwareInventoryStore = create<HardwareInventoryState>((set, ge
   isLoading: false,
   error: null,
 
+  
   fetchHardwareInventory: async () => {
     set({ isLoading: true, error: null });
     try {

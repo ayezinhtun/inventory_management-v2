@@ -37,6 +37,7 @@ interface AuthState {
   isPasswordRecovery: boolean; // true when user clicked a password-reset email link
   resetCode: string | null;
   resetEmail: string | null;
+  getUserCount: () => Promise<number>;
 
   initializeAuth: () => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
@@ -134,7 +135,7 @@ async function syncToAppStore(profile: UserProfile | null, isPasswordRecovery: b
     useStore.setState({
       isAuthenticated: true,
       currentUser: {
-        id: profile.user_id,
+        id: profile.id,
         username: profile.username || profile.email,
         email: profile.email,
         password_hash: "",
@@ -148,7 +149,7 @@ async function syncToAppStore(profile: UserProfile | null, isPasswordRecovery: b
         updated_at: profile.updated_at,
       },
       // Only navigate if not in password recovery mode
-      ...(shouldNavigate && !isPasswordRecovery ? { 
+      ...(shouldNavigate && !isPasswordRecovery ? {
         currentPage: savedPage || "dashboard",
         selectedId: savedSelectedId
       } : {
@@ -570,5 +571,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       created_at: f.created_at,
     }));
     set({ mfaFactors: totp });
+  },
+
+  getUserCount: async () => {
+    const { count, error } = await supabase
+      .from('user_profiles')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      console.error("Error fetching user count:", error);
+      return 0;
+    }
+
+    return count ?? 0;
   },
 }));

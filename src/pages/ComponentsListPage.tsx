@@ -200,17 +200,15 @@ export function ComponentsListPage() {
 
   const getRegionName = (id: string) =>
 
-    regions.find((r) => r.id === id)?.name || 'Unknown';
+    regions.find((r) => r.id === id)?.name || '-';
 
   const getWarehouseName = (id: string) =>
 
-    warehouses.find((w) => w.id === id)?.name || 'Unknown';
+    warehouses.find((w) => w.id === id)?.name || '-';
 
   const getTypeName = (id: string) =>
 
-    componentTypes.find((ct) => ct.id === id)?.type_name || 'Unknown';
-
-
+    componentTypes.find((ct) => ct.id === id)?.type_name || '-';
 
 
 

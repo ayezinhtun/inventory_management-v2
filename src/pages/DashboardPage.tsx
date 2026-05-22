@@ -3,7 +3,7 @@
  * Inspired by shadcnblocks dashboard-3 / dashboard-5.
  * Layout: welcome banner → 4 KPI cards → big chart + widgets → table + feed
  */
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDashboardStore } from '../store/useDashboardStore';
 import { useStore } from '../store/useStore';
@@ -24,10 +24,14 @@ import {
 import {
   RefreshCw, Cpu, Users, DollarSign, AlertTriangle,
   ArrowUpRight, ArrowDownRight, TrendingUp, PackageX,
-  CheckCircle2, Globe, Warehouse, Layers, Clock,
+  CheckCircle2, Globe, Warehouse, Layers, Clock, MapPin, Building2,
   Activity, BarChart2, Download,
+  Building,
 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
+import { useHardwareInventoryStore } from '../store/useHardwareInventoryStore';
+import { useRegionStore } from '../store/useRegionStore';
+import { useWarehouseStore } from '../store/useWarehouseStore';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const PRIMARY = '#6366f1';
@@ -50,6 +54,7 @@ const ACTION_BADGE: Record<string, string> = {
   DELETE: 'bg-red-100    text-red-800    border-red-200',
   VIEW: 'bg-gray-100   text-gray-600   border-gray-200',
 };
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtCurrency(v: number) {
@@ -99,6 +104,8 @@ function KpiCard({
   pct?: number; icon: React.ElementType; wide?: boolean;
 }) {
   return (
+
+
     <Card className={`relative overflow-hidden ${wide ? 'sm:col-span-2' : ''}`}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-3">
@@ -126,13 +133,39 @@ function Skel({ h = 'h-32' }: { h?: string }) {
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export function DashboardPage() {
-  const { profile } = useAuthStore();
+  const { getUserCount, profile } = useAuthStore();
+
   const { navigate } = useStore();
   const {
     metrics, recentActivity, lowStockItems,
     componentsByType, componentsByRegion, componentsByStatus,
     monthlyTrend, isLoading, lastUpdated, fetchDashboard,
   } = useDashboardStore();
+
+  const { hardwareInventory, fetchHardwareInventory } = useHardwareInventoryStore();
+
+  const { regions, fetchRegions } = useRegionStore();
+  const { warehouses, fetchWarehouses } = useWarehouseStore();
+
+  const [userCount, setUserCount] = useState(0);
+  
+  
+
+  useEffect(() => {
+    fetchRegions();
+    fetchWarehouses();
+    fetchHardwareInventory();
+  }, []);
+
+  useEffect(() => {
+    const load = async () => {
+      const count = await getUserCount();
+      setUserCount(count);
+    };
+
+    load();
+  }, []);
+
 
   const role = profile?.role ?? 'Engineer';
   const regionId = profile?.region_id ?? null;
@@ -204,35 +237,28 @@ export function DashboardPage() {
         ) : (
           <>
             <KpiCard
-              label="Total Asset Value"
-              value={fmtCurrency(metrics.totalAssetValue)}
-              sub="vs last month"
-              pct={compDelta}
-              icon={DollarSign}
+              label="Total Region"
+              value={regions.length.toLocaleString()}
+              icon={MapPin}
             />
             <KpiCard
-              label="Total Components"
-              value={metrics.totalComponents.toLocaleString()}
-              pct={compDelta}
-              sub={`${metrics.componentsThisMonth} added this month`}
+              label="Total Warehouse"
+              value={warehouses.length.toLocaleString()}
+              icon={Building2}
+            />
+            <KpiCard
+              label="Total Hardware"
+              value={hardwareInventory.length.toLocaleString()}
               icon={Cpu}
             />
-            {(role === "Admin" || role === 'Manager') && (
+
+            {role === 'Admin' && (
               <KpiCard
-                label="Total Customers"
-                value={metrics.totalCustomers.toLocaleString()}
-                pct={custDelta}
-                sub={`${metrics.customersThisMonth} new this month`}
+                label="Total User"
+                value={userCount.toLocaleString()}
                 icon={Users}
               />
             )}
-
-            <KpiCard
-              label="Needs Attention"
-              value={hasAlerts}
-              sub={`${metrics.brokenComponents} broken · ${metrics.lowStockCount} low stock`}
-              icon={AlertTriangle}
-            />
           </>
         )}
       </div>
@@ -241,7 +267,7 @@ export function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-3">
 
         {/* Big area chart — 2/3 */}
-        <Card className="xl:col-span-2">
+        {/* <Card className="xl:col-span-2">
           <CardHeader className="pb-2">
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -294,86 +320,7 @@ export function DashboardPage() {
               </ResponsiveContainer>
             )}
           </CardContent>
-        </Card>
-
-        {/* Right column widgets — 1/3 */}
-        <div className="flex flex-col gap-4">
-
-          {/* Component Status breakdown */}
-          <Card className="flex-1">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Component Status</CardTitle>
-              <CardDescription className="text-xs">
-                {statusTotal.toLocaleString()} total records
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-2.5">
-                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}
-                </div>
-              ) : componentsByStatus.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-4 text-center">No data yet</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {componentsByStatus.slice(0, 6).map((s) => {
-                    const pct = statusTotal > 0 ? Math.round((s.value / statusTotal) * 100) : 0;
-                    const color = STATUS_COLORS[s.name] ?? PALETTE[0];
-                    return (
-                      <div key={s.name} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
-                            {s.name}
-                          </span>
-                          <span className="tabular-nums font-medium">
-                            {s.value.toLocaleString()} <span className="text-muted-foreground">({pct}%)</span>
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Infrastructure quick stats */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Infrastructure</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {[
-                { label: 'Active Regions', value: metrics.activeRegions, total: metrics.totalRegions, icon: Globe },
-                { label: 'Active Warehouses', value: metrics.activeWarehouses, total: metrics.totalWarehouses, icon: Warehouse },
-                { label: 'Component Types', value: metrics.componentTypes, total: null, icon: Layers },
-                { label: 'Active Users', value: metrics.activeUsers, total: null, icon: Users },
-              ].map(({ label, value, total, icon: Icon }, i) => (
-                <div key={label} className={`flex items-center justify-between px-5 py-2.5 ${i < 3 ? 'border-b' : ''}`}>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                    {label}
-                  </div>
-                  <span className="text-sm font-bold tabular-nums">
-                    {isLoading ? '—' : value}
-                    {total !== null && !isLoading && (
-                      <span className="text-muted-foreground font-normal text-xs">/{total}</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* ── 4. BOTTOM ROW: Table + Feed ── */}
-      <div className="grid gap-4 xl:grid-cols-3">
-
+        </Card> */}
         {/* Recent Audit Log — 2/3 */}
         <Card className="xl:col-span-2">
           <CardHeader className="pb-0 border-b">
@@ -437,12 +384,91 @@ export function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        {/* Right column widgets — 1/3 */}
+        <div className="flex flex-col gap-4">
+
+          {/* Component Status breakdown */}
+          {/* <Card className="flex-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Component Status</CardTitle>
+              <CardDescription className="text-xs">
+                {statusTotal.toLocaleString()} total records
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-2.5">
+                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}
+                </div>
+              ) : componentsByStatus.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">No data yet</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {componentsByStatus.slice(0, 6).map((s) => {
+                    const pct = statusTotal > 0 ? Math.round((s.value / statusTotal) * 100) : 0;
+                    const color = STATUS_COLORS[s.name] ?? PALETTE[0];
+                    return (
+                      <div key={s.name} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                            {s.name}
+                          </span>
+                          <span className="tabular-nums font-medium">
+                            {s.value.toLocaleString()} <span className="text-muted-foreground">({pct}%)</span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card> */}
+
+          {/* Infrastructure quick stats */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Infrastructure</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {[
+                { label: 'Active Regions', value: metrics.activeRegions, total: metrics.totalRegions, icon: Globe },
+                { label: 'Active Warehouses', value: metrics.activeWarehouses, total: metrics.totalWarehouses, icon: Warehouse },
+                { label: 'Component Types', value: metrics.componentTypes, total: null, icon: Layers },
+                { label: 'Active Users', value: metrics.activeUsers, total: null, icon: Users },
+              ].map(({ label, value, total, icon: Icon }, i) => (
+                <div key={label} className={`flex items-center justify-between px-5 py-2.5 ${i < 3 ? 'border-b' : ''}`}>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                    {label}
+                  </div>
+                  <span className="text-sm font-bold tabular-nums">
+                    {isLoading ? '—' : value}
+                    {total !== null && !isLoading && (
+                      <span className="text-muted-foreground font-normal text-xs">/{total}</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* ── 4. BOTTOM ROW: Table + Feed ── */}
+      <div className="grid gap-4 xl:grid-cols-3">
+
+
 
         {/* Right: Components by Type + Low Stock — 1/3 */}
         <div className="flex flex-col gap-4">
 
           {/* Components by Type donut */}
-          <Card>
+          {/* <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">By Component Type</CardTitle>
               <CardDescription className="text-xs">Unit distribution</CardDescription>
@@ -482,10 +508,10 @@ export function DashboardPage() {
                 </>
               )}
             </CardContent>
-          </Card>
+          </Card> */}
 
           {/* Low stock alerts */}
-          <Card className="flex-1">
+          {/* <Card className="flex-1">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -531,7 +557,7 @@ export function DashboardPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card> */}
         </div>
       </div>
 

@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS public.relocation_requests (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     request_number TEXT NOT NULL UNIQUE,
-    requester_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    requester_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
     relocation_type TEXT NOT NULL CHECK (relocation_type IN ('INVENTORY', 'COMPONENT')),
     inventory_id UUID REFERENCES public.hardware_inventory(id) ON DELETE CASCADE,
     component_id UUID REFERENCES public.components(id) ON DELETE CASCADE,
@@ -16,14 +16,14 @@ CREATE TABLE IF NOT EXISTS public.relocation_requests (
     urgency TEXT NOT NULL CHECK (urgency IN ('Emergency', 'Critical', 'High', 'Medium', 'Low')),
     notes TEXT,
     status TEXT NOT NULL DEFAULT 'Draft' CHECK (status IN ('Draft', 'Submitted', 'Pending PM Approval', 'Rejected by PM', 'Pending Admin Approval', 'Rejected by Admin', 'Approved', 'Scheduled', 'In Progress', 'Completed', 'Failed', 'Rolled Back')),
-    pm_reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    pm_reviewed_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
     pm_reviewed_at TIMESTAMP WITH TIME ZONE,
     pm_comments TEXT,
-    admin_reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    admin_reviewed_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
     admin_reviewed_at TIMESTAMP WITH TIME ZONE,
     admin_comments TEXT,
-    assigned_to UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    completed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    assigned_to UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+    completed_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
     completed_at TIMESTAMP WITH TIME ZONE,
     completion_notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -43,7 +43,7 @@ CREATE POLICY "Users can view own relocation requests" ON public.relocation_requ
 
 CREATE POLICY "PMs and Admins can view all relocation requests" ON public.relocation_requests
     FOR SELECT USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('PM', 'Admin'))
+        EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = auth.uid() AND role IN ('PM', 'Admin'))
     );
 
 -- Update timestamp trigger
@@ -58,3 +58,12 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_relocation_requests_updated_at 
     BEFORE UPDATE ON public.relocation_requests 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+
+ALTER TABLE public.relocation_requests 
+ADD COLUMN source_server_id uuid NULL;
+
+ALTER TABLE public.relocation_requests 
+ADD CONSTRAINT relocation_requests_source_server_id_fkey 
+FOREIGN KEY (source_server_id) REFERENCES hardware_inventory (id) ON DELETE SET NULL;
