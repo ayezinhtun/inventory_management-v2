@@ -24,6 +24,7 @@ import { VendorsPage } from './pages/VendorsPage';
 import { ReservedStockPage } from './pages/ReservedStockPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { InventorySummaryReportPage } from './pages/InventorySummaryReportPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { PurchaseOrdersPage } from './pages/PurchaseOrdersPage';
 import { GoodsReceiptPage } from './pages/GoodsReceiptPage';
