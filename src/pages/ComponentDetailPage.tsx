@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 
 
@@ -225,6 +225,7 @@ export function ComponentDetailPage() {
 
 
   const { hardwareInventory } = useHardwareInventoryStore();
+  const { relocationRequests, fetchRelocationRequests } = useRelocationStore();
 
 
 
@@ -255,6 +256,11 @@ export function ComponentDetailPage() {
   const [relocationNotes, setRelocationNotes] = useState("");
 
   const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<AuditLog | null>(null);
+
+  // Fetch relocation requests
+  useEffect(() => {
+    fetchRelocationRequests();
+  }, []);
 
 
 
@@ -341,6 +347,9 @@ export function ComponentDetailPage() {
   };
 
 
+
+  // Get relocation requests for this component
+  const componentRelocationHistory = relocationRequests.filter(req => req.component_id === component.id);
 
   // Get all record_ids that have this component_id in their audit logs
   const relatedRecordIds = new Set(
@@ -690,7 +699,7 @@ export function ComponentDetailPage() {
 
               <Badge variant="outline">
 
-                {getComponentTypeName(component.component_type_id)}
+                {getComponentTypeName(component.component_type_id || '')}
 
               </Badge>
 
@@ -924,7 +933,7 @@ export function ComponentDetailPage() {
 
                   <span className="col-span-2 font-medium">
 
-                    {getRegionName(component.region_id)}
+                    {getRegionName(component.region_id || '')}
 
                   </span>
 
@@ -940,7 +949,7 @@ export function ComponentDetailPage() {
 
                   <span className="col-span-2 font-medium">
 
-                    {getWarehouseName(component.warehouse_id)}
+                    {getWarehouseName(component.warehouse_id || '')}
 
                   </span>
 
@@ -1325,129 +1334,109 @@ export function ComponentDetailPage() {
               </CardTitle>
 
               <CardDescription>
-                Full location movement trail for this component
+                Relocation request history for this component
               </CardDescription>
             </CardHeader>
 
             <CardContent>
-              {itemHistory.length > 0 ? (
+              {componentRelocationHistory.length > 0 ? (
                 <div className="rounded-md border overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-muted/50 border-b">
                         <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                          Date & Time
+                          Request Number
                         </th>
-
                         <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                          Type
+                          Status
                         </th>
-
                         <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                           From
                         </th>
-
                         <th className="px-4 py-3 text-left font-medium text-muted-foreground">
                           To
                         </th>
-
                         <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                          Moved By
+                          Requested By
                         </th>
-
                         <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                          Request
+                          Created Date
                         </th>
-
-                        <th className="px-4 py-3"></th>
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          PM Approval
+                        </th>
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          Admin Approval
+                        </th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {itemHistory.map((entry, idx) => {
-                        // Transform audit log to movement history format
-                        const movementData = entry.new_value || entry.old_value;
-                        const isRelocation = entry.module === 'Relocation Request';
-                        
-                        const fromLabel = isRelocation && movementData
-                          ? (movementData.source_server_id
-                              ? `Device: ${hardwareInventory.find((i) => i.id === movementData.source_server_id)?.name ?? movementData.source_server_id}` 
-                              : movementData.source_warehouse_id
-                                ? `${getRegionName(movementData.source_region_id ?? "")} › ${getWarehouseName(movementData.source_warehouse_id)}` 
-                                : getRegionName(movementData.source_region_id) || "—")
-                          : "—";
+                      {componentRelocationHistory.map((req, idx) => {
+                        const fromLabel = req.source_server_id
+                          ? `Device: ${hardwareInventory.find((i) => i.id === req.source_server_id)?.name ?? req.source_server_id}`
+                          : req.source_warehouse_id
+                            ? `${getRegionName(req.source_region_id ?? "")} › ${getWarehouseName(req.source_warehouse_id)}`
+                            : getRegionName(req.source_region_id) || "—";
 
-                        const toLabel = isRelocation && movementData
-                          ? (movementData.destination_server_id
-                              ? `Device: ${hardwareInventory.find((i) => i.id === movementData.destination_server_id)?.name ?? movementData.destination_server_id}` 
-                              : movementData.destination_warehouse_id
-                                ? `${getRegionName(movementData.destination_region_id ?? "")} › ${getWarehouseName(movementData.destination_warehouse_id)}` 
-                                : getRegionName(movementData.destination_region_id) || "—")
-                          : "—";
+                        const toLabel = req.destination_server_id
+                          ? `Device: ${hardwareInventory.find((i) => i.id === req.destination_server_id)?.name ?? req.destination_server_id}`
+                          : req.destination_warehouse_id
+                            ? `${getRegionName(req.destination_region_id ?? "")} › ${getWarehouseName(req.destination_warehouse_id)}`
+                            : getRegionName(req.destination_region_id) || "—";
 
-                        const movementType = isRelocation
-                          ? (movementData?.status === 'Approved' || movementData?.status === 'Completed' ? 'RELOCATED' : 'REQUESTED')
-                          : entry.action;
+                        const statusColor = req.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : req.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : req.status.includes('Rejected') ? 'bg-red-50 text-red-700 border-red-200'
+                          : req.status.includes('Pending') ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-gray-50 text-gray-700 border-gray-200';
 
                         return (
                           <tr
-                            key={entry.id}
-                            className={`border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 0 ? "" : "bg-muted/10"}`}
-                            onClick={() => setSelectedHistoryEntry(entry)}
+                            key={req.id}
+                            className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/10"}`}
                           >
-                            <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
-                              {formatDate(entry.timestamp)}
+                            <td className="px-4 py-3 text-sm font-medium">
+                              {req.request_number}
                             </td>
-
                             <td className="px-4 py-3">
-                              <Badge
-                                variant="outline"
-                                className={
-                                  (movementType as string) === "CREATED"
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : (movementType as string) === "INSTALLED"
-                                      ? "bg-blue-50 text-blue-700 border-blue-200"
-                                      : (movementType as string) === "UNINSTALLED"
-                                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                                        : (movementType as string) === "RELOCATED"
-                                          ? "bg-purple-50 text-purple-700 border-purple-200"
-                                          : "bg-gray-50 text-gray-700 border-gray-200"
-                                }
-                              >
-                                {movementType}
+                              <Badge variant="outline" className={statusColor}>
+                                {req.status}
                               </Badge>
                             </td>
-
-                            <td
-                              className="px-4 py-3 text-sm max-w-[180px] truncate"
-                              title={fromLabel}
-                            >
+                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" title={fromLabel}>
                               {fromLabel}
                             </td>
-
-                            <td
-                              className="px-4 py-3 text-sm max-w-[180px] truncate"
-                              title={toLabel}
-                            >
+                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" title={toLabel}>
                               {toLabel}
                             </td>
-
                             <td className="px-4 py-3 text-sm">
-                              {getUserName(entry.user_id)}
+                              {getUserName(req.requester_id)}
                             </td>
-
                             <td className="px-4 py-3 text-xs text-muted-foreground">
-                              {isRelocation ? (
-                                <span className="capitalize">
-                                  Relocation Request
-                                </span>
+                              {formatDate(req.created_at)}
+                            </td>
+                            <td className="px-4 py-3 text-xs">
+                              {req.pm_reviewed_by ? (
+                                <div className="space-y-1">
+                                  <div className="font-medium">{getUserName(req.pm_reviewed_by)}</div>
+                                  {req.pm_reviewed_at && <div className="text-muted-foreground">{formatDate(req.pm_reviewed_at)}</div>}
+                                  {req.pm_comments && <div className="text-xs text-muted-foreground italic">"{req.pm_comments}"</div>}
+                                </div>
                               ) : (
-                                "—"
+                                <span className="text-muted-foreground">—</span>
                               )}
                             </td>
-
-                            <td className="px-4 py-3 text-right">
-                              <ArrowRight className="h-4 w-4 text-muted-foreground inline-block" />
+                            <td className="px-4 py-3 text-xs">
+                              {req.admin_reviewed_by ? (
+                                <div className="space-y-1">
+                                  <div className="font-medium">{getUserName(req.admin_reviewed_by)}</div>
+                                  {req.admin_reviewed_at && <div className="text-muted-foreground">{formatDate(req.admin_reviewed_at)}</div>}
+                                  {req.admin_comments && <div className="text-xs text-muted-foreground italic">"{req.admin_comments}"</div>}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -1458,12 +1447,9 @@ export function ComponentDetailPage() {
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
-
-                  <p className="font-medium">No movement history yet.</p>
-
+                  <p className="font-medium">No relocation history yet.</p>
                   <p className="text-xs mt-1">
-                    History is recorded when this component is created,
-                    installed, or relocated.
+                    History is recorded when relocation requests are created for this component.
                   </p>
                 </div>
               )}
