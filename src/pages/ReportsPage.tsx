@@ -3,6 +3,8 @@ import { useHardwareInventoryStore } from '../store/useHardwareInventoryStore';
 import { useRegionStore } from '../store/useRegionStore';
 import { useWarehouseStore } from '../store/useWarehouseStore';
 import { useComponentsStore } from '../store/useComponentsStore';
+import { useRelocationStore } from '../store/useRelocationStore';
+import { useUsersStore } from '../store/useUsersStore';
 import {
   Card,
   CardContent,
@@ -30,12 +32,16 @@ export function ReportsPage() {
   const { regions, fetchRegions } = useRegionStore();
   const { warehouses, fetchWarehouses } = useWarehouseStore();
   const { components, fetchComponents } = useComponentsStore();
+  const { relocationRequests, fetchRelocationRequests } = useRelocationStore();
+  const { users, fetchUsers } = useUsersStore();
 
   useEffect(() => {
     fetchHardwareInventory();
     fetchRegions();
     fetchWarehouses();
     fetchComponents();
+    fetchRelocationRequests();
+    fetchUsers();
   }, []);
 
   const getRegionName = (id: string | null) => {
@@ -58,6 +64,29 @@ export function ReportsPage() {
     if (!component || !component.installed_in_device_id) return 'Not Installed';
     const device = hardwareInventory.find(h => h.id === component.installed_in_device_id);
     return device ? device.name : 'Unknown Device';
+  };
+
+  const getUserName = (userId: string | null) => {
+    if (!userId) return '-';
+    const user = users.find(u => u.id === userId);
+    return user ? user.name : 'Unknown User';
+  };
+
+  const getServerName = (serverId: string | null) => {
+    if (!serverId) return '-';
+    const server = hardwareInventory.find(h => h.id === serverId);
+    return server ? server.name : 'Unknown Server';
+  };
+
+  const getItemName = (request: any) => {
+    if (request.relocation_type === 'INVENTORY' && request.inventory_id) {
+      const item = hardwareInventory.find(h => h.id === request.inventory_id);
+      return item ? item.name : 'Unknown Item';
+    } else if (request.relocation_type === 'COMPONENT' && request.component_id) {
+      const component = components.find(c => c.id === request.component_id);
+      return component ? component.name : 'Unknown Component';
+    }
+    return '-';
   };
 
 
@@ -108,6 +137,40 @@ export function ReportsPage() {
         columns,
         filename: 'component-summary',
         title: 'Component Summary Report'
+      });
+    } else if (reportName === 'Item Movement History') {
+      const data = relocationRequests;
+      
+      const columns: ExportColumn[] = [
+        { header: 'Request Number', key: 'request_number' },
+        { header: 'Type', key: 'relocation_type' },
+        { header: 'Item Name', key: 'id', formatter: (value, row) => getItemName(row) },
+        { header: 'Status', key: 'status' },
+        { header: 'Created By', key: 'requester_id', formatter: (value) => getUserName(value) },
+        { header: 'Created Date', key: 'created_at', formatter: (value) => new Date(value).toLocaleDateString() },
+        { header: 'From Region', key: 'source_region_id', formatter: (value) => getRegionName(value) },
+        { header: 'From Warehouse', key: 'source_warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'From Server', key: 'source_server_id', formatter: (value) => getServerName(value) },
+        { header: 'To Region', key: 'destination_region_id', formatter: (value) => getRegionName(value) },
+        { header: 'To Warehouse', key: 'destination_warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'To Server', key: 'destination_server_id', formatter: (value) => getServerName(value) },
+        { header: 'PM Reviewed By', key: 'pm_reviewed_by', formatter: (value) => getUserName(value) },
+        { header: 'PM Review Date', key: 'pm_reviewed_at', formatter: (value) => value ? new Date(value).toLocaleDateString() : '-' },
+        { header: 'PM Comments', key: 'pm_comments' },
+        { header: 'Admin Reviewed By', key: 'admin_reviewed_by', formatter: (value) => getUserName(value) },
+        { header: 'Admin Review Date', key: 'admin_reviewed_at', formatter: (value) => value ? new Date(value).toLocaleDateString() : '-' },
+        { header: 'Admin Comments', key: 'admin_comments' },
+        { header: 'Completed By', key: 'completed_by', formatter: (value) => getUserName(value) },
+        { header: 'Completed Date', key: 'completed_at', formatter: (value) => value ? new Date(value).toLocaleDateString() : '-' },
+        { header: 'Reason', key: 'reason' },
+        { header: 'Urgency', key: 'urgency' }
+      ];
+
+      exportData(format, {
+        data,
+        columns,
+        filename: 'item-movement-history',
+        title: 'Item Movement History Report'
       });
     } else {
       toast.success(`${reportName} report exported as ${format}`);
