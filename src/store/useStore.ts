@@ -15,6 +15,7 @@ import { generateId, generateRequestNumber } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { auditLog } from '../lib/auditLog';
 import { useUsersStore } from './useUsersStore';
+import { useReservationsStore } from './useReservationStore';
 
 // ---- Navigation / Page State ----
 export type Page =
@@ -325,7 +326,10 @@ export const useStore = create<AppState>((set, get) => ({
       await useHardwareInventoryStore.getState().fetchHardwareInventory();
 
       const { useComponentsStore } = await import('./useComponentsStore');
+
       await useComponentsStore.getState().fetchComponents();
+
+      await useReservationsStore.getState().fetchReservations();
 
       // Audit Logs (most recent 500)
       const { data: logsRaw } = await supabase
@@ -346,6 +350,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
 
-  
+
 }));
 

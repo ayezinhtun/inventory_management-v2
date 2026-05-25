@@ -96,9 +96,9 @@ export function AuditLogPage() {
         .order('timestamp', { ascending: false })
         .range(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE - 1);
 
-      // Non-admins only see their own logs
-      if (!isAdmin) {
-        query = query.eq('user_id', currentUser!.id);
+      // Non-admins only see their own logs; admins see all logs
+      if (!isAdmin && currentUser?.id) {
+        query = query.eq('user_id', currentUser.id);
       }
       if (actionFilter !== 'all') query = query.eq('action', actionFilter);
       if (moduleFilter !== 'all') query = query.eq('module', moduleFilter);

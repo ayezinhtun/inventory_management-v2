@@ -76,7 +76,18 @@ export function ComponentsListPage() {
 
   const { components, fetchComponents, deleteComponent } = useComponentsStore();
 
-  const { componentTypes, currentUser, regions, warehouses, inventory, navigate } = useStore();
+  const { componentTypes, currentUser, regions, warehouses, navigate } = useStore();
+
+  const [hardwareInventory, setHardwareInventory] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadHardwareInventory = async () => {
+      const { useHardwareInventoryStore } = await import('../store/useHardwareInventoryStore');
+      const store = useHardwareInventoryStore.getState();
+      setHardwareInventory(store.hardwareInventory);
+    };
+    loadHardwareInventory();
+  }, []);
 
 
 
@@ -103,6 +114,20 @@ export function ComponentsListPage() {
   const groupedComponents = useMemo(() => {
 
     let result = components.filter((c) => !c.is_deleted);
+
+    // Filter to show only available and installed status, exclude reserved
+    result = result.filter((c) => c.status === 'available' || c.status === 'installed');
+
+    // Filter out components installed in reserved inventory items
+    result = result.filter((c) => {
+      if (c.installed_in_device_id) {
+        const device = hardwareInventory?.find((h: any) => h.id === c.installed_in_device_id);
+        if (device && device.status === 'reserved') {
+          return false;
+        }
+      }
+      return true;
+    });
 
 
 
@@ -440,7 +465,7 @@ export function ComponentsListPage() {
 
                     const isExpanded = expandedRows.has(`${group.name}-${group.manufacturer}-${group.model}-${group.part_number}`);
 
-                    const availableCount = group.items.filter(item => item.status === 'available' && item.condition === 'working').length;
+                    const availableCount = group.items.filter((item: any) => item.status === 'available' && item.condition === 'working').length;
 
                     const totalCount = group.items.length;
 

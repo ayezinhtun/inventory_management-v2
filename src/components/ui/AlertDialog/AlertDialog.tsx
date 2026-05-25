@@ -34,12 +34,31 @@ const AlertDialog: React.FC<AlertDialogProps> = ({ children, open, defaultOpen =
 
 };
 
-const AlertDialogTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-  ({ onClick, ...props }, ref) => {
-    const { setOpen } = React.useContext(AlertDialogContext);
-    return (
-      <button ref={ref} type="button" data-slot="alert-dialog-trigger" onClick={(e) => {setOpen(true);onClick?.(e);}} {...props} />);
+interface AlertDialogTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  asChild?: boolean;
+}
 
+const AlertDialogTrigger = React.forwardRef<HTMLButtonElement, AlertDialogTriggerProps>(
+  ({ asChild = false, onClick, children, ...props }, ref) => {
+    const { setOpen } = React.useContext(AlertDialogContext);
+    
+    if (asChild && React.isValidElement(children)) {
+      return React.cloneElement(children as React.ReactElement<any>, {
+        ref,
+        onClick: (e: any) => {
+          setOpen(true);
+          onClick?.(e);
+          (children.props as any).onClick?.(e);
+        },
+        ...props,
+      });
+    }
+    
+    return (
+      <button ref={ref} type="button" data-slot="alert-dialog-trigger" onClick={(e) => {setOpen(true);onClick?.(e);}} {...props}>
+        {children}
+      </button>
+    );
   }
 );
 AlertDialogTrigger.displayName = "AlertDialogTrigger";

@@ -64,6 +64,9 @@ export function InventoryListPage() {
   const filteredHardware = useMemo(() => {
     let result = hardwareInventory.filter((h) => !h.is_deleted);
 
+    // Filter to show only available and installed status, exclude reserved
+    result = result.filter((h) => h.status === 'available' || h.status === 'installed');
+
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(

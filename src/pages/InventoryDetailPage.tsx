@@ -2,6 +2,7 @@ import React, { useState, Component, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import { useHardwareInventoryStore } from "../store/useHardwareInventoryStore";
 import { useComponentsStore } from "../store/useComponentsStore";
+import { useReservationsStore } from "../store/useReservationStore";
 import { RelocationRequestDialog } from "../components/RelocationRequestDialog";
 import {
   Card,
@@ -38,6 +39,13 @@ import {
   AlertDialogTrigger,
 } from "../components/ui/AlertDialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/Dialog";
+import {
   ArrowLeft,
   Edit,
   Trash2,
@@ -49,13 +57,15 @@ import {
   Cpu,
   Activity,
   Eye,
+  Bookmark,
 } from "lucide-react";
 import { formatDate, formatCurrency, getStatusColor } from "../lib/utils";
 import { toast } from "sonner";
 export function InventoryDetailPage() {
-  const { hardwareInventory, fetchHardwareInventory, deleteHardwareInventory } =
+  const { hardwareInventory, fetchHardwareInventory, deleteHardwareInventory, updateHardwareInventory } =
     useHardwareInventoryStore();
   const { components } = useComponentsStore();
+  const { createReservation } = useReservationsStore();
   const {
     auditLogs,
     selectedId,
@@ -63,11 +73,14 @@ export function InventoryDetailPage() {
     currentUser,
     getRegionName,
     getWarehouseName,
-    getComponentTypeName
+    getComponentTypeName,
+    getUserName,
   } = useStore();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const [isRelocationDialogOpen, setIsRelocationDialogOpen] = useState(false);
+  const [isReserveDialogOpen, setIsReserveDialogOpen] = useState(false);
+  const [reserveNote, setReserveNote] = useState("");
 
   // Fetch hardware inventory data on component mount
   useEffect(() => {
@@ -122,7 +135,35 @@ export function InventoryDetailPage() {
   const installedComponents = components.filter(
     (c) => c.installed_in_device_id === item.id && !c.is_deleted,
   );
-  const itemHistory = auditLogs.filter((log) => log.record_id === item.id);
+  const itemHistory = auditLogs.filter((log) =>
+    log.record_id === item.id ||
+    log.new_value?.inventory_id === item.id ||
+    log.old_value?.inventory_id === item.id ||
+    log.new_value?.source_server_id === item.id ||
+    log.old_value?.source_server_id === item.id ||
+    log.new_value?.destination_server_id === item.id ||
+    log.old_value?.destination_server_id === item.id
+  );
+  console.log('=== Inventory History Debug ===');
+  console.log('Inventory ID:', item.id);
+  console.log('Inventory Name:', item.name);
+  console.log('Total Audit Logs:', auditLogs.length);
+  console.log('Filtered History Count:', itemHistory.length);
+  console.log('Sample Audit Logs:', auditLogs.slice(0, 5).map(l => ({
+    id: l.id,
+    record_id: l.record_id,
+    module: l.module,
+    action: l.action,
+    new_value_inventory_id: l.new_value?.inventory_id,
+    new_value_source_server_id: l.new_value?.source_server_id,
+    new_value_destination_server_id: l.new_value?.destination_server_id
+  })));
+  console.log('Matching Logs:', itemHistory.map(l => ({
+    id: l.id,
+    record_id: l.record_id,
+    module: l.module,
+    action: l.action
+  })));
   const handleDelete = () => {
     if (installedComponents.length > 0) {
       toast.error(
@@ -135,6 +176,34 @@ export function InventoryDetailPage() {
     deleteHardwareInventory(item.id);
     toast.success("Item deleted successfully");
     navigate("inventory");
+  };
+
+  const handleReserveInventory = async () => {
+    if (!reserveNote.trim()) {
+      toast.error("Please enter a note for the reservation");
+      return;
+    }
+
+    try {
+      // Create reservation (reserved_by is automatically set to authenticated user ID)
+      await createReservation({
+        component_id: null,
+        hardware_inventory_id: item.id,
+        note: reserveNote,
+      });
+
+      // Update inventory status to reserved
+      await updateHardwareInventory(item.id, {
+        status: "reserved",
+      });
+
+      toast.success("Inventory item reserved successfully");
+      setIsReserveDialogOpen(false);
+      setReserveNote("");
+    } catch (error) {
+      console.error("Error reserving inventory:", error);
+      toast.error("Failed to reserve inventory");
+    }
   };
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
@@ -166,46 +235,46 @@ export function InventoryDetailPage() {
 
         {(currentUser?.role === "Admin" ||
           currentUser?.role === "Engineer") && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => navigate("inventory-add", effectiveSelectedId)}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate("inventory-add", effectiveSelectedId)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
 
-              <AlertDialog
-                open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
-              >
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
-                    <Trash2 className="h-4 w-4 mr-2" />
+            <AlertDialog
+              open={isDeleteDialogOpen}
+              onOpenChange={setIsDeleteDialogOpen}
+            >
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete
+                    the inventory item and remove its data from our servers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-destructive text-white hover:bg-destructive/90"
+                  >
                     Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      the inventory item and remove its data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      className="bg-destructive text-white hover:bg-destructive/90"
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -223,13 +292,24 @@ export function InventoryDetailPage() {
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
-          <Button
-            variant="outline"
-            onClick={() => setIsRelocationDialogOpen(true)}
-          >
-            <Package className="h-4 w-4 mr-2" />
-            Relocate
-          </Button>
+          <div className="flex items-center gap-3">
+            {item.status !== 'reserved' && (
+              <Button
+                variant="outline"
+                onClick={() => setIsRelocationDialogOpen(true)}
+              >
+                <Package className="h-4 w-4 mr-2" />
+                Relocate
+              </Button>
+            )}
+
+            {item.status !== 'reserved' && (
+              <Button variant="outline" onClick={() => setIsReserveDialogOpen(true)}>
+                <Bookmark className="h-4 w-4 mr-2" />
+                Reserve
+              </Button>
+            )}
+          </div>
         </div>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
@@ -421,9 +501,7 @@ export function InventoryDetailPage() {
                       <TableHead>Model</TableHead>
                       <TableHead>Part Number</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">
-                        Actions
-                      </TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -477,7 +555,7 @@ export function InventoryDetailPage() {
             <CardHeader>
               <CardTitle>Activity History</CardTitle>
               <CardDescription>
-                Audit log of changes to this item
+                Audit log entries for this inventory item
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -494,13 +572,13 @@ export function InventoryDetailPage() {
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium">
-                            {log.action} by User {log.user_id}
+                            {log.action} by {getUserName(log.user_id)}
                           </p>
                           <span className="text-xs text-muted-foreground">
                             {formatDate(log.timestamp)}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground font-mono">
+                        <p className="text-xs text-muted-foreground font-mono break-all max-w-full overflow-hidden">
                           {JSON.stringify(log.new_value || log.old_value)}
                         </p>
                       </div>
@@ -524,6 +602,49 @@ export function InventoryDetailPage() {
         sourceRegionId={item.region_id || ""}
         sourceWarehouseId={item.warehouse_id || ""}
       />
+
+      {/* Reserve Dialog */}
+      <Dialog
+        open={isReserveDialogOpen}
+        onOpenChange={setIsReserveDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reserve Inventory Item</DialogTitle>
+            <DialogDescription>
+              Add a note explaining why this inventory item is being reserved
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reservation Note</label>
+              <textarea
+                className="w-full p-2 border rounded-md"
+                rows={4}
+                placeholder="Enter reason for reservation..."
+                value={reserveNote}
+                onChange={(e) => setReserveNote(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsReserveDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReserveInventory}
+              disabled={!reserveNote.trim()}
+            >
+              Reserve
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

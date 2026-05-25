@@ -56,6 +56,8 @@ export type RelocationRequestStatus =
 
 export type RelocationType = 'INVENTORY' | 'COMPONENT';
 
+export type ReservationStatus = 'active' | 'released';
+
 export type POStatus =
   'Draft' |
   'Submitted' |
@@ -293,6 +295,17 @@ export interface RelocationRequest {
   completion_notes: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Reservation {
+  id: string;
+  component_id: string | null; 
+  hardware_inventory_id: string | null; 
+  reserved_by: string | null; 
+  note: string; 
+  reserved_at: string; 
+  released_at: string | null; 
+  status: ReservationStatus;
 }
 
 export interface Customer {
