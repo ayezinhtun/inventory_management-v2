@@ -1317,99 +1317,158 @@ export function ComponentDetailPage() {
 
 
         <TabsContent value="history" className="mt-6">
-
           <Card>
-
             <CardHeader>
-
               <CardTitle className="flex items-center gap-2">
-
                 <History className="h-5 w-5 text-muted-foreground" />
-
-                Audit History
-
+                Movement History
               </CardTitle>
 
-
-
               <CardDescription>
-
-                Audit log entries for this component
-
+                Full location movement trail for this component
               </CardDescription>
-
             </CardHeader>
 
-
-
             <CardContent>
-
               {itemHistory.length > 0 ? (
+                <div className="rounded-md border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50 border-b">
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          Date & Time
+                        </th>
 
-                <div className="space-y-4">
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          Type
+                        </th>
 
-                  {itemHistory.map((log) => (
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          From
+                        </th>
 
-                    <div
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          To
+                        </th>
 
-                      key={log.id}
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          Moved By
+                        </th>
 
-                      className="flex gap-4 p-4 rounded-lg border bg-muted/30"
+                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                          Request
+                        </th>
 
-                    >
+                        <th className="px-4 py-3"></th>
+                      </tr>
+                    </thead>
 
-                      <div className="mt-0.5">
+                    <tbody>
+                      {itemHistory.map((entry, idx) => {
+                        // Transform audit log to movement history format
+                        const movementData = entry.new_value || entry.old_value;
+                        const isRelocation = entry.module === 'Relocation Request';
+                        
+                        const fromLabel = isRelocation && movementData
+                          ? (movementData.source_server_id
+                              ? `Device: ${hardwareInventory.find((i) => i.id === movementData.source_server_id)?.name ?? movementData.source_server_id}` 
+                              : movementData.source_warehouse_id
+                                ? `${getRegionName(movementData.source_region_id ?? "")} › ${getWarehouseName(movementData.source_warehouse_id)}` 
+                                : getRegionName(movementData.source_region_id) || "—")
+                          : "—";
 
-                        <Activity className="h-5 w-5 text-muted-foreground" />
+                        const toLabel = isRelocation && movementData
+                          ? (movementData.destination_server_id
+                              ? `Device: ${hardwareInventory.find((i) => i.id === movementData.destination_server_id)?.name ?? movementData.destination_server_id}` 
+                              : movementData.destination_warehouse_id
+                                ? `${getRegionName(movementData.destination_region_id ?? "")} › ${getWarehouseName(movementData.destination_warehouse_id)}` 
+                                : getRegionName(movementData.destination_region_id) || "—")
+                          : "—";
 
-                      </div>
+                        const movementType = isRelocation
+                          ? (movementData?.status === 'Approved' || movementData?.status === 'Completed' ? 'RELOCATED' : 'REQUESTED')
+                          : entry.action;
 
-                      <div className="flex-1 space-y-1">
+                        return (
+                          <tr
+                            key={entry.id}
+                            className={`border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors ${idx % 2 === 0 ? "" : "bg-muted/10"}`}
+                            onClick={() => setSelectedHistoryEntry(entry)}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                              {formatDate(entry.timestamp)}
+                            </td>
 
-                        <div className="flex items-center justify-between">
+                            <td className="px-4 py-3">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  (movementType as string) === "CREATED"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : (movementType as string) === "INSTALLED"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : (movementType as string) === "UNINSTALLED"
+                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : (movementType as string) === "RELOCATED"
+                                          ? "bg-purple-50 text-purple-700 border-purple-200"
+                                          : "bg-gray-50 text-gray-700 border-gray-200"
+                                }
+                              >
+                                {movementType}
+                              </Badge>
+                            </td>
 
-                          <p className="text-sm font-medium">
+                            <td
+                              className="px-4 py-3 text-sm max-w-[180px] truncate"
+                              title={fromLabel}
+                            >
+                              {fromLabel}
+                            </td>
 
-                            {log.action} by {getUserName(log.user_id)}
+                            <td
+                              className="px-4 py-3 text-sm max-w-[180px] truncate"
+                              title={toLabel}
+                            >
+                              {toLabel}
+                            </td>
 
-                          </p>
+                            <td className="px-4 py-3 text-sm">
+                              {getUserName(entry.user_id)}
+                            </td>
 
-                          <span className="text-xs text-muted-foreground">
+                            <td className="px-4 py-3 text-xs text-muted-foreground">
+                              {isRelocation ? (
+                                <span className="capitalize">
+                                  Relocation Request
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
 
-                            {formatDate(log.timestamp)}
-
-                          </span>
-
-                        </div>
-
-                        <p className="text-xs text-muted-foreground font-mono break-all max-w-full overflow-hidden">
-
-                          {JSON.stringify(log.new_value || log.old_value)}
-
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                  ))}
-
+                            <td className="px-4 py-3 text-right">
+                              <ArrowRight className="h-4 w-4 text-muted-foreground inline-block" />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-
               ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
 
-                <div className="text-center py-8 text-muted-foreground">
+                  <p className="font-medium">No movement history yet.</p>
 
-                  <p>No history recorded yet.</p>
-
+                  <p className="text-xs mt-1">
+                    History is recorded when this component is created,
+                    installed, or relocated.
+                  </p>
                 </div>
-
               )}
-
             </CardContent>
-
           </Card>
-
         </TabsContent>
 
       </Tabs>
@@ -1546,7 +1605,7 @@ export function ComponentDetailPage() {
 
                       </p>
 
-                      <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-40">
+                      <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-40 whitespace-pre-wrap break-all">
 
                         {JSON.stringify(entry.old_value, null, 2)}
 
@@ -1568,7 +1627,7 @@ export function ComponentDetailPage() {
 
                       </p>
 
-                      <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-40">
+                      <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-40 whitespace-pre-wrap break-all">
 
                         {JSON.stringify(entry.new_value, null, 2)}
 
