@@ -3,6 +3,7 @@ import { useStore } from "../store/useStore";
 import { useHardwareInventoryStore } from "../store/useHardwareInventoryStore";
 import { useComponentsStore } from "../store/useComponentsStore";
 import { useReservationsStore } from "../store/useReservationStore";
+import { useRelocationStore } from "../store/useRelocationStore";
 import { RelocationRequestDialog } from "../components/RelocationRequestDialog";
 import {
   Card,
@@ -66,6 +67,7 @@ export function InventoryDetailPage() {
     useHardwareInventoryStore();
   const { components } = useComponentsStore();
   const { createReservation } = useReservationsStore();
+  const { relocationRequests, fetchRelocationRequests } = useRelocationStore();
   const {
     auditLogs,
     selectedId,
@@ -85,6 +87,7 @@ export function InventoryDetailPage() {
   // Fetch hardware inventory data on component mount
   useEffect(() => {
     fetchHardwareInventory();
+    fetchRelocationRequests();
   }, []);
 
   // Restore selectedId from sessionStorage immediately
@@ -135,19 +138,37 @@ export function InventoryDetailPage() {
   const installedComponents = components.filter(
     (c) => c.installed_in_device_id === item.id && !c.is_deleted,
   );
+  // Get all record_ids that have this inventory_id or server_id in their audit logs
+  const relatedRecordIds = new Set(
+    auditLogs
+      .filter(log =>
+        log.new_value?.inventory_id === item.id ||
+        log.old_value?.inventory_id === item.id ||
+        log.new_value?.source_server_id === item.id ||
+        log.old_value?.source_server_id === item.id ||
+        log.new_value?.destination_server_id === item.id ||
+        log.old_value?.destination_server_id === item.id
+      )
+      .map(log => log.record_id)
+  );
+
+  // Add relocation request IDs that are linked to this inventory item
+  const relatedRelocationRequestIds = relocationRequests
+    .filter(req => req.inventory_id === item.id)
+    .map(req => req.id);
+  relatedRelocationRequestIds.forEach(id => relatedRecordIds.add(id));
+
   const itemHistory = auditLogs.filter((log) =>
-    log.record_id === item.id ||
-    log.new_value?.inventory_id === item.id ||
-    log.old_value?.inventory_id === item.id ||
-    log.new_value?.source_server_id === item.id ||
-    log.old_value?.source_server_id === item.id ||
-    log.new_value?.destination_server_id === item.id ||
-    log.old_value?.destination_server_id === item.id
+    (log.record_id === item.id || relatedRecordIds.has(log.record_id)) &&
+    // Exclude component-specific logs
+    !log.new_value?.component_id &&
+    !log.old_value?.component_id
   );
   console.log('=== Inventory History Debug ===');
   console.log('Inventory ID:', item.id);
   console.log('Inventory Name:', item.name);
   console.log('Total Audit Logs:', auditLogs.length);
+  console.log('Related Record IDs:', Array.from(relatedRecordIds));
   console.log('Filtered History Count:', itemHistory.length);
   console.log('Sample Audit Logs:', auditLogs.slice(0, 5).map(l => ({
     id: l.id,
@@ -156,7 +177,8 @@ export function InventoryDetailPage() {
     action: l.action,
     new_value_inventory_id: l.new_value?.inventory_id,
     new_value_source_server_id: l.new_value?.source_server_id,
-    new_value_destination_server_id: l.new_value?.destination_server_id
+    new_value_destination_server_id: l.new_value?.destination_server_id,
+    new_value_component_id: l.new_value?.component_id
   })));
   console.log('Matching Logs:', itemHistory.map(l => ({
     id: l.id,

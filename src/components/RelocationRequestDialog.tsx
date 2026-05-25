@@ -141,7 +141,10 @@ export function RelocationRequestDialog({
                             }}
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Select destination region" />
+                                <SelectValue 
+                                    placeholder="Select destination region"
+                                    displayValue={formData.destination_region_id ? regions.find(r => r.id === formData.destination_region_id)?.name : undefined}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 {regions.map((region) => (
@@ -161,7 +164,10 @@ export function RelocationRequestDialog({
                             disabled={!formData.destination_region_id}
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Select destination warehouse" />
+                                <SelectValue 
+                                    placeholder="Select destination warehouse"
+                                    displayValue={formData.destination_warehouse_id ? filteredWarehouses.find(w => w.id === formData.destination_warehouse_id)?.name : undefined}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 {filteredWarehouses.map((warehouse) => (

@@ -345,10 +345,7 @@ export function ComponentDetailPage() {
   // Get all record_ids that have this component_id in their audit logs
   const relatedRecordIds = new Set(
     auditLogs
-      .filter(log =>
-        log.new_value?.component_id === component.id ||
-        log.old_value?.component_id === component.id
-      )
+      .filter(log => log.new_value?.component_id === component.id || log.old_value?.component_id === component.id)
       .map(log => log.record_id)
   );
 
