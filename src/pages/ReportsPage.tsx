@@ -1,5 +1,4 @@
 import React, { Component, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { useHardwareInventoryStore } from '../store/useHardwareInventoryStore';
 import { useRegionStore } from '../store/useRegionStore';
 import { useWarehouseStore } from '../store/useWarehouseStore';
@@ -25,8 +24,7 @@ import {
 } from
   'lucide-react';
 import { toast } from 'sonner';
-import { data } from 'react-router-dom';
-import { it } from 'node:test';
+import { exportData, ExportColumn } from '../lib/exportUtils';
 export function ReportsPage() {
   const { hardwareInventory, fetchHardwareInventory } = useHardwareInventoryStore();
   const { regions, fetchRegions } = useRegionStore();
@@ -41,11 +39,11 @@ export function ReportsPage() {
   }, []);
 
   const getRegionName = (id: string | null) => {
-    return regions.find((r) => r.id === id)?.name || 'Unknown';
+    return regions.find((r) => r.id === id)?.name || '-';
   };
 
   const getWarehouseName = (id: string | null) => {
-    return warehouses.find((w) => w.id === id)?.name || 'Unknown';
+    return warehouses.find((w) => w.id === id)?.name || '-';
   };
 
   const getInstalledComponents = (devieId: string) => {
@@ -55,142 +53,66 @@ export function ReportsPage() {
       .join(', ');
   };
 
+  const getInstalledDeviceName = (componentId: string) => {
+    const component = components.find(c => c.id === componentId);
+    if (!component || !component.installed_in_device_id) return 'Not Installed';
+    const device = hardwareInventory.find(h => h.id === component.installed_in_device_id);
+    return device ? device.name : 'Unknown Device';
+  };
 
-  const handleExport = (format: string, reportName: string) => {
+
+  const handleExport = (format: 'CSV' | 'Excel' | 'PDF', reportName: string) => {
     if (reportName === 'Inventory Summary') {
       const data = hardwareInventory.filter(h => !h.is_deleted);
+      
+      const columns: ExportColumn[] = [
+        { header: 'Name', key: 'name' },
+        { header: 'Type', key: 'item_type' },
+        { header: 'Manufacturer', key: 'manufacturer' },
+        { header: 'Model', key: 'model' },
+        { header: 'Serial Number', key: 'serial_number' },
+        { header: 'Asset Tag', key: 'asset_tag' },
+        { header: 'Status', key: 'status' },
+        { header: 'Condition', key: 'condition' },
+        { header: 'Region', key: 'region_id', formatter: (value) => getRegionName(value) },
+        { header: 'Warehouse', key: 'warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'Installed Components', key: 'id', formatter: (value, row) => getInstalledComponents(row.id) },
+        { header: 'Created Date', key: 'created_at', formatter: (value) => new Date(value).toLocaleDateString() }
+      ];
 
-      if (format === 'CSV') {
-        exportToCSV(data);
-      } else if (format === 'Excel') {
-        exportToExcel(data);
-      } else if (format === 'PDF') {
-        exportToPDF(data);
-      }
+      exportData(format, {
+        data,
+        columns,
+        filename: 'inventory-summary',
+        title: 'Inventory Summary Report'
+      });
+    } else if (reportName === 'Component Summary') {
+      const data = components.filter(c => !c.is_deleted);
+      
+      const columns: ExportColumn[] = [
+        { header: 'Name', key: 'name' },
+        { header: 'Manufacturer', key: 'manufacturer' },
+        { header: 'Model', key: 'model' },
+        { header: 'Part Number', key: 'part_number' },
+        { header: 'Status', key: 'status' },
+        { header: 'Condition', key: 'condition' },
+        { header: 'Region', key: 'region_id', formatter: (value) => getRegionName(value) },
+        { header: 'Warehouse', key: 'warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'Installed In Device', key: 'id', formatter: (value) => getInstalledDeviceName(value) },
+        { header: 'Compatible With', key: 'compatible_with' },
+        { header: 'Created Date', key: 'created_at', formatter: (value) => new Date(value).toLocaleDateString() }
+      ];
+
+      exportData(format, {
+        data,
+        columns,
+        filename: 'component-summary',
+        title: 'Component Summary Report'
+      });
     } else {
       toast.success(`${reportName} report exported as ${format}`);
     }
   };
-
-  const exportToCSV = (data: any[]) => {
-    const headers = ['Name', 'Type', 'Manufacturer', 'Serial Number', 'Asset Tag', 'Status', 'Condition', 'Region', 'Warehouse', 'Installed Components', 'Create Date'];
-    const rows = data.map(item => [
-      item.name,
-      item.item_type,
-      item.manufacturer,
-      item.model,
-      item.serial_number,
-      item.asset_tag,
-      item.status,
-      item.condition,
-      getRegionName(item.region_id),
-      getWarehouseName(item.warehouse_id),
-      getInstalledComponents(item.id),
-      new Date(item.created_at).toLocaleDateString()
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    // Create and download the file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `inventory-summary-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    toast.success('CSV exported successfully');
-  };
-
-
-  const exportToExcel = (data: any[]) => {
-    const headers = ['Name', 'Type', 'Manufacturer', 'Model', 'Serial Number', 'Asset Tag', 'Status', 'Condition', 'Region', 'Warehouse', 'Installed Components', 'Created Date'];
-    const rows = data.map(item => [
-      item.name,
-      item.item_type,
-      item.manufacturer,
-      item.model,
-      item.serial_number,
-      item.asset_tag,
-      item.status,
-      item.condition,
-      getRegionName(item.region_id),
-      getWarehouseName(item.warehouse_id),
-      getInstalledComponents(item.id),
-      new Date(item.created_at).toLocaleDateString()
-    ]);
-
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory Summary');
-    XLSX.writeFile(workbook, `inventory-summary-${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Excel exported successfully');
-
-  };
-
-
-  const exportToPDF = (data: any[]) => {
-    const headers = ['Name', 'Type', 'Manufacturer', 'Model', 'Serial Number', 'Asset Tag', 'Status', 'Condition', 'Region', 'Warehouse', 'Installed Components', 'Created Date'];
-    const rows = data.map(item => [
-      item.name,
-      item.item_type,
-      item.manufacturer,
-      item.model,
-      item.serial_number,
-      item.asset_tag,
-      item.status,
-      item.condition,
-      getRegionName(item.region_id),
-      getWarehouseName(item.warehouse_id),
-      getInstalledComponents(item.id),
-      new Date(item.created_at).toLocaleDateString()
-    ]);
-
-    let content = `
-    <html>
-    <head>
-      <title>Inventory Summary Report</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        h1 { color: #333; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-      </style>
-    </head>
-    <body>
-      <h1>Inventory Summary Report</h1>
-      <p>Generated on: ${new Date().toLocaleString()}</p>
-      <table>
-        <thead>
-          <tr>
-            ${headers.map(h => `<th>${h}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(row => `
-            <tr>
-              ${row.map(cell => `<td>${cell}</td>`).join('')}
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `;
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(content);
-      printWindow.document.close();
-      printWindow.print();
-      toast.success('PDF generated successfully');
-    } else {
-      toast.error('Failed to open print window');
-    }
-  }
 
 
   const reports = [
