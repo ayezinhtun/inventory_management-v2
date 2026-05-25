@@ -674,7 +674,6 @@ export function InventoryDetailPage() {
                                 <div className="space-y-1">
                                   <div className="font-medium">{getUserName(req.pm_reviewed_by)}</div>
                                   {req.pm_reviewed_at && <div className="text-muted-foreground">{formatDate(req.pm_reviewed_at)}</div>}
-                                  {req.pm_comments && <div className="text-xs text-muted-foreground italic">"{req.pm_comments}"</div>}
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
@@ -685,7 +684,6 @@ export function InventoryDetailPage() {
                                 <div className="space-y-1">
                                   <div className="font-medium">{getUserName(req.admin_reviewed_by)}</div>
                                   {req.admin_reviewed_at && <div className="text-muted-foreground">{formatDate(req.admin_reviewed_at)}</div>}
-                                  {req.admin_comments && <div className="text-xs text-muted-foreground italic">"{req.admin_comments}"</div>}
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground">—</span>

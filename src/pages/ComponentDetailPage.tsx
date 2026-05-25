@@ -1404,10 +1404,10 @@ export function ComponentDetailPage() {
                                 {req.status}
                               </Badge>
                             </td>
-                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" title={fromLabel}>
+                            <td className="px-4 py-3 text-sm min-w-[200px] break-words" title={fromLabel}>
                               {fromLabel}
                             </td>
-                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" title={toLabel}>
+                            <td className="px-4 py-3 text-sm min-w-[200px] break-words" title={toLabel}>
                               {toLabel}
                             </td>
                             <td className="px-4 py-3 text-sm">
@@ -1421,7 +1421,6 @@ export function ComponentDetailPage() {
                                 <div className="space-y-1">
                                   <div className="font-medium">{getUserName(req.pm_reviewed_by)}</div>
                                   {req.pm_reviewed_at && <div className="text-muted-foreground">{formatDate(req.pm_reviewed_at)}</div>}
-                                  {req.pm_comments && <div className="text-xs text-muted-foreground italic">"{req.pm_comments}"</div>}
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
@@ -1432,7 +1431,6 @@ export function ComponentDetailPage() {
                                 <div className="space-y-1">
                                   <div className="font-medium">{getUserName(req.admin_reviewed_by)}</div>
                                   {req.admin_reviewed_at && <div className="text-muted-foreground">{formatDate(req.admin_reviewed_at)}</div>}
-                                  {req.admin_comments && <div className="text-xs text-muted-foreground italic">"{req.admin_comments}"</div>}
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
