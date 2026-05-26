@@ -142,7 +142,7 @@ export function AppSidebar() {
         //   roles: ["Admin"],
         // },
         {
-          id: "relocation-requests",
+          id: "relocation-engineer",
           label: "Relocation Requests",
           icon: ArrowRightLeft,
           roles: ["Engineer"],

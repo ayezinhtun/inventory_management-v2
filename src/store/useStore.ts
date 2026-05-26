@@ -43,6 +43,7 @@ export type Page =
   'relocation-request-detail' |
   'relocation-pm' |
   'relocation-admin' |
+  'relocation-engineer' |
   'physical-relocation' |
   'admin-relocation' |
   'reserved-stock' |

@@ -208,7 +208,9 @@ export function App() {
       case 'relocation-pm':
         return <RelocationRequestsPage pmView />;
       case 'relocation-admin':
-        return <RelocationRequestsPage adminView />;
+        return <AdminRelocationPage />;
+      case 'relocation-engineer':
+        return <RelocationRequestsPage engineerView />;
       case 'physical-relocation':
         return <RelocationRequestsPage physicalView />;
       case 'regions':
@@ -261,7 +263,9 @@ export function App() {
       case 'customer-inventory':
         return <PlaceholderPage />;
       case 'relocation-requests':
-        return <RelocationRequestsPage />;
+        // Pass engineerView if user is Engineer
+        const isEngineer = currentUser?.role === 'Engineer';
+        return <RelocationRequestsPage {...(isEngineer && { engineerView: true })} />;
       case 'admin-relocation':
         return <AdminRelocationPage />;
       default:

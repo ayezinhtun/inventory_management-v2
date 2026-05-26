@@ -6,6 +6,8 @@ import { useComponentsStore } from '../store/useComponentsStore';
 
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 
+import { ComponentRelocationDialog } from '../components/ComponentRelocationDialog';
+
 import {
 
   Table,
@@ -80,6 +82,10 @@ export function ComponentsListPage() {
 
   const [hardwareInventory, setHardwareInventory] = useState<any[]>([]);
 
+  const [selectedComponentIds, setSelectedComponentIds] = useState<Set<string>>(new Set());
+
+  const [showRelocationDialog, setShowRelocationDialog] = useState(false);
+
   useEffect(() => {
     const loadHardwareInventory = async () => {
       const { useHardwareInventoryStore } = await import('../store/useHardwareInventoryStore');
@@ -89,7 +95,24 @@ export function ComponentsListPage() {
     loadHardwareInventory();
   }, []);
 
+  const toggleComponentSelection = (componentId: string) => {
+    const newSelected = new Set(selectedComponentIds);
+    if (newSelected.has(componentId)) {
+      newSelected.delete(componentId);
+    } else {
+      newSelected.add(componentId);
+    }
+    setSelectedComponentIds(newSelected);
+  };
 
+  const toggleSelectAll = () => {
+    const allComponentIds = groupedComponents.flatMap(g => g.items.map((item: any) => item.id));
+    if (selectedComponentIds.size === allComponentIds.length) {
+      setSelectedComponentIds(new Set());
+    } else {
+      setSelectedComponentIds(new Set(allComponentIds));
+    }
+  };
 
   const [search, setSearch] = useState('');
 
@@ -291,6 +314,16 @@ export function ComponentsListPage() {
 
           </Button>
 
+          {selectedComponentIds.size > 0 && (
+            <Button
+              size="sm"
+              onClick={() => setShowRelocationDialog(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Relocate Selected ({selectedComponentIds.size})
+            </Button>
+          )}
+
           {currentUser?.role === 'Admin' &&
 
             <Button size="sm" onClick={() => navigate('components-add')}>
@@ -428,6 +461,15 @@ export function ComponentsListPage() {
               <TableHeader>
 
                 <TableRow>
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedComponentIds.size > 0 &&
+                        selectedComponentIds.size === groupedComponents.flatMap(g => g.items).length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4"
+                    />
+                  </TableHead>
 
                   <TableHead>Name</TableHead>
 
@@ -561,7 +603,14 @@ export function ComponentsListPage() {
 
                                 {group.items.map((item: any) => (
 
-                                  <div key={item.id} className="grid grid-cols-7 gap-3 px-3 py-2 bg-white rounded items-center">
+                                  <div key={item.id} className="grid grid-cols-8 gap-3 px-3 py-2 bg-white rounded items-center">
+
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedComponentIds.has(item.id)}
+                                      onChange={() => toggleComponentSelection(item.id)}
+                                      className="w-4 h-4"
+                                    />
 
                                     <div className="font-medium text-sm col-span-2 truncate" title={group.name}>
 
@@ -682,6 +731,19 @@ export function ComponentsListPage() {
         </CardContent>
 
       </Card>
+
+
+      {showRelocationDialog && (
+        <ComponentRelocationDialog
+          open={showRelocationDialog}
+          onOpenChange={setShowRelocationDialog}
+          selectedComponentIds={Array.from(selectedComponentIds)}
+          onSuccess={() => {
+            setSelectedComponentIds(new Set());
+            fetchComponents();
+          }}
+        />
+      )}
 
     </div>
 

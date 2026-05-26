@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import type { Component, RelocationRequest } from '../lib/types';
+import type { Component, RelocationRequest, Urgency } from '../lib/types';
 import { useStore } from './useStore';
 import { useComponentsStore } from './useComponentsStore';
 import { useHardwareInventoryStore } from './useHardwareInventoryStore';
@@ -13,19 +13,36 @@ interface RelocationState {
   // Actions
   fetchRelocationRequests: () => Promise<void>;
   createRelocationRequest: (request: Partial<RelocationRequest>) => Promise<void>;
+  createBatchComponentRelocationRequests: (data: {
+    componentIds: string[];
+    destination_region_id: string;
+    destination_warehouse_id: string;
+    destination_server_id: string | null;
+    reason: string;
+    urgency: Urgency;
+    notes: string;
+    requester_id: string;
+  }) => Promise<void>;
   updateRelocationRequest: (id: string, updates: Partial<RelocationRequest>) => Promise<void>;
   approveRelocationPM: (id: string, comments: string) => void;
   rejectRelocationPM: (id: string, comments: string) => void;
   approveRelocationAdmin: (id: string, comments: string) => void;
   rejectRelocationAdmin: (id: string, comments: string) => void;
   completeRelocation: (id: string, notes: string) => void;
+  approveRelocationPMBatch: (requestIds: string[], comments: string) => Promise<void>;
+  approveRelocationAdminBatch: (requestIds: string[], comments: string) => Promise<void>;
+  rejectRelocationPMBatch: (requestIds: string[], comments: string) => Promise<void>;
+  rejectRelocationAdminBatch: (requestIds: string[], comments: string) => Promise<void>;
 }
 
+
 // Helper functions
+let requestCounter = 0;
 const generateRequestNumber = (prefix: string): string => {
   const year = new Date().getFullYear();
-  const random = Math.floor(Math.random() * 99999).toString().padStart(5, '0');
-  return `${prefix}-${year}-${random}`;
+  const timestamp = Date.now();
+  const counter = requestCounter++;
+  return `${prefix}-${year}-${timestamp}-${counter}`;
 };
 
 export const useRelocationStore = create<RelocationState>((set, get) => ({
@@ -86,6 +103,83 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
       module: 'Relocation Request',
       record_id: data.id,
       new_value: data
+    });
+  },
+
+  createBatchComponentRelocationRequests: async (data) => {
+    const { componentIds, destination_region_id, destination_warehouse_id, destination_server_id, reason, urgency, notes, requester_id } = data;
+
+    const { data: components, error: fetchError } = await supabase
+      .from('components')
+      .select('*')
+      .in('id', componentIds);
+
+    if (fetchError) {
+      console.error('Error fetching components:', fetchError);
+      throw fetchError;
+    }
+
+    // Retry logic for duplicate key errors
+    let attempts = 0;
+    const maxAttempts = 5;
+    let createdRequests: any[] | undefined;
+
+    while (attempts < maxAttempts) {
+      const batchNumber = generateRequestNumber('RC');
+
+      const requests = components.map((component: any) => ({
+        request_number: generateRequestNumber('RC'),
+        requester_id: requester_id,
+        relocation_type: 'COMPONENT' as const,
+        component_id: component.id,
+        inventory_id: null,
+        quantity: 1,
+        source_region_id: component.region_id,
+        source_warehouse_id: component.warehouse_id,
+        source_server_id: component.installed_in_device_id,
+        destination_region_id: destination_region_id,
+        destination_warehouse_id: destination_warehouse_id,
+        destination_server_id: destination_server_id,
+        reason: reason,
+        urgency: urgency,
+        notes: notes,
+        status: 'Pending PM Approval' as const,
+      }));
+
+      const { data: result, error: insertError } = await supabase
+        .from('relocation_requests')
+        .insert(requests)
+        .select();
+
+      if (insertError) {
+        // Check if it's a duplicate key error
+        if (insertError.code === '23505') {
+          console.log(`Duplicate request number detected, retrying... (attempt ${attempts + 1}/${maxAttempts})`);
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, 200)); // Wait before retry
+          continue; // Retry with new request number
+        }
+        console.error('Error creating batch relocation requests:', insertError);
+        throw insertError;
+      }
+
+      createdRequests = result;
+      break; // Success, exit loop
+    }
+
+    if (attempts >= maxAttempts || !createdRequests) {
+      throw new Error('Failed to create relocation requests after multiple attempts due to duplicate key errors');
+    }
+
+    set((s) => ({ relocationRequests: [...createdRequests, ...s.relocationRequests] }));
+
+    createdRequests.forEach((request: any) => {
+      auditLog({
+        action: 'CREATE',
+        module: 'Relocation Request',
+        record_id: request.id,
+        new_value: request
+      });
     });
   },
 
@@ -162,6 +256,110 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
       }
     } catch (error) {
       console.error('PM approval failed:', error);
+      throw error;
+    }
+  },
+
+  approveRelocationPMBatch: async (requestIds, comments) => {
+    const now = new Date().toISOString();
+    const currentUser = useStore.getState().currentUser;
+
+    set((s) => ({
+      relocationRequests: s.relocationRequests.map((r) =>
+        requestIds.includes(r.id) ?
+          {
+            ...r,
+            status: 'Pending Admin Approval',
+            pm_reviewed_by: currentUser?.id || '',
+            pm_reviewed_at: now,
+            pm_comments: comments || '',
+            updated_at: now
+          } : r
+      )
+    }));
+
+    try {
+      const { error } = await supabase
+        .from('relocation_requests')
+        .update({
+          status: 'Pending Admin Approval',
+          pm_reviewed_by: currentUser?.id || '',
+          pm_reviewed_at: now,
+          pm_comments: comments || '',
+          updated_at: now
+        })
+        .in('id', requestIds);
+
+      if (error) throw error;
+
+      const updatedRequests = get().relocationRequests.filter(r => requestIds.includes(r.id));
+      updatedRequests.forEach((request) => {
+        auditLog({
+          action: 'UPDATE',
+          module: 'Relocation Request',
+          record_id: request.id,
+          old_value: { status: 'Pending PM Approval' },
+          new_value: {
+            status: 'Pending Admin Approval',
+            pm_reviewed_by: currentUser?.id,
+            pm_comments: comments
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Batch PM approval failed:', error);
+      throw error;
+    }
+  },
+
+  rejectRelocationPMBatch: async (requestIds, comments) => {
+    const now = new Date().toISOString();
+    const currentUser = useStore.getState().currentUser;
+
+    set((s) => ({
+      relocationRequests: s.relocationRequests.map((r) =>
+        requestIds.includes(r.id) ?
+          {
+            ...r,
+            status: 'Rejected by PM',
+            pm_reviewed_by: currentUser?.id || '',
+            pm_reviewed_at: now,
+            pm_comments: comments || '',
+            updated_at: now
+          } : r
+      )
+    }));
+
+    try {
+      const { error } = await supabase
+        .from('relocation_requests')
+        .update({
+          status: 'Rejected by PM',
+          pm_reviewed_by: currentUser?.id || '',
+          pm_reviewed_at: now,
+          pm_comments: comments || '',
+          updated_at: now
+        })
+        .in('id', requestIds);
+
+      if (error) throw error;
+
+      const updatedRequests = get().relocationRequests.filter(r => requestIds.includes(r.id));
+      updatedRequests.forEach((request) => {
+        auditLog({
+          action: 'UPDATE',
+          module: 'Relocation Request',
+          record_id: request.id,
+          old_value: { status: 'Pending PM Approval' },
+          new_value: {
+            status: 'Rejected by PM',
+            pm_reviewed_by: currentUser?.id,
+            pm_comments: comments
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Batch PM rejection failed:', error);
       throw error;
     }
   },
@@ -339,6 +537,143 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
       }
     } catch (error) {
       console.error('Admin approval failed:', error);
+      throw error;
+    }
+  },
+
+
+  approveRelocationAdminBatch: async (requestIds, comments) => {
+    const now = new Date().toISOString();
+    const currentUser = useStore.getState().currentUser;
+
+    const { data: requests, error: fetchError } = await supabase
+      .from('relocation_requests')
+      .select('*')
+      .in('id', requestIds);
+
+    if (fetchError) {
+      console.error('Error fetching requests:', fetchError);
+      throw fetchError;
+    }
+
+    set((s) => ({
+      relocationRequests: s.relocationRequests.map((r) =>
+        requestIds.includes(r.id) ?
+          {
+            ...r,
+            status: 'Approved',
+            admin_reviewed_by: currentUser?.id || '',
+            admin_reviewed_at: now,
+            admin_comments: comments || '',
+            updated_at: now
+          } : r
+      )
+    }));
+
+    try {
+      const { error: updateError } = await supabase
+        .from('relocation_requests')
+        .update({
+          status: 'Approved',
+          admin_reviewed_by: currentUser?.id || '',
+          admin_reviewed_at: now,
+          admin_comments: comments || '',
+          updated_at: now
+        })
+        .in('id', requestIds);
+
+      if (updateError) throw updateError;
+
+      for (const request of requests) {
+        if (request.relocation_type === 'COMPONENT' && request.component_id) {
+          if (request.destination_server_id) {
+            await useComponentsStore.getState().updateComponent(request.component_id, {
+              status: 'installed',
+              region_id: null,
+              warehouse_id: null,
+              installed_in_device_id: request.destination_server_id,
+              updated_by: currentUser?.user_id || null,
+            });
+          } else if (request.destination_warehouse_id) {
+            await useComponentsStore.getState().updateComponent(request.component_id, {
+              status: 'available',
+              region_id: request.destination_region_id,
+              warehouse_id: request.destination_warehouse_id,
+              installed_in_device_id: null,
+              updated_by: currentUser?.user_id || null,
+            });
+          }
+        }
+      }
+
+      const updatedRequests = get().relocationRequests.filter(r => requestIds.includes(r.id));
+      updatedRequests.forEach((request) => {
+        auditLog({
+          action: 'UPDATE',
+          module: 'Relocation Request',
+          record_id: request.id,
+          old_value: { status: 'Pending Admin Approval' },
+          new_value: {
+            status: 'Approved',
+            admin_reviewed_by: currentUser?.id,
+            admin_comments: comments
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Batch admin approval failed:', error);
+      throw error;
+    }
+  },
+
+  rejectRelocationAdminBatch: async (requestIds, comments) => {
+    const now = new Date().toISOString();
+    const currentUser = useStore.getState().currentUser;
+
+    set((s) => ({
+      relocationRequests: s.relocationRequests.map((r) =>
+        requestIds.includes(r.id) ?
+          {
+            ...r,
+            status: 'Rejected by Admin',
+            admin_reviewed_by: currentUser?.id || '',
+            admin_reviewed_at: now,
+            admin_comments: comments || '',
+            updated_at: now
+          } : r
+      )
+    }));
+
+    try {
+      const { error } = await supabase
+        .from('relocation_requests')
+        .update({
+          status: 'Rejected by Admin',
+          admin_reviewed_by: currentUser?.id || '',
+          admin_reviewed_at: now,
+          admin_comments: comments || '',
+          updated_at: now
+        })
+        .in('id', requestIds);
+
+      if (error) throw error;
+
+      const updatedRequests = get().relocationRequests.filter(r => requestIds.includes(r.id));
+      updatedRequests.forEach((request) => {
+        auditLog({
+          action: 'UPDATE',
+          module: 'Relocation Request',
+          record_id: request.id,
+          old_value: { status: 'Pending Admin Approval' },
+          new_value: {
+            status: 'Rejected by Admin',
+            admin_reviewed_by: currentUser?.id,
+            admin_comments: comments
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Batch admin rejection failed:', error);
       throw error;
     }
   },

@@ -1,7 +1,12 @@
-import React, { useState, Component, useEffect } from "react";
+import React, { useState, Component, useEffect, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import { useRelocationStore } from "../store/useRelocationStore";
-import { Card, CardContent } from "../components/ui/Card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/Card";
 import {
   Table,
   TableBody,
@@ -37,6 +42,9 @@ import {
   CheckCircle,
   XCircle,
   Truck,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
 } from "lucide-react";
 import { formatDate, getStatusColor, getUrgencyColor } from "../lib/utils";
 import { toast } from "sonner";
@@ -74,12 +82,20 @@ export function RelocationRequestsPage({
     rejectRelocationPM,
     approveRelocationAdmin,
     rejectRelocationAdmin,
+    approveRelocationPMBatch,
+    rejectRelocationPMBatch,
     completeRelocation,
     createRelocationRequest,
     fetchRelocationRequests,
   } = useRelocationStore();
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
   const [comments, setComments] = useState("");
+  const [batchComments, setBatchComments] = useState<{ [key: string]: string }>(
+    {},
+  );
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(
+    new Set(),
+  );
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [reviewAction, setReviewAction] = useState<
     "Approve" | "Reject" | "Complete" | null
@@ -164,6 +180,129 @@ export function RelocationRequestsPage({
     // Default view - show all requests
     visibleRequests = relocationRequests;
   }
+
+  // Group all PM-relevant requests by time window and destination for batch display
+  const pendingPMRequests = visibleRequests.filter(
+    (r) =>
+      r.status === "Pending PM Approval" ||
+      r.status === "Pending Admin Approval" ||
+      r.status === "Approved" ||
+      r.status === "Rejected by PM" ||
+      r.status === "Rejected by Admin",
+  );
+  const groupedPMRequests = useMemo(() => {
+    const groups = new Map();
+    pendingPMRequests.forEach((req: any) => {
+      // Create a key based on destination and time window (1 minute)
+      const timeWindow = Math.floor(new Date(req.created_at).getTime() / 60000); // 1 minute window
+      const key = `${req.destination_region_id}-${req.destination_warehouse_id}-${req.destination_server_id || "none"}-${timeWindow}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          destination_region_id: req.destination_region_id,
+          destination_warehouse_id: req.destination_warehouse_id,
+          destination_server_id: req.destination_server_id,
+          relocation_type: req.relocation_type,
+          urgency: req.urgency,
+          reason: req.reason,
+          requests: [],
+        });
+      }
+      groups.get(key).requests.push(req);
+    });
+    return Array.from(groups.values());
+  }, [pendingPMRequests]);
+
+  // Group engineer requests by time window and destination for batch display
+  const engineerRequests = engineerView ? visibleRequests : [];
+  const groupedEngineerRequests = useMemo(() => {
+    const groups = new Map();
+    engineerRequests.forEach((req: any) => {
+      // Create a key based on destination and time window (1 minute)
+      const timeWindow = Math.floor(new Date(req.created_at).getTime() / 60000); // 1 minute window
+      const key = `${req.destination_region_id}-${req.destination_warehouse_id}-${req.destination_server_id || "none"}-${timeWindow}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          destination_region_id: req.destination_region_id,
+          destination_warehouse_id: req.destination_warehouse_id,
+          destination_server_id: req.destination_server_id,
+          relocation_type: req.relocation_type,
+          urgency: req.urgency,
+          reason: req.reason,
+          requests: [],
+        });
+      }
+      groups.get(key).requests.push(req);
+    });
+    return Array.from(groups.values());
+  }, [engineerRequests]);
+
+  const toggleBatchExpand = (groupKey: string) => {
+    const newExpanded = new Set(expandedBatches);
+    if (newExpanded.has(groupKey)) {
+      newExpanded.delete(groupKey);
+    } else {
+      newExpanded.add(groupKey);
+    }
+    setExpandedBatches(newExpanded);
+  };
+
+  const handlePMApproveBatch = async (groupKey: string) => {
+    try {
+      const group = groupedPMRequests.find((g) => {
+        const timeWindow = Math.floor(
+          new Date(g.requests[0].created_at).getTime() / 60000,
+        );
+        const key = `${g.destination_region_id}-${g.destination_warehouse_id}-${g.destination_server_id || "none"}-${timeWindow}`;
+        return key === groupKey;
+      });
+      if (group) {
+        // Only approve requests with "Pending PM Approval" status
+        const pendingRequests = group.requests.filter((r: any) => r.status === "Pending PM Approval");
+        if (pendingRequests.length === 0) {
+          toast.error("No pending PM approval requests in this batch");
+          return;
+        }
+        const requestIds = pendingRequests.map((r: any) => r.id);
+        await approveRelocationPMBatch(
+          requestIds,
+          batchComments[groupKey] || "",
+        );
+        toast.success("Batch relocation approved");
+      }
+    } catch (error) {
+      toast.error("Failed to approve batch relocation");
+    }
+  };
+
+  const handlePMRejectBatch = async (groupKey: string) => {
+    try {
+      const group = groupedPMRequests.find((g) => {
+        const timeWindow = Math.floor(
+          new Date(g.requests[0].created_at).getTime() / 60000,
+        );
+        const key = `${g.destination_region_id}-${g.destination_warehouse_id}-${g.destination_server_id || "none"}-${timeWindow}`;
+        return key === groupKey;
+      });
+      if (group) {
+        // Only reject requests with "Pending PM Approval" status
+        const pendingRequests = group.requests.filter((r: any) => r.status === "Pending PM Approval");
+        if (pendingRequests.length === 0) {
+          toast.error("No pending PM approval requests in this batch");
+          return;
+        }
+        const requestIds = pendingRequests.map((r: any) => r.id);
+        await rejectRelocationPMBatch(
+          requestIds,
+          batchComments[groupKey] || "",
+        );
+        toast.success("Batch relocation request rejected");
+      }
+    } catch (error) {
+      toast.error("Failed to reject batch request");
+    }
+  };
 
   const handleAction = async () => {
     if (!selectedRequest || !reviewAction) return;
@@ -309,7 +448,7 @@ export function RelocationRequestsPage({
     }
   };
 
-  const getComment = (req) => {
+  const getComment = (req: any) => {
     // Engineer
     if (!pmView && !adminView) {
       if (req.status === "Rejected by PM") return req.pm_comments;
@@ -326,7 +465,7 @@ export function RelocationRequestsPage({
 
     // PM
     if (pmView) {
-      if (req.status === "Approved" || req.status === "Rejected by Admin")
+      if (req.status === "Approved" || req.status === "Rejected by Admin" || req.status === "Pending Admin Approval")
         return req.admin_comments;
     }
 
@@ -357,138 +496,328 @@ export function RelocationRequestsPage({
         )} */}
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Request #</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Item</TableHead>
-                <TableHead>From → To</TableHead>
-                {(pmView || adminView) && <TableHead>Requester</TableHead>}
-                <TableHead>Urgency</TableHead>
-                <TableHead>Status</TableHead>
-                {hasComments && <TableHead>Comments</TableHead>}
-                <TableHead>Reason</TableHead>
-                <TableHead>Notes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleRequests.length > 0 ? (
-                visibleRequests.map((req) => (
-                  <TableRow key={req.id}>
-                    <TableCell className="font-medium">
-                      {req.request_number}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{req.relocation_type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{getItemName(req)}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">From: </span>
-                        {getLocationDisplay(
-                          req.source_server_id,
-                          req.source_warehouse_id,
-                          req.source_region_id,
-                        )}
-                        <br />
-                        <span className="text-muted-foreground">To: </span>
-                        {getLocationDisplay(
-                          req.destination_server_id,
-                          req.destination_warehouse_id,
-                          req.destination_region_id,
-                        )}
-                      </div>
-                    </TableCell>
-                    {(pmView || adminView) && (
-                      <TableCell>{getUserName(req.requester_id)}</TableCell>
-                    )}
-                    <TableCell>
-                      <Badge className={getUrgencyColor(req.urgency)}>
-                        {req.urgency}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge className={getStatusColor(req.status)}>
-                        {req.status}
-                      </Badge>
-                    </TableCell>
-                    {hasComments && <TableCell>{getComment(req)}</TableCell>}
-
-                    <TableCell>{req.reason || "-"}</TableCell>
-                    <TableCell>{req.notes || "—"}</TableCell>
-
-                    <TableCell className="text-right">
-                      {pmView && req.status === "Pending PM Approval" ? (
-                        <div className="flex justify-end gap-2">
+      {/* Batch Section for PM View - Shows all statuses */}
+      {pmView && groupedPMRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5" />
+              All Requests (Batch)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {groupedPMRequests.map((group) => {
+                const timeWindow = Math.floor(
+                  new Date(group.requests[0].created_at).getTime() / 60000,
+                );
+                const groupKey = `${group.destination_region_id}-${group.destination_warehouse_id}-${group.destination_server_id || "none"}-${timeWindow}`;
+                const isExpanded = expandedBatches.has(groupKey);
+                return (
+                  <div key={groupKey} className="border rounded-lg">
+                    <div
+                      className="p-4 cursor-pointer hover:bg-muted/50"
+                      onClick={() => toggleBatchExpand(groupKey)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
                           <Button
+                            variant="ghost"
                             size="sm"
-                            variant="outline"
-                            className="text-emerald-600"
-                            onClick={() => openDialog(req.id, "Approve")}
+                            className="h-6 w-6 p-0"
                           >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Approve
+                            {isExpanded ? (
+                              <ChevronDown className="h-3 w-3" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" />
+                            )}
                           </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-600"
-                            onClick={() => openDialog(req.id, "Reject")}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </Button>
+                          <div>
+                            <p className="font-medium">Batch Request</p>
+                            <p className="text-sm text-muted-foreground">
+                              {group.requests.length}{" "}
+                              {group.relocation_type.toLowerCase()}(s)
+                            </p>
+                          </div>
                         </div>
-                      ) : adminView &&
-                        req.status === "Pending Admin Approval" ? (
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-emerald-600"
-                            onClick={() => openDialog(req.id, "Approve")}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Approve
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-600"
-                            onClick={() => openDialog(req.id, "Reject")}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </Button>
-                        </div>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-32 text-center">
-                    <div className="flex flex-col items-center justify-center text-muted-foreground">
-                      <ArrowRightLeft className="h-8 w-8 mb-2 opacity-20" />
-                      <p>No relocation requests found.</p>
+                        <Badge variant="outline">{group.urgency}</Badge>
+                      </div>
                     </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+
+                    {isExpanded && (
+                      <div className="border-t p-4 space-y-4">
+                        {/* Individual requests list with table-like UI */}
+                        <div className="space-y-2">
+                          <p className="font-medium text-sm">
+                            Individual Requests
+                          </p>
+                          <div className="border rounded overflow-x-auto">
+                            <div className="grid grid-cols-5 gap-2 p-2 bg-muted text-xs font-medium text-muted-foreground min-w-[800px]">
+                              <div>Request #</div>
+                              <div>Item</div>
+                              <div>From → To</div>
+                              <div>Requester</div>
+                              <div>Status</div>
+                            </div>
+                            {group.requests.map((req: any) => (
+                              <div
+                                key={req.id}
+                                className="grid grid-cols-5 gap-2 p-2 border-t text-xs items-start min-w-[800px]"
+                              >
+                                <div className="font-medium">
+                                  {req.request_number}
+                                </div>
+                                <div>
+                                  {getItemName(req)}
+                                </div>
+                                <div>
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      From:{" "}
+                                    </span>
+                                    {getLocationDisplay(
+                                      req.source_server_id,
+                                      req.source_warehouse_id,
+                                      req.source_region_id,
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      To:{" "}
+                                    </span>
+                                    {getLocationDisplay(
+                                      req.destination_server_id,
+                                      req.destination_warehouse_id,
+                                      req.destination_region_id,
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  {getUserName(req.requester_id)}
+                                </div>
+                                {/* <div className="col-span-1">
+                                  <Badge
+                                    className={getUrgencyColor(req.urgency)}
+                                    variant="outline"
+                                  >
+                                    {req.urgency}
+                                  </Badge>
+                                </div> */}
+                                <div>
+                                  <Badge
+                                    className={getStatusColor(req.status)}
+                                    variant="outline"
+                                  >
+                                    {req.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="font-medium">Type</p>
+                            <Badge variant="outline">
+                              {group.relocation_type}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="font-medium">Items Count</p>
+                            <p className="text-sm">{group.requests.length}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium">Reason</p>
+                            <p className="text-sm">{group.reason}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">
+                            PM Comments
+                          </label>
+                          <Textarea
+                            value={batchComments[groupKey] || ""}
+                            onChange={(e) =>
+                              setBatchComments((prev) => ({
+                                ...prev,
+                                [groupKey]: e.target.value,
+                              }))
+                            }
+                            placeholder="Add comments for your decision..."
+                            rows={2}
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          {group.requests.some((r: any) => r.status === "Pending PM Approval") && (
+                            <>
+                              <Button
+                                onClick={() => handlePMApproveBatch(groupKey)}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Approve Batch
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                onClick={() => handlePMRejectBatch(groupKey)}
+                                className="flex items-center gap-2"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Reject Batch
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Engineer View - Batch format without approve/reject buttons */}
+      {engineerView && groupedEngineerRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5" />
+              My Requests (Batch)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {groupedEngineerRequests.map((group) => {
+                const timeWindow = Math.floor(
+                  new Date(group.requests[0].created_at).getTime() / 60000,
+                );
+                const groupKey = `${group.destination_region_id}-${group.destination_warehouse_id}-${group.destination_server_id || "none"}-${timeWindow}`;
+                const isExpanded = expandedBatches.has(groupKey);
+                return (
+                  <div key={groupKey} className="border rounded-lg">
+                    <div
+                      className="p-4 cursor-pointer hover:bg-muted/50"
+                      onClick={() => toggleBatchExpand(groupKey)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-3 w-3" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" />
+                            )}
+                          </Button>
+                          <div>
+                            <p className="font-medium">Batch Request</p>
+                            <p className="text-sm text-muted-foreground">
+                              {group.requests.length}{" "}
+                              {group.relocation_type.toLowerCase()}(s)
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="outline">{group.urgency}</Badge>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="border-t p-4 space-y-4">
+                        {/* Individual requests list with table-like UI */}
+                        <div className="space-y-2">
+                          <p className="font-medium text-sm">
+                            Individual Requests
+                          </p>
+                          <div className="border rounded overflow-x-auto">
+                            <div className="grid grid-cols-5 gap-2 p-2 bg-muted text-xs font-medium text-muted-foreground min-w-[800px]">
+                              <div>Request #</div>
+                              <div>Item</div>
+                              <div>From → To</div>
+                              <div>Status</div>
+                              <div>Comments</div>
+                            </div>
+                            {group.requests.map((req: any) => (
+                              <div
+                                key={req.id}
+                                className="grid grid-cols-5 gap-2 p-2 border-t text-xs items-start min-w-[800px]"
+                              >
+                                <div className="font-medium">
+                                  {req.request_number}
+                                </div>
+                                <div>
+                                  {getItemName(req)}
+                                </div>
+                                <div>
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      From:{" "}
+                                    </span>
+                                    {getLocationDisplay(
+                                      req.source_server_id,
+                                      req.source_warehouse_id,
+                                      req.source_region_id,
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      To:{" "}
+                                    </span>
+                                    {getLocationDisplay(
+                                      req.destination_server_id,
+                                      req.destination_warehouse_id,
+                                      req.destination_region_id,
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <Badge
+                                    className={getStatusColor(req.status)}
+                                    variant="outline"
+                                  >
+                                    {req.status}
+                                  </Badge>
+                                </div>
+                                <div className="text-sm">
+                                  {getComment(req)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="font-medium">Type</p>
+                            <Badge variant="outline">
+                              {group.relocation_type}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="font-medium">Items Count</p>
+                            <p className="text-sm">{group.requests.length}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium">Reason</p>
+                            <p className="text-sm">{group.reason}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
         <DialogContent>
