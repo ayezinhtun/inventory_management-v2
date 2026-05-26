@@ -562,7 +562,7 @@ export function DashboardPage() {
       </div>
 
       {/* ── 5. REGION PERFORMANCE (admin only) ── */}
-      {isAdmin && componentsByRegion.length > 0 && !isLoading && (
+      {/* {isAdmin && componentsByRegion.length > 0 && !isLoading && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Region Performance</CardTitle>
@@ -582,7 +582,7 @@ export function DashboardPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      )}
+      )} */}
     </div>
   );
 }

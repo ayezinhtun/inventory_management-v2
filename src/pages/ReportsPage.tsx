@@ -93,7 +93,7 @@ export function ReportsPage() {
   const handleExport = (format: 'CSV' | 'Excel' | 'PDF', reportName: string) => {
     if (reportName === 'Inventory Summary') {
       const data = hardwareInventory.filter(h => !h.is_deleted);
-      
+
       const columns: ExportColumn[] = [
         { header: 'Name', key: 'name' },
         { header: 'Type', key: 'item_type' },
@@ -117,7 +117,7 @@ export function ReportsPage() {
       });
     } else if (reportName === 'Component Summary') {
       const data = components.filter(c => !c.is_deleted);
-      
+
       const columns: ExportColumn[] = [
         { header: 'Name', key: 'name' },
         { header: 'Manufacturer', key: 'manufacturer' },
@@ -140,7 +140,7 @@ export function ReportsPage() {
       });
     } else if (reportName === 'Item Movement History') {
       const data = relocationRequests;
-      
+
       const columns: ExportColumn[] = [
         { header: 'Request Number', key: 'request_number' },
         { header: 'Type', key: 'relocation_type' },
@@ -171,6 +171,39 @@ export function ReportsPage() {
         columns,
         filename: 'item-movement-history',
         title: 'Item Movement History Report'
+      });
+    } else if (reportName === 'Pending Requests') {
+      const data = relocationRequests.filter(r => r.status === 'Pending PM Approval' || r.status === 'Pending Admin Approval');
+
+      const columns: ExportColumn[] = [
+        { header: 'Request Number', key: 'request_number' },
+        { header: 'Type', key: 'relocation_type' },
+        { header: 'Item Name', key: 'id', formatter: (value, row) => getItemName(row) },
+        { header: 'Status', key: 'status' },
+        { header: 'Created By', key: 'requester_id', formatter: (value) => getUserName(value) },
+        { header: 'Created Date', key: 'created_at', formatter: (value) => new Date(value).toLocaleDateString() },
+        {
+          header: 'Days Pending', key: 'created_at', formatter: (value) => {
+            const created = new Date(value);
+            const now = new Date();
+            const diffTime = Math.abs(now.getTime() - created.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays;
+          }
+        },
+        { header: 'From Region', key: 'source_region_id', formatter: (value) => getRegionName(value) },
+        { header: 'From Warehouse', key: 'source_warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'To Region', key: 'destination_region_id', formatter: (value) => getRegionName(value) },
+        { header: 'To Warehouse', key: 'destination_warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'Reason', key: 'reason' },
+        { header: 'Urgency', key: 'urgency' }
+      ];
+
+      exportData(format, {
+        data,
+        columns,
+        filename: 'pending-requests',
+        title: 'Pending Requests Report'
       });
     } else {
       toast.success(`${reportName} report exported as ${format}`);

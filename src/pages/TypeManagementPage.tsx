@@ -241,7 +241,6 @@ export function TypeManagementPage() {
                   <TableRow key={type.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <Tags className="h-4 w-4 text-muted-foreground" />
                         {type.type_name}
                       </div>
                     </TableCell>

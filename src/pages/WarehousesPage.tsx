@@ -189,7 +189,6 @@ export function WarehousesPage() {
                     <TableRow key={warehouse.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center">
-                          <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
                           {warehouse.name}
                         </div>
                       </TableCell>

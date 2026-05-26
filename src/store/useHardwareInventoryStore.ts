@@ -4,7 +4,6 @@ import { auditLog } from '../lib/auditLog';
 import type { HardwareInventory } from '../lib/types';
 
 
-
 interface HardwareInventoryState {
   hardwareInventory: HardwareInventory[];
   isLoading: boolean;
@@ -29,7 +28,8 @@ export const useHardwareInventoryStore = create<HardwareInventoryState>((set, ge
         .from('hardware_inventory')
         .select('*')
         .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
       if (error) throw error;
       set({ hardwareInventory: (data ?? []) as HardwareInventory[] });
     } catch (err) {
