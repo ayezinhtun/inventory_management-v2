@@ -48,11 +48,12 @@ import {
 
   '../components/ui/Select';
 
-import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2 } from 'lucide-react';
+import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package } from 'lucide-react';
 
 import { getStatusColor } from '../lib/utils';
 
 import { toast } from 'sonner';
+import { Checkbox } from '../components/ui/Checkbox';
 
 
 
@@ -316,12 +317,14 @@ export function ComponentsListPage() {
 
           {selectedComponentIds.size > 0 && (
             <Button
-              size="sm"
+              variant="outline"
               onClick={() => setShowRelocationDialog(true)}
-              className="bg-blue-600 hover:bg-blue-700"
             >
-              Relocate Selected ({selectedComponentIds.size})
+              <Package className="h-4 w-4 mr-2" />
+              Relocate ({selectedComponentIds.size})
+
             </Button>
+
           )}
 
           {currentUser?.role === 'Admin' &&
@@ -462,16 +465,27 @@ export function ComponentsListPage() {
 
                 <TableRow>
                   <TableHead className="w-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedComponentIds.size > 0 &&
-                        selectedComponentIds.size === groupedComponents.flatMap(g => g.items).length}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4"
-                    />
+                    <div className='col-span-2 flex items-center gap-2'>
+                      <Checkbox
+                        checked={
+                          selectedComponentIds.size > 0 &&
+                          selectedComponentIds.size === groupedComponents.flatMap(g => g.items).length
+                        }
+                        onCheckedChange={(checked) => {
+                          const allIds = groupedComponents.flatMap(g => g.items.map((i: any) => i.id));
+
+                          if (checked) {
+                            setSelectedComponentIds(new Set(allIds));
+                          } else {
+                            setSelectedComponentIds(new Set());
+                          }
+                        }}
+                      />
+                      Name
+                    </div>
+
                   </TableHead>
 
-                  <TableHead>Name</TableHead>
 
                   <TableHead>Type</TableHead>
 
@@ -481,7 +495,7 @@ export function ComponentsListPage() {
 
                   <TableHead>Part Number</TableHead>
 
-                  <TableHead className="text-right">Total Quantity</TableHead>
+                  <TableHead>Total Quantity</TableHead>
 
                 </TableRow>
 
@@ -581,7 +595,7 @@ export function ComponentsListPage() {
 
                           </TableCell>
 
-                          <TableCell className="text-right font-medium">
+                          <TableCell className="font-medium">
 
                             {totalCount}
 
@@ -597,25 +611,35 @@ export function ComponentsListPage() {
 
                           <TableRow>
 
-                            <TableCell colSpan={6} className="px-4 py-2 bg-gray-50">
+                            <TableCell colSpan={7} className="px-4 py-2 bg-gray-50">
 
                               <div className="space-y-2">
 
                                 {group.items.map((item: any) => (
 
-                                  <div key={item.id} className="grid grid-cols-8 gap-3 px-3 py-2 bg-white rounded items-center">
+                                  <div key={item.id} className="grid grid-cols-7 gap-2 px-3 py-2 bg-white rounded items-center">
 
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedComponentIds.has(item.id)}
-                                      onChange={() => toggleComponentSelection(item.id)}
-                                      className="w-4 h-4"
-                                    />
+                                    <div className='col-span-2 flex items-center gap-2'>
+                                      <Checkbox
+                                        checked={selectedComponentIds.has(item.id)}
+                                        onCheckedChange={(checked) => {
+                                          const newSelected = new Set(selectedComponentIds);
 
-                                    <div className="font-medium text-sm col-span-2 truncate" title={group.name}>
+                                          if (checked) {
+                                            newSelected.add(item.id);
+                                          } else {
+                                            newSelected.delete(item.id);
+                                          }
 
-                                      {group.name}
+                                          setSelectedComponentIds(newSelected);
+                                        }}
+                                      />
 
+                                      <div className="text-sm font-medium truncate" title={group.name}>
+
+                                        {group.name}
+
+                                      </div>
                                     </div>
 
                                     <div className="text-sm">

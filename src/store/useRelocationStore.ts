@@ -5,6 +5,13 @@ import { useStore } from './useStore';
 import { useComponentsStore } from './useComponentsStore';
 import { useHardwareInventoryStore } from './useHardwareInventoryStore';
 import { auditLog } from '../lib/auditLog';
+import {
+  notifyRelocationCreated,
+  notifyRelocationApprovedByPM,
+  notifyRelocationRejectedByPM,
+  notifyRelocationApprovedByAdmin,
+  notifyRelocationRejectedByAdmin
+} from '../services/notification.service';
 
 interface RelocationState {
   // State
@@ -104,6 +111,62 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
       record_id: data.id,
       new_value: data
     });
+
+    // Notify PMs about new relocation request
+    try {
+      const { data: requesterProfile } = await supabase
+        .from('user_profiles')
+        .select('name')
+        .eq('id', request.requester_id || '')
+        .single();
+
+      // Get item name
+      let itemName = 'Unknown item';
+      if (request.relocation_type === 'INVENTORY' && request.inventory_id) {
+        const { data: inv } = await supabase
+          .from('hardware_inventory')
+          .select('name')
+          .eq('id', request.inventory_id)
+          .single();
+        itemName = inv?.name || 'Unknown item';
+      } else if (request.relocation_type === 'COMPONENT' && request.component_id) {
+        const { data: comp } = await supabase
+          .from('components')
+          .select('name')
+          .eq('id', request.component_id)
+          .single();
+        itemName = comp?.name || 'Unknown component';
+      }
+
+      // Get destination name
+      let destination = 'Unknown location';
+      if (request.destination_warehouse_id) {
+        const { data: wh } = await supabase
+          .from('warehouses')
+          .select('name')
+          .eq('id', request.destination_warehouse_id)
+          .single();
+        destination = wh?.name || 'Unknown warehouse';
+      }
+
+      console.log('[createRelocationRequest] Calling notifyRelocationCreated with:', {
+        request_number: data.request_number,
+        item_name: itemName,
+        destination: destination,
+        requester_name: requesterProfile?.name || 'Unknown',
+      });
+
+      notifyRelocationCreated({
+        request_number: data.request_number,
+        item_name: itemName,
+        destination: destination,
+        requester_name: requesterProfile?.name || 'Unknown',
+      });
+
+      console.log('[createRelocationRequest] Notification function called successfully');
+    } catch (notifError) {
+      console.error('[createRelocationRequest] Error in notification process:', notifError);
+    }
   },
 
   createBatchComponentRelocationRequests: async (data) => {
@@ -156,8 +219,8 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
         if (insertError.code === '23505') {
           console.log(`Duplicate request number detected, retrying... (attempt ${attempts + 1}/${maxAttempts})`);
           attempts++;
-          await new Promise(resolve => setTimeout(resolve, 200)); // Wait before retry
-          continue; // Retry with new request number
+          await new Promise(resolve => setTimeout(resolve, 200));
+          continue;
         }
         console.error('Error creating batch relocation requests:', insertError);
         throw insertError;
@@ -181,6 +244,52 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
         new_value: request
       });
     });
+
+    // Notify PMs about batch component relocation requests
+    try {
+      const { data: requesterProfile } = await supabase
+        .from('user_profiles')
+        .select('name')
+        .eq('id', requester_id || '')
+        .single();
+
+      // Get destination name
+      let destination = 'Unknown location';
+      if (destination_warehouse_id) {
+        const { data: wh } = await supabase
+          .from('warehouses')
+          .select('name')
+          .eq('id', destination_warehouse_id)
+          .single();
+        destination = wh?.name || 'Unknown warehouse';
+      } else if (destination_server_id) {
+        const { data: hw } = await supabase
+          .from('hardware_inventory')
+          .select('name')
+          .eq('id', destination_server_id)
+          .single();
+        destination = hw?.name || 'Unknown device';
+      }
+
+      // Send notification for each request
+      createdRequests?.forEach((request: any) => {
+        const component = components.find((c: any) => c.id === request.component_id);
+        const componentName = component?.name || 'Unknown component';
+
+        console.log('[createBatchComponentRelocationRequests] Calling notifyRelocationCreated for:', request.request_number);
+
+        notifyRelocationCreated({
+          request_number: request.request_number,
+          item_name: componentName,
+          destination: destination,
+          requester_name: requesterProfile?.name || 'Unknown',
+        });
+      });
+
+      console.log('[createBatchComponentRelocationRequests] Notifications sent successfully');
+    } catch (notifError) {
+      console.error('[createBatchComponentRelocationRequests] Error in notification process:', notifError);
+    }
   },
 
   // Update relocation request
@@ -253,6 +362,19 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             pm_comments: comments
           }
         });
+
+        // Notify Engineer and Admin about PM approval
+        const { data: pmProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        notifyRelocationApprovedByPM({
+          requester_id: updatedRequest.requester_id || '',
+          request_number: updatedRequest.request_number || '',
+          approved_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
+        });
       }
     } catch (error) {
       console.error('PM approval failed:', error);
@@ -306,6 +428,25 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           }
         });
       });
+
+      // Notify Engineer and Admin about batch PM approval
+      try {
+        const { data: pmProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        updatedRequests.forEach((request) => {
+          notifyRelocationApprovedByPM({
+            requester_id: request.requester_id || '',
+            request_number: request.request_number || '',
+            approved_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
+          });
+        });
+      } catch (notifError) {
+        console.error('[approveRelocationPMBatch] Error in notification process:', notifError);
+      }
     } catch (error) {
       console.error('Batch PM approval failed:', error);
       throw error;
@@ -358,6 +499,26 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           }
         });
       });
+
+      // Notify Engineer about batch PM rejection
+      try {
+        const { data: pmProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        updatedRequests.forEach((request) => {
+          notifyRelocationRejectedByPM({
+            requester_id: request.requester_id || '',
+            request_number: request.request_number || '',
+            rejected_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
+            comments: comments || '',
+          });
+        });
+      } catch (notifError) {
+        console.error('[rejectRelocationPMBatch] Error in notification process:', notifError);
+      }
     } catch (error) {
       console.error('Batch PM rejection failed:', error);
       throw error;
@@ -425,6 +586,20 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             pm_reviewed_by: currentUser?.id,
             pm_comments: comments
           }
+        });
+
+        // Notify Engineer about PM rejection
+        const { data: pmProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        notifyRelocationRejectedByPM({
+          requester_id: updatedRequest.requester_id || '',
+          request_number: updatedRequest.request_number || '',
+          rejected_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
+          comments: comments || '',
         });
       }
     } catch (error) {
@@ -534,6 +709,19 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             destination_warehouse_id: request.destination_warehouse_id
           }
         });
+
+        // Notify Engineer and PM about Admin approval
+        const { data: adminProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        notifyRelocationApprovedByAdmin({
+          requester_id: request?.requester_id || '',
+          request_number: request?.request_number || '',
+          approved_by_name: adminProfile?.name || currentUser?.name || 'Unknown',
+        });
       }
     } catch (error) {
       console.error('Admin approval failed:', error);
@@ -585,6 +773,24 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
       if (updateError) throw updateError;
 
       for (const request of requests) {
+        // Update hardware inventory location if it's an inventory relocation
+        if (request.relocation_type === 'INVENTORY' && request.inventory_id) {
+          const { error: inventoryError } = await supabase
+            .from('hardware_inventory')
+            .update({
+              region_id: request.destination_region_id,
+              warehouse_id: request.destination_warehouse_id,
+              updated_at: now
+            })
+            .eq('id', request.inventory_id);
+
+          if (inventoryError) {
+            console.error('Error updating hardware inventory location:', inventoryError);
+            throw inventoryError;
+          }
+        }
+
+        // Update component location if it's a component relocation
         if (request.relocation_type === 'COMPONENT' && request.component_id) {
           if (request.destination_server_id) {
             await useComponentsStore.getState().updateComponent(request.component_id, {
@@ -620,6 +826,25 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           }
         });
       });
+
+      // Notify Engineer and PM about batch Admin approval
+      try {
+        const { data: adminProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        updatedRequests.forEach((request) => {
+          notifyRelocationApprovedByAdmin({
+            requester_id: request.requester_id || '',
+            request_number: request.request_number || '',
+            approved_by_name: adminProfile?.name || currentUser?.name || 'Unknown',
+          });
+        });
+      } catch (notifError) {
+        console.error('[approveRelocationAdminBatch] Error in notification process:', notifError);
+      }
     } catch (error) {
       console.error('Batch admin approval failed:', error);
       throw error;
@@ -672,6 +897,26 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           }
         });
       });
+
+      // Notify Engineer and PM about batch Admin rejection
+      try {
+        const { data: adminProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        updatedRequests.forEach((request) => {
+          notifyRelocationRejectedByAdmin({
+            requester_id: request.requester_id || '',
+            request_number: request.request_number || '',
+            rejected_by_name: adminProfile?.name || currentUser?.name || 'Unknown',
+            comments: comments || '',
+          });
+        });
+      } catch (notifError) {
+        console.error('[rejectRelocationAdminBatch] Error in notification process:', notifError);
+      }
     } catch (error) {
       console.error('Batch admin rejection failed:', error);
       throw error;
@@ -738,6 +983,20 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             admin_reviewed_by: currentUser?.id,
             admin_comments: comments
           }
+        });
+
+        // Notify Engineer and PM about Admin rejection
+        const { data: adminProfile } = await supabase
+          .from('user_profiles')
+          .select('name')
+          .eq('id', currentUser?.id || '')
+          .single();
+
+        notifyRelocationRejectedByAdmin({
+          requester_id: updatedRequest?.requester_id || '',
+          request_number: updatedRequest?.request_number || '',
+          rejected_by_name: adminProfile?.name || currentUser?.name || 'Unknown',
+          comments: comments || '',
         });
       }
     } catch (error) {

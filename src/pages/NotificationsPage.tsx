@@ -179,6 +179,7 @@ function ComposePanel({ onSent }: { onSent: () => void }) {
               <SelectItem value="component">Component</SelectItem>
               <SelectItem value="user">User</SelectItem>
               <SelectItem value="low_stock">Low Stock</SelectItem>
+              <SelectItem value="relocation">Relocation</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -305,83 +306,24 @@ export function NotificationsPage() {
 
   const filtered = notifications.filter((n) => filter === 'all' || !n.is_read);
 
-  // ── Regular user view ──────────────────────────────────────────────────────
-  if (!isAdmin) {
-    return (
-      <div className="p-6 max-w-[900px] mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight">Notifications</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              {unreadCount > 0
-                ? <><span className="text-primary font-semibold">{unreadCount}</span> unread</>
-                : 'All caught up'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
-              <Button variant="outline" size="sm" onClick={markAllRead}>
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Mark all read
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={load} disabled={isLoading}>
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />Refresh
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex gap-1 rounded-lg border bg-muted p-0.5 w-fit text-xs">
-          {(['all', 'unread'] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-md font-medium capitalize transition-all ${
-                filter === f ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
-              }`}
-            >
-              {f === 'unread' ? `Unread (${unreadCount})` : `All (${notifications.length})`}
-            </button>
-          ))}
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <BellOff className="h-14 w-14 mb-4 opacity-15" />
-            <p className="text-lg font-semibold text-foreground">
-              {filter === 'unread' ? 'No unread notifications' : 'All caught up!'}
-            </p>
-            <p className="text-sm mt-1">
-              {filter === 'unread' ? 'Switch to "All" to see history.' : 'No notifications at this time.'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((n) => <NotificationCard key={n.id} notif={n} onRead={markRead} />)}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Admin view ─────────────────────────────────────────────────────────────
+  // ── Unified view for all users ─────────────────────────────────────────────────
   return (
     <div className="p-6 space-y-6 max-w-[1200px] mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Notification Center</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Manage and send notifications to users across all regions
+            {isAdmin ? 'Manage and send notifications to users across all regions' : 'View your notifications'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Link to Mail page */}
-          <Button variant="outline" size="sm" onClick={() => navigate('mail')}>
-            <Mail className="h-3.5 w-3.5 mr-1.5" />
-            Email Logs
-            <ArrowRight className="h-3 w-3 ml-1.5" />
-          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => navigate('mail')}>
+              <Mail className="h-3.5 w-3.5 mr-1.5" />
+              Email Logs
+              <ArrowRight className="h-3 w-3 ml-1.5" />
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={load} disabled={isLoading}>
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />Refresh
           </Button>
@@ -408,9 +350,9 @@ export function NotificationsPage() {
         ))}
       </div>
 
-      {/* Tabs: Inbox + Compose only */}
+      {/* Tabs: Inbox + Compose (Compose only for Admin) */}
       <Tabs value={adminTab} onValueChange={setAdminTab}>
-        <TabsList variant="line" className="w-full justify-start border-b rounded-none h-auto pb-0">
+        {/* <TabsList variant="line" className="w-full justify-start border-b rounded-none h-auto pb-0">
           <TabsTrigger value="inbox" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none pb-2">
             <Inbox className="h-3.5 w-3.5 mr-1.5" />Inbox
             {notifications.filter((n) => !n.is_read).length > 0 && (
@@ -419,10 +361,12 @@ export function NotificationsPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="compose" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none pb-2">
-            <Send className="h-3.5 w-3.5 mr-1.5" />Compose
-          </TabsTrigger>
-        </TabsList>
+          {isAdmin && (
+            <TabsTrigger value="compose" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none pb-2">
+              <Send className="h-3.5 w-3.5 mr-1.5" />Compose
+            </TabsTrigger>
+          )}
+        </TabsList> */}
 
         <TabsContent value="inbox" className="mt-4">
           <div className="space-y-4">
@@ -464,22 +408,24 @@ export function NotificationsPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="compose" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Send Notification</CardTitle>
-              <CardDescription>
-                Send in-app notifications and optional emails. To view email delivery logs, go to{' '}
-                <button onClick={() => navigate('mail')} className="underline text-primary font-medium hover:no-underline">
-                  Administration → Mail
-                </button>.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ComposePanel onSent={() => { load(); setAdminTab('inbox'); }} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="compose" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Send Notification</CardTitle>
+                <CardDescription>
+                  Send in-app notifications and optional emails. To view email delivery logs, go to{' '}
+                  <button onClick={() => navigate('mail')} className="underline text-primary font-medium hover:no-underline">
+                    Administration → Mail
+                  </button>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ComposePanel onSent={() => { load(); setAdminTab('inbox'); }} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

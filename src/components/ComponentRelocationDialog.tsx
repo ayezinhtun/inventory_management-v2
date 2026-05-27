@@ -44,11 +44,11 @@ export function ComponentRelocationDialog({
   const { components } = useComponentsStore();
   const { hardwareInventory } = useHardwareInventoryStore();
 
+  const [relocationType, setRelocationType] = useState<'WAREHOUSE' | 'HARDWARE'>('WAREHOUSE');
   const [formData, setFormData] = useState({
     destination_region_id: '',
     destination_warehouse_id: '',
     destination_server_id: '',
-    install_in_server: false,
     reason: '',
     urgency: 'Medium' as Urgency,
     notes: '',
@@ -71,29 +71,63 @@ export function ComponentRelocationDialog({
   );
 
   const handleSubmit = async () => {
-    if (!formData.destination_region_id || !formData.destination_warehouse_id || !formData.reason) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+    // Validate based on relocation type
+    if (relocationType === 'WAREHOUSE') {
+      if (!formData.destination_warehouse_id || !formData.reason) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
 
-    if (formData.install_in_server && !formData.destination_server_id) {
-      toast.error('Please select a server to install components into');
-      return;
+      // Check if components are already in the selected warehouse
+      const componentsInSameWarehouse = selectedComponents.filter(
+        c => c.warehouse_id === formData.destination_warehouse_id
+      );
+      if (componentsInSameWarehouse.length > 0) {
+        const componentNames = componentsInSameWarehouse.map(c => c.name).join(', ');
+        toast.error(`The following components are already in the selected warehouse: ${componentNames}`);
+        return;
+      }
+    } else {
+      if (!formData.destination_server_id || !formData.reason) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+
+      // Check if components are already installed in the selected hardware
+      const componentsInSameHardware = selectedComponents.filter(
+        c => c.installed_in_device_id === formData.destination_server_id
+      );
+      if (componentsInSameHardware.length > 0) {
+        const componentNames = componentsInSameHardware.map(c => c.name).join(', ');
+        toast.error(`The following components are already installed in the selected hardware: ${componentNames}`);
+        return;
+      }
     }
 
     setSubmitting(true);
 
     try {
-      await createBatchComponentRelocationRequests({
+      const requestData: any = {
         componentIds: selectedComponentIds,
-        destination_region_id: formData.destination_region_id,
-        destination_warehouse_id: formData.destination_warehouse_id,
-        destination_server_id: formData.install_in_server ? formData.destination_server_id : null,
         reason: formData.reason,
         urgency: formData.urgency,
         notes: formData.notes,
         requester_id: currentUser?.id || '',
-      });
+      };
+
+      if (relocationType === 'WAREHOUSE') {
+        requestData.destination_warehouse_id = formData.destination_warehouse_id;
+        const destinationWarehouse = warehouses.find(w => w.id === formData.destination_warehouse_id);
+        requestData.destination_region_id = destinationWarehouse?.region_id || '';
+        requestData.destination_server_id = null;
+      } else {
+        requestData.destination_server_id = formData.destination_server_id;
+        const destinationHardware = hardwareInventory.find(h => h.id === formData.destination_server_id);
+        requestData.destination_region_id = destinationHardware?.region_id || '';
+        requestData.destination_warehouse_id = destinationHardware?.warehouse_id || '';
+      }
+
+      await createBatchComponentRelocationRequests(requestData);
 
       toast.success(`Relocation request submitted for ${selectedComponentIds.length} components`);
       onSuccess();
@@ -102,11 +136,11 @@ export function ComponentRelocationDialog({
         destination_region_id: '',
         destination_warehouse_id: '',
         destination_server_id: '',
-        install_in_server: false,
         reason: '',
         urgency: 'Medium',
         notes: '',
       });
+      setRelocationType('WAREHOUSE');
     } catch (error) {
       console.error('Error submitting relocation request:', error);
       toast.error('Failed to submit relocation request');
@@ -136,91 +170,74 @@ export function ComponentRelocationDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Destination Region *</Label>
+            <Label>Relocation Type</Label>
             <Select
-              value={formData.destination_region_id}
+              value={relocationType}
               onValueChange={(value) => {
-                setFormData(prev => ({ 
-                  ...prev, 
-                  destination_region_id: value, 
+                setRelocationType(value as 'WAREHOUSE' | 'HARDWARE');
+                setFormData(prev => ({
+                  ...prev,
+                  destination_region_id: '',
                   destination_warehouse_id: '',
-                  destination_server_id: '' 
+                  destination_server_id: '',
                 }));
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select destination region" />
+                <SelectValue placeholder="Select relocation type" />
               </SelectTrigger>
               <SelectContent>
-                {regions.map((region) => (
-                  <SelectItem key={region.id} value={region.id}>
-                    {region.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="WAREHOUSE">Warehouse</SelectItem>
+                <SelectItem value="HARDWARE">Hardware Inventory</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Destination Warehouse *</Label>
-            <Select
-              value={formData.destination_warehouse_id}
-              onValueChange={(value) => {
-                setFormData(prev => ({ 
-                  ...prev, 
-                  destination_warehouse_id: value, 
-                  destination_server_id: '' 
-                }));
-              }}
-              disabled={!formData.destination_region_id}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select destination warehouse" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredWarehouses.map((warehouse) => (
-                  <SelectItem key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="install-in-server"
-              checked={formData.install_in_server}
-              onChange={(e) => {
-                setFormData(prev => ({ 
-                  ...prev, 
-                  install_in_server: e.target.checked,
-                  destination_server_id: ''
-                }));
-              }}
-              className="w-4 h-4"
-            />
-            <Label htmlFor="install-in-server" className="cursor-pointer">
-              Install components in hardware inventory (server/device)
-            </Label>
-          </div>
-
-          {formData.install_in_server && (
+          {relocationType === 'WAREHOUSE' ? (
             <div className="space-y-2">
-              <Label>Destination Server *</Label>
+              <Label>Destination Warehouse *</Label>
+              <Select
+                value={formData.destination_warehouse_id}
+                onValueChange={(value) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    destination_warehouse_id: value,
+                    destination_server_id: ''
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  {formData.destination_warehouse_id
+                    ? warehouses.find((w) => w.id === formData.destination_warehouse_id)
+                      ?.name || "Select warehouse"
+                    : "Select warehouse"}
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((warehouse) => (
+                    <SelectItem key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name} ({regions.find(r => r.id === warehouse.region_id)?.name})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Destination Hardware *</Label>
               <Select
                 value={formData.destination_server_id}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, destination_server_id: value }))}
-                disabled={!formData.destination_warehouse_id}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select destination server" />
+                  {formData.destination_server_id
+                    ? hardwareInventory.find((h) => h.id === formData.destination_server_id)
+                      ?.name || "Select hardware"
+                    : "Select hardware"}
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredServers.map((server) => (
-                    <SelectItem key={server.id} value={server.id}>
-                      {server.name} ({server.serial_number})
+                  {hardwareInventory.map((hardware) => (
+                    <SelectItem key={hardware.id} value={hardware.id}>
+                      {hardware.name} ({hardware.item_type})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -272,7 +289,7 @@ export function ComponentRelocationDialog({
               Cancel
             </Button>
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? 'Submitting...' : `Submit Request (${selectedComponentIds.length} components)`}
+              {submitting ? 'Submitting...' : `Relocate`}
             </Button>
           </div>
         </div>

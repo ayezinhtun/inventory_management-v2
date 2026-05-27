@@ -259,7 +259,9 @@ export function RelocationRequestsPage({
       });
       if (group) {
         // Only approve requests with "Pending PM Approval" status
-        const pendingRequests = group.requests.filter((r: any) => r.status === "Pending PM Approval");
+        const pendingRequests = group.requests.filter(
+          (r: any) => r.status === "Pending PM Approval",
+        );
         if (pendingRequests.length === 0) {
           toast.error("No pending PM approval requests in this batch");
           return;
@@ -287,7 +289,9 @@ export function RelocationRequestsPage({
       });
       if (group) {
         // Only reject requests with "Pending PM Approval" status
-        const pendingRequests = group.requests.filter((r: any) => r.status === "Pending PM Approval");
+        const pendingRequests = group.requests.filter(
+          (r: any) => r.status === "Pending PM Approval",
+        );
         if (pendingRequests.length === 0) {
           toast.error("No pending PM approval requests in this batch");
           return;
@@ -465,11 +469,24 @@ export function RelocationRequestsPage({
 
     // PM
     if (pmView) {
-      if (req.status === "Approved" || req.status === "Rejected by Admin" || req.status === "Pending Admin Approval")
+      if (
+        req.status === "Approved" ||
+        req.status === "Rejected by Admin" ||
+        req.status === "Pending Admin Approval"
+      )
         return req.admin_comments;
     }
 
     return "-";
+  };
+
+  const getBatchStatus = (requests: any[]) => {
+    const statuses = requests.map((r) => r.status);
+    const uniqueStatuses = new Set(statuses);
+    if (uniqueStatuses.size === 1) {
+      return statuses[0];
+    }
+    return "Mixed";
   };
 
   // Check if any request has comments
@@ -498,15 +515,9 @@ export function RelocationRequestsPage({
 
       {/* Batch Section for PM View - Shows all statuses */}
       {pmView && groupedPMRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              All Requests (Batch)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+        <Card className="border border-0 p-0 m-0">
+          <CardContent className="p-0 m-0">
+            <div className="space-y-2">
               {groupedPMRequests.map((group) => {
                 const timeWindow = Math.floor(
                   new Date(group.requests[0].created_at).getTime() / 60000,
@@ -514,7 +525,7 @@ export function RelocationRequestsPage({
                 const groupKey = `${group.destination_region_id}-${group.destination_warehouse_id}-${group.destination_server_id || "none"}-${timeWindow}`;
                 const isExpanded = expandedBatches.has(groupKey);
                 return (
-                  <div key={groupKey} className="border rounded-lg">
+                  <div key={groupKey} className="border rounded-md">
                     <div
                       className="p-4 cursor-pointer hover:bg-muted/50"
                       onClick={() => toggleBatchExpand(groupKey)}
@@ -533,14 +544,19 @@ export function RelocationRequestsPage({
                             )}
                           </Button>
                           <div>
-                            <p className="font-medium">Batch Request</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="font-medium">Relocation Request</p>
+                            {/* <p className="text-sm text-muted-foreground">
                               {group.requests.length}{" "}
                               {group.relocation_type.toLowerCase()}(s)
-                            </p>
+                            </p> */}
                           </div>
                         </div>
-                        <Badge variant="outline">{group.urgency}</Badge>
+                        <Badge
+                          className={getStatusColor(getBatchStatus(group.requests))}
+                          variant="outline"
+                        >
+                          {getBatchStatus(group.requests)}
+                        </Badge>
                       </div>
                     </div>
 
@@ -548,9 +564,9 @@ export function RelocationRequestsPage({
                       <div className="border-t p-4 space-y-4">
                         {/* Individual requests list with table-like UI */}
                         <div className="space-y-2">
-                          <p className="font-medium text-sm">
+                          {/* <p className="font-medium text-sm">
                             Individual Requests
-                          </p>
+                          </p> */}
                           <div className="border rounded overflow-x-auto">
                             <div className="grid grid-cols-5 gap-2 p-2 bg-muted text-xs font-medium text-muted-foreground min-w-[800px]">
                               <div>Request #</div>
@@ -567,9 +583,7 @@ export function RelocationRequestsPage({
                                 <div className="font-medium">
                                   {req.request_number}
                                 </div>
-                                <div>
-                                  {getItemName(req)}
-                                </div>
+                                <div>{getItemName(req)}</div>
                                 <div>
                                   <div>
                                     <span className="text-muted-foreground">
@@ -592,9 +606,7 @@ export function RelocationRequestsPage({
                                     )}
                                   </div>
                                 </div>
-                                <div>
-                                  {getUserName(req.requester_id)}
-                                </div>
+                                <div>{getUserName(req.requester_id)}</div>
                                 {/* <div className="col-span-1">
                                   <Badge
                                     className={getUrgencyColor(req.urgency)}
@@ -615,8 +627,8 @@ export function RelocationRequestsPage({
                             ))}
                           </div>
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
+
+                        <div className="grid grid-cols-3 gap-4">
                           <div>
                             <p className="font-medium">Type</p>
                             <Badge variant="outline">
@@ -632,44 +644,50 @@ export function RelocationRequestsPage({
                             <p className="text-sm">{group.reason}</p>
                           </div>
                         </div>
+                        {group.requests.some(
+                          (r: any) => r.status === "Pending PM Approval",
+                        ) && (
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium">
+                                PM Comments
+                              </label>
+                              <Textarea
+                                value={batchComments[groupKey] || ""}
+                                onChange={(e) =>
+                                  setBatchComments((prev) => ({
+                                    ...prev,
+                                    [groupKey]: e.target.value,
+                                  }))
+                                }
+                                placeholder="Add comments for your decision..."
+                                rows={2}
+                              />
+                            </div>
+                          )}
 
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">
-                            PM Comments
-                          </label>
-                          <Textarea
-                            value={batchComments[groupKey] || ""}
-                            onChange={(e) =>
-                              setBatchComments((prev) => ({
-                                ...prev,
-                                [groupKey]: e.target.value,
-                              }))
-                            }
-                            placeholder="Add comments for your decision..."
-                            rows={2}
-                          />
-                        </div>
 
                         <div className="flex gap-2">
-                          {group.requests.some((r: any) => r.status === "Pending PM Approval") && (
-                            <>
-                              <Button
-                                onClick={() => handlePMApproveBatch(groupKey)}
-                                className="flex items-center gap-2"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                Approve Batch
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                onClick={() => handlePMRejectBatch(groupKey)}
-                                className="flex items-center gap-2"
-                              >
-                                <XCircle className="h-4 w-4" />
-                                Reject Batch
-                              </Button>
-                            </>
-                          )}
+                          {group.requests.some(
+                            (r: any) => r.status === "Pending PM Approval",
+                          ) && (
+                              <>
+                                <Button
+                                  onClick={() => handlePMApproveBatch(groupKey)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => handlePMRejectBatch(groupKey)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                  Reject
+                                </Button>
+                              </>
+                            )}
                         </div>
                       </div>
                     )}
@@ -683,15 +701,9 @@ export function RelocationRequestsPage({
 
       {/* Engineer View - Batch format without approve/reject buttons */}
       {engineerView && groupedEngineerRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              My Requests (Batch)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+        <Card className="border border-0 p-0 m-0">
+          <CardContent className="p-0 m-0">
+            <div className="space-y-2">
               {groupedEngineerRequests.map((group) => {
                 const timeWindow = Math.floor(
                   new Date(group.requests[0].created_at).getTime() / 60000,
@@ -718,14 +730,19 @@ export function RelocationRequestsPage({
                             )}
                           </Button>
                           <div>
-                            <p className="font-medium">Batch Request</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="font-medium">Relocation Request</p>
+                            {/* <p className="text-sm text-muted-foreground">
                               {group.requests.length}{" "}
                               {group.relocation_type.toLowerCase()}(s)
-                            </p>
+                            </p> */}
                           </div>
                         </div>
-                        <Badge variant="outline">{group.urgency}</Badge>
+                        <Badge
+                          className={getStatusColor(getBatchStatus(group.requests))}
+                          variant="outline"
+                        >
+                          {getBatchStatus(group.requests)}
+                        </Badge>
                       </div>
                     </div>
 
@@ -752,9 +769,7 @@ export function RelocationRequestsPage({
                                 <div className="font-medium">
                                   {req.request_number}
                                 </div>
-                                <div>
-                                  {getItemName(req)}
-                                </div>
+                                <div>{getItemName(req)}</div>
                                 <div>
                                   <div>
                                     <span className="text-muted-foreground">
@@ -785,15 +800,13 @@ export function RelocationRequestsPage({
                                     {req.status}
                                   </Badge>
                                 </div>
-                                <div className="text-sm">
-                                  {getComment(req)}
-                                </div>
+                                <div className="text-sm">{getComment(req)}</div>
                               </div>
                             ))}
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                           <div>
                             <p className="font-medium">Type</p>
                             <Badge variant="outline">
@@ -1026,7 +1039,7 @@ export function RelocationRequestsPage({
                           (i) =>
                             !i.is_deleted &&
                             i.warehouse_id ===
-                              formData.destination_warehouse_id,
+                            formData.destination_warehouse_id,
                         )
                         .map((i) => (
                           <SelectItem key={i.id} value={i.id}>

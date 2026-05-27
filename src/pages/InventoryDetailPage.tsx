@@ -5,6 +5,7 @@ import { useComponentsStore } from "../store/useComponentsStore";
 import { useReservationsStore } from "../store/useReservationStore";
 import { useRelocationStore } from "../store/useRelocationStore";
 import { RelocationRequestDialog } from "../components/RelocationRequestDialog";
+import { ComponentRelocationDialog } from "../components/ComponentRelocationDialog";
 import {
   Card,
   CardContent,
@@ -61,7 +62,9 @@ import {
   Bookmark,
   History,
   ArrowRight,
+  Check,
 } from "lucide-react";
+import { Checkbox } from "../components/ui/Checkbox";
 import { formatDate, formatCurrency, getStatusColor } from "../lib/utils";
 import { toast } from "sonner";
 export function InventoryDetailPage() {
@@ -69,7 +72,7 @@ export function InventoryDetailPage() {
     useHardwareInventoryStore();
   const { components } = useComponentsStore();
   const { createReservation } = useReservationsStore();
-  const { relocationRequests, fetchRelocationRequests } = useRelocationStore();
+  const { relocationRequests, fetchRelocationRequests, createBatchComponentRelocationRequests } = useRelocationStore();
   const {
     auditLogs,
     selectedId,
@@ -79,6 +82,8 @@ export function InventoryDetailPage() {
     getWarehouseName,
     getComponentTypeName,
     getUserName,
+    regions,
+    getWarehousesByRegion,
   } = useStore();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
@@ -86,6 +91,10 @@ export function InventoryDetailPage() {
   const [isReserveDialogOpen, setIsReserveDialogOpen] = useState(false);
   const [reserveNote, setReserveNote] = useState("");
   const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<any>(null);
+
+  // Multi-select for batch component relocation
+  const [selectedComponentIds, setSelectedComponentIds] = useState<Set<string>>(new Set());
+  const [isBatchRelocationDialogOpen, setIsBatchRelocationDialogOpen] = useState(false);
 
   // Fetch hardware inventory data on component mount
   useEffect(() => {
@@ -233,6 +242,11 @@ export function InventoryDetailPage() {
       toast.error("Failed to reserve inventory");
     }
   };
+
+  const handleBatchRelocationSuccess = () => {
+    setSelectedComponentIds(new Set());
+    fetchRelocationRequests();
+  };
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -263,46 +277,46 @@ export function InventoryDetailPage() {
 
         {(currentUser?.role === "Admin" ||
           currentUser?.role === "Engineer") && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate("inventory-add", effectiveSelectedId)}
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => navigate("inventory-add", effectiveSelectedId)}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
 
-            <AlertDialog
-              open={isDeleteDialogOpen}
-              onOpenChange={setIsDeleteDialogOpen}
-            >
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete
-                    the inventory item and remove its data from our servers.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    className="bg-destructive text-white hover:bg-destructive/90"
-                  >
+              <AlertDialog
+                open={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+              >
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
                     Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete
+                      the inventory item and remove its data from our servers.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -506,23 +520,42 @@ export function InventoryDetailPage() {
                   Hardware components currently installed in this device
                 </CardDescription>
               </div>
-              {/* {(currentUser?.role === "Admin" ||
+              {(currentUser?.role === "Admin" ||
                 currentUser?.role === "Engineer") && (
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    toast.info("Install component feature coming soon")
-                  }
-                >
-                  Install Component
-                </Button>
-              )} */}
+                  <>
+                    {selectedComponentIds.size > 0 && (
+                      <div>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsBatchRelocationDialogOpen(true)}
+                        >
+                          <Package className="h-4 w-4 mr-2" />
+                          Relocate ({selectedComponentIds.size})
+
+                        </Button>
+                      </div>
+
+                    )}
+                  </>
+                )}
             </CardHeader>
             <CardContent>
               {installedComponents.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedComponentIds.size === installedComponents.length && installedComponents.length > 0}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedComponentIds(new Set(installedComponents.map(c => c.id)));
+                            } else {
+                              setSelectedComponentIds(new Set());
+                            }
+                          }}
+                        />
+                      </TableHead>
                       <TableHead>Component</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Manufacturer</TableHead>
@@ -535,6 +568,20 @@ export function InventoryDetailPage() {
                   <TableBody>
                     {installedComponents.map((comp) => (
                       <TableRow key={comp.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedComponentIds.has(comp.id)}
+                            onCheckedChange={(checked) => {
+                              const newSelected = new Set(selectedComponentIds);
+                              if (checked) {
+                                newSelected.add(comp.id);
+                              } else {
+                                newSelected.delete(comp.id);
+                              }
+                              setSelectedComponentIds(newSelected);
+                            }}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">
                           {comp.name}
                         </TableCell>
@@ -640,9 +687,9 @@ export function InventoryDetailPage() {
 
                         const statusColor = req.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : req.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : req.status.includes('Rejected') ? 'bg-red-50 text-red-700 border-red-200'
-                          : req.status.includes('Pending') ? 'bg-amber-50 text-amber-700 border-amber-200'
-                          : 'bg-gray-50 text-gray-700 border-gray-200';
+                            : req.status.includes('Rejected') ? 'bg-red-50 text-red-700 border-red-200'
+                              : req.status.includes('Pending') ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-gray-50 text-gray-700 border-gray-200';
 
                         return (
                           <tr
@@ -846,6 +893,14 @@ export function InventoryDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Batch Component Relocation Dialog */}
+      <ComponentRelocationDialog
+        open={isBatchRelocationDialogOpen}
+        onOpenChange={setIsBatchRelocationDialogOpen}
+        selectedComponentIds={Array.from(selectedComponentIds)}
+        onSuccess={handleBatchRelocationSuccess}
+      />
     </div>
   );
 }

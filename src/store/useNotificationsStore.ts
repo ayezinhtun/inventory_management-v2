@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type NotificationType = 'info' | 'warning' | 'alert' | 'success';
-export type NotificationCategory = 'system' | 'inventory' | 'component' | 'user' | 'email' | 'low_stock';
+export type NotificationCategory = 'system' | 'inventory' | 'component' | 'user' | 'email' | 'low_stock' | 'relocation';
 export type EmailStatus = 'pending' | 'sent' | 'failed';
 
 export interface AppNotification {
@@ -75,38 +75,38 @@ export interface SendNotificationParams {
 }
 
 interface NotificationsState {
-  notifications:   AppNotification[];
-  emailLogs:       EmailLog[];
-  templates:       NotificationTemplate[];
-  unreadCount:     number;
-  isLoading:       boolean;
-  isEmailLoading:  boolean;
-  lastUpdated:     Date | null;
+  notifications: AppNotification[];
+  emailLogs: EmailLog[];
+  templates: NotificationTemplate[];
+  unreadCount: number;
+  isLoading: boolean;
+  isEmailLoading: boolean;
+  lastUpdated: Date | null;
 
   // User actions
-  fetchNotifications:     () => Promise<void>;
-  markRead:               (id: string) => Promise<void>;
-  markAllRead:            () => Promise<void>;
-  subscribeToRealtime:    () => () => void;
+  fetchNotifications: () => Promise<void>;
+  markRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
+  subscribeToRealtime: () => () => void;
 
   // Admin actions
-  fetchAllNotifications:  () => Promise<void>;
-  fetchEmailLogs:         () => Promise<void>;
-  fetchTemplates:         () => Promise<void>;
-  sendNotification:       (params: SendNotificationParams) => Promise<void>;
-  updateTemplate:         (id: string, updates: Partial<NotificationTemplate>) => Promise<void>;
+  fetchAllNotifications: () => Promise<void>;
+  fetchEmailLogs: () => Promise<void>;
+  fetchTemplates: () => Promise<void>;
+  sendNotification: (params: SendNotificationParams) => Promise<void>;
+  updateTemplate: (id: string, updates: Partial<NotificationTemplate>) => Promise<void>;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
-  notifications:  [],
-  emailLogs:      [],
-  templates:      [],
-  unreadCount:    0,
-  isLoading:      false,
+  notifications: [],
+  emailLogs: [],
+  templates: [],
+  unreadCount: 0,
+  isLoading: false,
   isEmailLoading: false,
-  lastUpdated:    null,
+  lastUpdated: null,
 
   // ── fetchNotifications ─────────────────────────────────────────────────────
   fetchNotifications: async () => {
@@ -182,7 +182,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   subscribeToRealtime: () => {
     const setupAsync = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return () => {};
+      if (!session?.user) return () => { };
 
       const channel = supabase
         .channel(`notifications-${session.user.id}`)
@@ -216,9 +216,18 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   fetchAllNotifications: async () => {
     set({ isLoading: true });
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
+      if (!userId) {
+        set({ isLoading: false });
+        return;
+      }
+
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -317,13 +326,13 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
     // Insert notification rows
     const rows = targetUserIds.map((uid) => ({
-      user_id:      uid,
-      title:        params.title,
-      message:      params.message,
-      type:         params.type     ?? 'info',
-      category:     params.category ?? 'system',
-      region_id:    params.region_id ?? null,
-      sender_id:    session.user.id,
+      user_id: uid,
+      title: params.title,
+      message: params.message,
+      type: params.type ?? 'info',
+      category: params.category ?? 'system',
+      region_id: params.region_id ?? null,
+      sender_id: session.user.id,
     }));
 
     const { data: inserted, error: insertErr } = await supabase
@@ -344,12 +353,12 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         try {
           await supabase.functions.invoke('send-notification', {
             body: {
-              to:              u.email,
-              subject:         params.email_subject,
-              html:            params.email_html,
-              to_user_id:      u.user_id,
+              to: u.email,
+              subject: params.email_subject,
+              html: params.email_html,
+              to_user_id: u.user_id,
               notification_id: notifId,
-              region_id:       params.region_id ?? null,
+              region_id: params.region_id ?? null,
             },
           });
         } catch {
@@ -376,3 +385,4 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     }));
   },
 }));
+

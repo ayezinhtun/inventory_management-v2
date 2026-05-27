@@ -74,6 +74,15 @@ export function AdminRelocationPage() {
     return warehouses;
   };
 
+  const getBatchStatus = (requests: any[]) => {
+    const statuses = requests.map((r) => r.status);
+    const uniqueStatuses = new Set(statuses);
+    if (uniqueStatuses.size === 1) {
+      return statuses[0];
+    }
+    return "Mixed";
+  };
+
   // Group by time window and destination for batch display
   const groupedRequests = useMemo(() => {
     const groups = new Map();
@@ -164,24 +173,18 @@ export function AdminRelocationPage() {
         <p className="text-muted-foreground">Review and complete relocation requests</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5" />
-            All Requests
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className='border border-0 p-0 m-0'>
+        <CardContent className='p-0 m-0'>
           {groupedRequests.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No pending requests</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {groupedRequests.map((group) => {
                 const timeWindow = Math.floor(new Date(group.requests[0].created_at).getTime() / 60000);
                 const groupKey = `${group.destination_region_id}-${group.destination_warehouse_id}-${group.destination_server_id || 'none'}-${timeWindow}`;
                 const isExpanded = expandedBatches.has(groupKey);
                 return (
-                  <div key={groupKey} className="border rounded-lg">
+                  <div key={groupKey} className="border rounded-md">
                     <div className="p-4 cursor-pointer hover:bg-muted/50" onClick={() => toggleBatchExpand(groupKey)}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -189,13 +192,15 @@ export function AdminRelocationPage() {
                             {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                           </Button>
                           <div>
-                            <p className="font-medium">Batch Request</p>
-                            <p className="text-sm text-muted-foreground">
-                              {group.requests.length} {group.relocation_type.toLowerCase()}(s)
-                            </p>
+                            <p className="font-medium">Relocation Request</p>
                           </div>
                         </div>
-                        <Badge variant="outline">{group.urgency}</Badge>
+                        <Badge
+                          className={getStatusColor(getBatchStatus(group.requests))}
+                          variant="outline"
+                        >
+                          {getBatchStatus(group.requests)}
+                        </Badge>
                       </div>
                     </div>
 
@@ -280,15 +285,18 @@ export function AdminRelocationPage() {
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Admin Comments</label>
-                          <Textarea
-                            value={comments[groupKey] || ''}
-                            onChange={(e) => setComments(prev => ({ ...prev, [groupKey]: e.target.value }))}
-                            placeholder="Add comments for your decision..."
-                            rows={2}
-                          />
-                        </div>
+                        {group.requests.some((r: any) => r.status === 'Pending Admin Approval') && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Admin Comments</label>
+                            <Textarea
+                              value={comments[groupKey] || ''}
+                              onChange={(e) => setComments(prev => ({ ...prev, [groupKey]: e.target.value }))}
+                              placeholder="Add comments for your decision..."
+                              rows={2}
+                            />
+                          </div>
+                        )}
+
 
                         <div className="flex gap-2">
                           {group.requests.some((r: any) => r.status === 'Pending Admin Approval') && (
@@ -298,7 +306,7 @@ export function AdminRelocationPage() {
                                 className="flex items-center gap-2"
                               >
                                 <CheckCircle className="h-4 w-4" />
-                                Approve Batch
+                                Approve
                               </Button>
                               <Button
                                 variant="destructive"
@@ -306,7 +314,7 @@ export function AdminRelocationPage() {
                                 className="flex items-center gap-2"
                               >
                                 <XCircle className="h-4 w-4" />
-                                Reject Batch
+                                Reject
                               </Button>
                             </>
                           )}

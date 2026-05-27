@@ -1,6 +1,7 @@
 import React from "react";
 import { useStore, Page } from "../../store/useStore";
 import { useAuthStore } from "../../store/useAuthStore";
+import { useRelocationStore } from "../../store/useRelocationStore";
 import logo from '../../assets/image/logo.png';
 import {
   Sidebar,
@@ -58,9 +59,19 @@ export function AppSidebar() {
     getUnreadNotificationCount,
   } = useStore();
   const { logout } = useAuthStore();
+  const { relocationRequests } = useRelocationStore();
+
   if (!currentUser) return null;
   const role = currentUser.role;
   const unreadCount = getUnreadNotificationCount();
+
+  // Calculate pending counts for relocation requests
+  const pendingPMCount = relocationRequests.filter(
+    (r) => r.status === "Pending PM Approval"
+  ).length;
+  const pendingAdminCount = relocationRequests.filter(
+    (r) => r.status === "Pending Admin Approval"
+  ).length;
   // Define navigation structure based on roles
   const navGroups = [
     {
@@ -72,13 +83,13 @@ export function AppSidebar() {
           icon: LayoutDashboard,
           roles: ["Admin", "PM", "Engineer"],
         },
-        {
-          id: "notifications-page",
-          label: "Notifications",
-          icon: Bell,
-          roles: ["Admin", "PM", "Engineer"],
-          badge: unreadCount > 0 ? unreadCount : undefined,
-        },
+        // {
+        //   id: "notifications-page",
+        //   label: "Notifications",
+        //   icon: Bell,
+        //   roles: ["Admin", "PM", "Engineer"],
+        //   badge: unreadCount > 0 ? unreadCount : undefined,
+        // },
       ],
     },
     {
@@ -152,12 +163,14 @@ export function AppSidebar() {
           label: "Relocation Approvals",
           icon: ClipboardList,
           roles: ["PM"],
+          badge: pendingPMCount > 0 ? pendingPMCount : undefined,
         },
         {
           id: "relocation-admin",
           label: "Relocation Approvals",
           icon: ClipboardList,
           roles: ["Admin"],
+          badge: pendingAdminCount > 0 ? pendingAdminCount : undefined,
         },
       ],
     },
