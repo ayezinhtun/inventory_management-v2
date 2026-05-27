@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { auditLog } from '../lib/auditLog';
+import { useAuthStore } from './useAuthStore';
 
 export interface UserRecord {
   id: string;
@@ -99,7 +100,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
     if (error) throw error;
     auditLog({ action: 'UPDATE', module: 'User Management', record_id: userId, old_value: existing ? { name: existing.name, role: existing.role, status: existing.status } : null, new_value: updates as Record<string, unknown> });
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = useAuthStore.getState().session;
     if (session) {
       (async () => {
         await supabase.from('user_activity_logs').insert({
@@ -117,11 +118,13 @@ export const useUsersStore = create<UsersState>((set, get) => ({
   },
 
   createUser: async (data) => {
-    // Get the current user's session token
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
+    console.log('[useUsersStore] createUser called with data:', data);
+    // Get the current user's session token from auth store (cached, much faster than getSession)
+    const session = useAuthStore.getState().session;
+    const token = session?.access_token;
+    console.log('[useUsersStore] Got session token from auth store:', token ? 'token exists' : 'no token');
 
-    console.log('Creating user with data:', data);
+    console.log('[useUsersStore] About to call edge function');
 
     // Use regular fetch instead of supabase.functions.invoke
     // This lets us control the headers (no automatic Authorization header)
@@ -142,9 +145,13 @@ export const useUsersStore = create<UsersState>((set, get) => ({
       }
     );
 
+    console.log('[useUsersStore] Edge function response received, status:', response.status);
+
     const result = await response.json();
+    console.log('[useUsersStore] Response parsed:', result);
 
     if (!response.ok) {
+      console.error('[useUsersStore] Edge function returned error:', result);
       throw new Error(result.error || 'Failed to create user');
     }
 
@@ -175,9 +182,9 @@ export const useUsersStore = create<UsersState>((set, get) => ({
   deleteUser: async (userId) => {
     const existing = get().users.find((u) => u.user_id === userId);
 
-    // Get token
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
+    // Get token from auth store (cached, much faster than getSession)
+    const session = useAuthStore.getState().session;
+    const token = session?.access_token;
 
     // Use fetch instead of supabase.functions.invoke
     const response = await fetch(

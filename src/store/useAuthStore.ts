@@ -497,8 +497,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await supabase.from("user_profiles")
           .update({ force_password_change: false, updated_at: new Date().toISOString() })
           .eq("user_id", profile.user_id);
-        const fresh = await get().fetchProfile();
-        await syncToAppStore(fresh, get().isPasswordRecovery);
+        await get().fetchProfile();
       }
 
       await writeAuditLog(profile.user_id, "UPDATE", "Settings — Password", profile.user_id, null, { changed: true });

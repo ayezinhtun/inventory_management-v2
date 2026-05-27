@@ -199,12 +199,15 @@ export function UsersPage() {
 
   // ── Create handler ────────────────────────────────────────────────────────
   async function handleCreate() {
+    console.log('[UsersPage] handleCreate called');
     if (!createForm.name.trim() || !createForm.email.trim()) {
       toast.error('Name and email are required');
       return;
     }
+    console.log('[UsersPage] Validation passed, setting loading to true');
     setCreateLoading(true);
     try {
+      console.log('[UsersPage] About to call createUser with data:', createForm);
       const generatedPwd = await createUser({
         name: createForm.name.trim(),
         email: createForm.email.trim(),
@@ -212,13 +215,15 @@ export function UsersPage() {
         region_ids: createForm.region_ids,  // Now an array
         warehouse_ids: createForm.warehouse_ids,  // Now an array
       });
+      console.log('[UsersPage] createUser returned successfully');
       setCreatedPassword(generatedPwd);
       setCreateForm({ name: '', email: '', role: 'Engineer', region_ids: [], warehouse_ids: [] });
     } catch (err: any) {
-      console.error('Create failed:', err);
+      console.error('[UsersPage] Create failed:', err);
       toast.error(err?.message || 'Failed to create user');
       setCreateLoading(false);
     } finally {
+      console.log('[UsersPage] handleCreate finally block, setting loading to false');
       setCreateLoading(false);
     }
   }
