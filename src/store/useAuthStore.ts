@@ -494,10 +494,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Clear force_password_change if it was set (admin-created or admin-reset account)
       if (profile.force_password_change) {
-        await supabase.from("user_profiles")
-          .update({ force_password_change: false, updated_at: new Date().toISOString() })
-          .eq("user_id", profile.user_id);
-        await get().fetchProfile();
+        // Update local profile state first to prevent realtime listener from triggering syncToAppStore
+        set({ profile: { ...profile, force_password_change: false, updated_at: new Date().toISOString() } });
+        // Then update DB (fire-and-forget, don't wait)
+        (async () => {
+          try {
+            await supabase.from("user_profiles")
+              .update({ force_password_change: false, updated_at: new Date().toISOString() })
+              .eq("user_id", profile.user_id);
+          } catch (err) {
+            console.error('Failed to clear force_password_change:', err);
+          }
+        })();
       }
 
       await writeAuditLog(profile.user_id, "UPDATE", "Settings — Password", profile.user_id, null, { changed: true });
