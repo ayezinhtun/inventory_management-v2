@@ -135,7 +135,7 @@ async function syncToAppStore(profile: UserProfile | null, isPasswordRecovery: b
     useStore.setState({
       isAuthenticated: true,
       currentUser: {
-        id: profile.id,
+        id: profile.user_id,
         username: profile.username || profile.email,
         email: profile.email,
         password_hash: "",

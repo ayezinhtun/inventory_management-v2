@@ -148,7 +148,26 @@ export const useUsersStore = create<UsersState>((set, get) => ({
       throw new Error(result.error || 'Failed to create user');
     }
 
-    await get().fetchUsers();
+    // Add new user to local state instead of refetching all users
+    if (result.user_id) {
+      const newUser: UserRecord = {
+        id: result.user_id,
+        user_id: result.user_id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        assigned_region_ids: data.region_ids || [],
+        assigned_warehouse_ids: data.warehouse_ids || [],
+        status: 'active',
+        force_password_change: true,
+        last_seen_at: null,
+        last_login_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      set((s) => ({ users: [newUser, ...s.users] }));
+    }
+
     auditLog({ action: 'CREATE', module: 'User Management', record_id: result.user_id ?? null, new_value: { name: data.name, email: data.email, role: data.role } });
     return result.password as string;
   },

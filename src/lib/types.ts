@@ -163,7 +163,7 @@ export interface ComponentType {
   description: string;
   requires_specification: boolean;
   is_active: boolean;
-  created_by: string;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   fields: FormField[];

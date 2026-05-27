@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { useComponentsStore } from '../store/useComponentsStore';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -82,7 +83,8 @@ const INITIAL_FORM = {
 };
 
 export function TypeManagementPage() {
-  const { componentTypes, components, currentUser, addComponentType, updateComponentType, deleteComponentType } = useStore();
+  const { componentTypes, currentUser, addComponentType, updateComponentType, deleteComponentType } = useStore();
+  const { components } = useComponentsStore();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -154,21 +156,32 @@ export function TypeManagementPage() {
       updateComponentType(editingType.id, payload);
       toast.success('Component type updated');
     } else {
-      addComponentType({ ...payload, created_by: currentUser!.id });
-      toast.success('Component type created');
+      try {
+        console.log('Creating component type with user ID:', currentUser?.id);
+        await addComponentType({ ...payload, created_by: currentUser?.id ?? null });
+        toast.success('Component type created');
+      } catch (error) {
+        console.error('Error creating component type:', error);
+        toast.error(`Failed to create: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return;
+      }
     }
     setDialogOpen(false);
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     const hasComponents = components.some((c) => c.component_type_id === id);
     if (hasComponents) {
       toast.error('Cannot delete: components of this type exist in inventory.');
       return;
     }
     if (window.confirm('Delete this component type?')) {
-      deleteComponentType(id);
-      toast.success('Deleted');
+      try {
+        await deleteComponentType(id);
+        toast.success('Deleted');
+      } catch (error) {
+        toast.error(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   }
 

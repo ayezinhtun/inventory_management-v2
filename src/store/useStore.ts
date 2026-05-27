@@ -109,7 +109,10 @@ interface AppState {
   // Hardware Inventory: useHardwareInventoryStore
   // Notifications: useNotificationsStore
 
-  // CRUD helpers — Component Types - Handled by separate store
+  // CRUD helpers — Component Types
+  addComponentType: (type: Omit<ComponentType, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateComponentType: (id: string, updates: Partial<ComponentType>) => Promise<void>;
+  deleteComponentType: (id: string) => Promise<void>;
 
   // CRUD helpers - Only keep reference data CRUD
   // Other data handled by separate stores
@@ -194,7 +197,72 @@ export const useStore = create<AppState>((set, get) => ({
   // CRUD — Warehouses - Handled by useWarehouseStore
   // CRUD — Racks - Handled by useWarehouseStore (racks are part of warehouse management)
 
-  // CRUD — Component Types - Handled by separate store
+  // CRUD — Component Types
+  addComponentType: async (type: Omit<ComponentType, 'id' | 'created_at' | 'updated_at'>) => {
+    const { data, error } = await supabase
+      .from('component_types')
+      .insert({
+        ...type,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    set((s) => ({ componentTypes: [...s.componentTypes, data as ComponentType] }));
+    
+    auditLog({
+      action: 'CREATE',
+      module: 'Component Types',
+      record_id: data.id,
+      new_value: { type_name: type.type_name, category: type.category },
+    });
+  },
+  updateComponentType: async (id: string, updates: Partial<ComponentType>) => {
+    const existing = get().componentTypes.find((ct) => ct.id === id);
+    
+    const { error } = await supabase
+      .from('component_types')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    set((s) => ({
+      componentTypes: s.componentTypes.map((ct) =>
+        ct.id === id ? { ...ct, ...updates, updated_at: new Date().toISOString() } : ct
+      ),
+    }));
+    
+    auditLog({
+      action: 'UPDATE',
+      module: 'Component Types',
+      record_id: id,
+      old_value: existing ? { type_name: existing.type_name } : null,
+      new_value: updates,
+    });
+  },
+  deleteComponentType: async (id: string) => {
+    const existing = get().componentTypes.find((ct) => ct.id === id);
+    
+    const { error } = await supabase
+      .from('component_types')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    set((s) => ({ componentTypes: s.componentTypes.filter((ct) => ct.id !== id) }));
+    
+    auditLog({
+      action: 'DELETE',
+      module: 'Component Types',
+      record_id: id,
+      old_value: existing ? { type_name: existing.type_name } : null,
+    });
+  },
 
   // CRUD — Users - Handled by useUsersStore
 
