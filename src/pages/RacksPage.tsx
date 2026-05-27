@@ -30,7 +30,7 @@ import {
   SelectValue } from
 '../components/ui/Select';
 import { Progress } from '../components/ui/Progress';
-import { Plus, Server, Edit, Trash2 } from 'lucide-react';
+import { Plus, Server, Edit, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Rack } from '../lib/types';
 export function RacksPage() {
@@ -53,6 +53,10 @@ export function RacksPage() {
     used_units: 0,
     is_active: true
   });
+
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<Rack | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   // PM and Engineer can view, Admin can edit
   const canEdit = currentUser?.role === 'Admin';
   const handleOpenDialog = (rack?: Rack) => {
@@ -94,14 +98,19 @@ export function RacksPage() {
     }
     setIsDialogOpen(false);
   };
-  const handleDelete = (id: string) => {
-    if (!canEdit) return;
-    // In a real app, we'd check if inventory is assigned to this rack
-    if (window.confirm('Are you sure you want to delete this rack?')) {
-      deleteRack(id);
+  async function handleDelete() {
+    if (!deleteTarget || !canEdit) return;
+    setDeleteLoading(true);
+    try {
+      deleteRack(deleteTarget.id);
       toast.success('Rack deleted successfully');
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error('Failed to delete rack');
+    } finally {
+      setDeleteLoading(false);
     }
-  };
+  }
   // Filter racks based on role
   let visibleRacks = racks;
   if (currentUser?.role !== 'Admin' && currentUser?.assigned_region_id) {
@@ -216,7 +225,7 @@ export function RacksPage() {
                           size="icon"
                           variant="ghost"
                           className="text-destructive"
-                          onClick={() => handleDelete(rack.id)}>
+                          onClick={() => setDeleteTarget(rack)}>
                           
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -364,6 +373,31 @@ export function RacksPage() {
               Cancel
             </Button>
             <Button onClick={handleSave}>Save Rack</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Rack
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

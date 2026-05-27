@@ -55,11 +55,7 @@ export function InventoryAddPage() {
     { key: '', value: '' }
   ]);
 
-  // Load data on mount
-  useEffect(() => {
-    fetchRegions();
-    fetchWarehouses();
-  }, []);
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
 
   // Check for edit mode

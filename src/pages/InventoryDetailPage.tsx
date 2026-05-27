@@ -96,9 +96,9 @@ export function InventoryDetailPage() {
   const [selectedComponentIds, setSelectedComponentIds] = useState<Set<string>>(new Set());
   const [isBatchRelocationDialogOpen, setIsBatchRelocationDialogOpen] = useState(false);
 
-  // Fetch hardware inventory data on component mount
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
+  // Relocation requests need to be fetched separately
   useEffect(() => {
-    fetchHardwareInventory();
     fetchRelocationRequests();
   }, []);
 

@@ -20,7 +20,7 @@ import {
 } from '../components/ui/Select';
 import { Separator } from '../components/ui/Separator';
 import {
-  Plus, Tags, Edit, Trash2, GripVertical, X, Eye, ListFilter,
+  Plus, Tags, Edit, Trash2, GripVertical, X, Eye, ListFilter, AlertTriangle, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
@@ -94,6 +94,10 @@ export function TypeManagementPage() {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [fields, setFields] = useState<FormField[]>([]);
   const [activeTab, setActiveTab] = useState<'info' | 'fields'>('info');
+
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<ComponentType | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   if (currentUser?.role !== 'Admin') {
     return (
@@ -169,19 +173,23 @@ export function TypeManagementPage() {
     setDialogOpen(false);
   }
 
-  async function handleDelete(id: string) {
-    const hasComponents = components.some((c) => c.component_type_id === id);
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const hasComponents = components.some((c) => c.component_type_id === deleteTarget.id);
     if (hasComponents) {
       toast.error('Cannot delete: components of this type exist in inventory.');
+      setDeleteTarget(null);
       return;
     }
-    if (window.confirm('Delete this component type?')) {
-      try {
-        await deleteComponentType(id);
-        toast.success('Deleted');
-      } catch (error) {
-        toast.error(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+    setDeleteLoading(true);
+    try {
+      await deleteComponentType(deleteTarget.id);
+      toast.success('Deleted');
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error(`Failed to delete: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -296,7 +304,7 @@ export function TypeManagementPage() {
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button size="icon" variant="ghost" className="text-destructive"
-                          onClick={() => handleDelete(type.id)}>
+                          onClick={() => setDeleteTarget(type)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -608,6 +616,31 @@ export function TypeManagementPage() {
             <Button onClick={() => { setPreviewOpen(false); openDialog(previewType!); }}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Type
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Component Type
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <strong>{deleteTarget?.type_name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

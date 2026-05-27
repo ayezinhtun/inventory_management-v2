@@ -141,9 +141,7 @@ export function UsersPage() {
 
   // Load on mount
   useEffect(() => {
-    fetchUsers();
-    fetchRegions();
-    fetchWarehouses();
+    // Data is already fetched by fetchAppData() in useStore.ts during app initialization
     const unsubscribe = subscribeToPresence();
     return unsubscribe;
   }, []);

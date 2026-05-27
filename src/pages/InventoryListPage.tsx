@@ -22,9 +22,17 @@ import {
   SelectTrigger,
   SelectValue
 } from '../components/ui/Select';
-import { Search, Plus, FilterX, ChevronDown, ChevronRight, Eye, Trash2 } from 'lucide-react';
+import { Search, Plus, FilterX, ChevronDown, ChevronRight, Eye, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { HardwareInventory } from '../lib/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../components/ui/Dialog';
 
 export function InventoryListPage() {
   const { hardwareInventory, fetchHardwareInventory, deleteHardwareInventory, isLoading } = useHardwareInventoryStore();
@@ -37,9 +45,11 @@ export function InventoryListPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [regionFilter, setRegionFilter] = useState<string>('all');
 
-  useEffect(() => {
-    fetchHardwareInventory();
-  }, []);
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<{id: string, name: string} | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -93,16 +103,19 @@ export function InventoryListPage() {
     return result;
   }, [hardwareInventory, search, typeFilter, statusFilter, regionFilter]);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
-      try {
-        await deleteHardwareInventory(id);
-        toast.success(`${name} deleted successfully`);
-      } catch (error) {
-        toast.error('Failed to delete hardware');
-      }
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await deleteHardwareInventory(deleteTarget.id);
+      toast.success(`${deleteTarget.name} deleted successfully`);
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error('Failed to delete hardware');
+    } finally {
+      setDeleteLoading(false);
     }
-  };
+  }
 
   const getRegionName = (id: string | null) => {
     return regions.find((r) => r.id === id)?.name || 'Unknown';
@@ -179,7 +192,7 @@ export function InventoryListPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Regions</SelectItem>
-                  {regions.filter((r) => r.is_active).map((r) => (
+                  {regions.filter((r) => r.status === 'active').map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.name}
                     </SelectItem>
@@ -263,7 +276,7 @@ export function InventoryListPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleDelete(hardware.id, hardware.name)}
+                                onClick={() => setDeleteTarget({id: hardware.id, name: hardware.name})}
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
@@ -279,6 +292,31 @@ export function InventoryListPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Hardware
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

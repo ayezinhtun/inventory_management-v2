@@ -67,10 +67,7 @@ export function SettingsPage() {
   }, [profile?.user_id]);
 
   // Load region/warehouse data for label display
-  useEffect(() => {
-    fetchRegions();
-    fetchWarehouses();
-  }, []);
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
   const [profileSaving, setProfileSaving] = useState(false);
 

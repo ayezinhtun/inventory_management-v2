@@ -25,7 +25,7 @@ import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Textarea } from '../components/ui/Textarea';
 import { Switch } from '../components/ui/Switch';
-import { Plus, Globe, Edit, Trash2 } from 'lucide-react';
+import { Plus, Globe, Edit, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 export function RegionsPage() {
@@ -46,9 +46,11 @@ export function RegionsPage() {
     status: 'active'
   });
 
-  useEffect(() => {
-    fetchRegions();
-  }, [fetchRegions]);
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<Region | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
   // const handleAddRegion = async () => {
   //   if (!formData.name.trim()) {
@@ -72,16 +74,19 @@ export function RegionsPage() {
     setIsDialogOpen(false);
   }
 
-  // delte region
-  const handleDeleteRegion = async (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
-      try {
-        await deleteRegion(id);
-        toast.success('Region deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete region');
-        console.error('Error deleting region:', error);
-      }
+  // delete region
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await deleteRegion(deleteTarget.id);
+      toast.success('Region deleted successfully');
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error('Failed to delete region');
+      console.error('Error deleting region:', error);
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -203,7 +208,7 @@ export function RegionsPage() {
                             size="icon"
                             variant="ghost"
                             className="text-destructive"
-                            onClick={() => handleDeleteRegion(region.id, region.name)}
+                            onClick={() => setDeleteTarget(region)}
                           >
 
                             <Trash2 className="h-4 w-4" />
@@ -282,6 +287,31 @@ export function RegionsPage() {
             </Button>
             <Button onClick={handleSaveRegion}>
               {editingRegion ? 'Update Region' : 'Add Region'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Region
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

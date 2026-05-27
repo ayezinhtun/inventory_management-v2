@@ -35,13 +35,10 @@ export function ReportsPage() {
   const { relocationRequests, fetchRelocationRequests } = useRelocationStore();
   const { users, fetchUsers } = useUsersStore();
 
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
+  // Relocation requests need to be fetched separately
   useEffect(() => {
-    fetchHardwareInventory();
-    fetchRegions();
-    fetchWarehouses();
-    fetchComponents();
     fetchRelocationRequests();
-    fetchUsers();
   }, []);
 
   const getRegionName = (id: string | null) => {

@@ -9,6 +9,15 @@ import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { ComponentRelocationDialog } from '../components/ComponentRelocationDialog';
 
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../components/ui/Dialog';
+
+import {
 
   Table,
 
@@ -48,7 +57,7 @@ import {
 
   '../components/ui/Select';
 
-import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package } from 'lucide-react';
+import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2 } from 'lucide-react';
 
 import { getStatusColor } from '../lib/utils';
 
@@ -86,6 +95,10 @@ export function ComponentsListPage() {
   const [selectedComponentIds, setSelectedComponentIds] = useState<Set<string>>(new Set());
 
   const [showRelocationDialog, setShowRelocationDialog] = useState(false);
+
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<{id: string, name: string} | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     const loadHardwareInventory = async () => {
@@ -125,11 +138,7 @@ export function ComponentsListPage() {
 
 
 
-  useEffect(() => {
-
-    fetchComponents();
-
-  }, []);
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
 
 
@@ -261,28 +270,20 @@ export function ComponentsListPage() {
 
 
 
-  const handleDeleteComponent = async (componentId: string, componentName: string) => {
-
-    if (window.confirm(`Are you sure you want to delete "${componentName}"?`)) {
-
-      try {
-
-        await deleteComponent(componentId);
-
-        toast.success(`${componentName} deleted successfully`);
-
-        fetchComponents();
-
-      } catch (error) {
-
-        console.error('Delete component error:', error);
-
-        toast.error('Failed to delete component');
-
-      }
-
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await deleteComponent(deleteTarget.id);
+      toast.success(`${deleteTarget.name} deleted successfully`);
+      setDeleteTarget(null);
+      fetchComponents();
+    } catch (error) {
+      console.error('Delete component error:', error);
+      toast.error('Failed to delete component');
+    } finally {
+      setDeleteLoading(false);
     }
-
   }
 
   return (
@@ -709,7 +710,7 @@ export function ComponentsListPage() {
 
                                             e.stopPropagation();
 
-                                            handleDeleteComponent(item.id, item.name);
+                                            setDeleteTarget({id: item.id, name: item.name});
 
                                           }}
 
@@ -768,6 +769,31 @@ export function ComponentsListPage() {
           }}
         />
       )}
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Component
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
 

@@ -97,7 +97,7 @@ export function CustomersPage() {
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  useEffect(() => { fetchCustomers(); }, []);
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
   if (currentUser?.role !== 'Admin') {
     return (

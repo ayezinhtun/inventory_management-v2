@@ -32,7 +32,7 @@ import {
   SelectValue
 } from
   '../components/ui/Select';
-import { Plus, Building2, Edit, Trash2 } from 'lucide-react';
+import { Plus, Building2, Edit, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useWarehouseStore, type Warehouse } from '../store/useWarehouseStore';
 import { useRegionStore } from '../store/useRegionStore';
@@ -59,13 +59,11 @@ export function WarehousesPage() {
     status: 'active'
   });
 
-  useEffect(() => {
-    fetchWarehouses();
-  }, [fetchWarehouses]);
+  // Delete dialog
+  const [deleteTarget, setDeleteTarget] = useState<Warehouse | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  useEffect(() => {
-    fetchRegions();
-  }, [fetchRegions]);
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
 
   const resetForm = () => {
@@ -73,15 +71,18 @@ export function WarehousesPage() {
     setIsDialogOpen(false);
   }
 
-  const handleDeleteWarehouse = async (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete warehouse "${name}"?`)) {
-      try {
-        await deleteWarehouse(id);
-        toast.success('Warehouse deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete warehouse');
-        console.error('Error deleting warehouse:', error)
-      }
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await deleteWarehouse(deleteTarget.id);
+      toast.success('Warehouse deleted successfully');
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error('Failed to delete warehouse');
+      console.error('Error deleting warehouse:', error)
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -213,7 +214,7 @@ export function WarehousesPage() {
                           <Button size="icon" variant="ghost" onClick={() => handleOpenDialog(warehouse)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDeleteWarehouse(warehouse.id, warehouse.name)}>
+                          <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(warehouse)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -318,6 +319,31 @@ export function WarehousesPage() {
               onClick={handleSaveWarehouse}
             >
               {editingWarehouse ? 'Update Warehouse' : 'Add Warehouse'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Warehouse
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
