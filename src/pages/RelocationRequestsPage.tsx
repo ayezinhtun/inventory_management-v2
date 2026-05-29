@@ -1,5 +1,6 @@
 import React, { useState, Component, useEffect, useMemo } from "react";
 import { useStore } from "../store/useStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { useRelocationStore } from "../store/useRelocationStore";
 import {
   Card,
@@ -72,6 +73,7 @@ export function RelocationRequestsPage({
     getWarehousesByRegion,
     fetchAppData,
   } = useStore();
+  const { profile } = useAuthStore();
 
   const { hardwareInventory } = useHardwareInventoryStore();
   const { components } = useComponentsStore();
@@ -363,6 +365,7 @@ export function RelocationRequestsPage({
       }
     }
     createRelocationRequest({
+      requester_id: profile?.id || '',
       relocation_type: formData.relocation_type,
       inventory_id: isInventory ? formData.inventory_id : null,
       component_id: !isInventory ? formData.component_id : null,

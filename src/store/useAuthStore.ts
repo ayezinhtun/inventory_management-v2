@@ -259,37 +259,61 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     // Persistent listener for token refresh / OAuth callbacks / sign-out
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        set({ isPasswordRecovery: true });
-        // Don't return - let it process the session that comes with password recovery
-      }
+    supabase.auth.onAuthStateChange((event, session) => {
 
-      if (session?.user) {
-        set({ user: session.user, session });
-        if (event === "SIGNED_IN") {
-          const profile = await get().fetchProfile();
-          await syncToAppStore(profile, get().isPasswordRecovery);
-          await get().refreshMFAFactors();
-          startHeartbeat(session.user.id);
-          (async () => {
-            await supabase.from("user_activity_logs").insert({
-              user_id: session.user.id,
-              actor_id: session.user.id,
-              action: "LOGIN",
-              details: { method: "oauth" },
-            });
-          })().catch(() => { });
-        } else if (event === "TOKEN_REFRESHED") {
-          const profile = await get().fetchProfile();
-          await syncToAppStore(profile, get().isPasswordRecovery);
+      setTimeout(async () => {
+
+        if (event === "PASSWORD_RECOVERY") {
+          set({ isPasswordRecovery: true });
         }
-      } else if (event === "SIGNED_OUT") {
-        stopHeartbeat();
-        set({ user: null, session: null, profile: null, mfaFactors: [], mfaRequired: false, isPasswordRecovery: false });
-        await syncToAppStore(null);
-      }
+
+        if (session?.user) {
+
+          set({ user: session.user, session });
+
+          if (event === "SIGNED_IN") {
+
+            const profile = await get().fetchProfile();
+
+            await syncToAppStore(
+              profile,
+              get().isPasswordRecovery
+            );
+
+            await get().refreshMFAFactors();
+
+            startHeartbeat(session.user.id);
+
+          } else if (event === "TOKEN_REFRESHED") {
+
+            const profile = await get().fetchProfile();
+
+            await syncToAppStore(
+              profile,
+              get().isPasswordRecovery
+            );
+          }
+
+        } else if (event === "SIGNED_OUT") {
+
+          stopHeartbeat();
+
+          set({
+            user: null,
+            session: null,
+            profile: null,
+            mfaFactors: [],
+            mfaRequired: false,
+            isPasswordRecovery: false
+          });
+
+          await syncToAppStore(null);
+        }
+
+      }, 0);
+
     });
+
   },
 
   setResetCode: (code, email) => {
@@ -480,39 +504,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updatePassword: async (currentPassword, newPassword) => {
     const profile = get().profile;
     if (!profile) throw new Error("Not authenticated");
-    // Use email from profile; fall back to the auth user's email
-    const email = profile.email || get().user?.email || '';
-    if (!email) throw new Error("Cannot determine account email. Please contact an administrator.");
-    set({ isLoading: true });
-    try {
-      // Re-authenticate to verify current password
-      const { error: authErr } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
-      if (authErr) throw new Error("Current password is incorrect.");
 
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+    set({ isLoading: true });
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
       if (error) throw error;
 
-      // Clear force_password_change if it was set (admin-created or admin-reset account)
       if (profile.force_password_change) {
-        // Update local profile state first to prevent realtime listener from triggering syncToAppStore
-        set({ profile: { ...profile, force_password_change: false, updated_at: new Date().toISOString() } });
-        // Then update DB (fire-and-forget, don't wait)
-        (async () => {
-          try {
-            await supabase.from("user_profiles")
-              .update({ force_password_change: false, updated_at: new Date().toISOString() })
-              .eq("user_id", profile.user_id);
-          } catch (err) {
-            console.error('Failed to clear force_password_change:', err);
-          }
-        })();
+        await supabase
+          .from("user_profiles")
+          .update({
+            force_password_change: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", profile.user_id);
+
+        set({
+          profile: {
+            ...profile,
+            force_password_change: false,
+          },
+        });
       }
 
-      await writeAuditLog(profile.user_id, "UPDATE", "Settings — Password", profile.user_id, null, { changed: true });
-      set({ isLoading: false });
+      await writeAuditLog(
+        profile.user_id,
+        "UPDATE",
+        "Settings — Password",
+        profile.user_id,
+        null,
+        { changed: true }
+      );
+
     } catch (err) {
-      set({ isLoading: false });
       throw err;
+    } finally {
+      set({ isLoading: false });
     }
   },
 

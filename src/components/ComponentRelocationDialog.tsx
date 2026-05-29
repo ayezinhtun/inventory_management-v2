@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { useRelocationStore } from '../store/useRelocationStore';
 import { useRegionStore } from '../store/useRegionStore';
 import { useWarehouseStore } from '../store/useWarehouseStore';
@@ -38,6 +39,7 @@ export function ComponentRelocationDialog({
   onSuccess,
 }: ComponentRelocationDialogProps) {
   const { currentUser } = useStore();
+  const { profile } = useAuthStore();
   const { createBatchComponentRelocationRequests } = useRelocationStore();
   const { regions } = useRegionStore();
   const { warehouses } = useWarehouseStore();
@@ -112,7 +114,7 @@ export function ComponentRelocationDialog({
         reason: formData.reason,
         urgency: formData.urgency,
         notes: formData.notes,
-        requester_id: currentUser?.id || '',
+        requester_id: profile?.id || '',
       };
 
       if (relocationType === 'WAREHOUSE') {
