@@ -63,6 +63,7 @@ import {
   History,
   ArrowRight,
   Check,
+  Puzzle,
 } from "lucide-react";
 import { Checkbox } from "../components/ui/Checkbox";
 import { formatDate, formatCurrency, getStatusColor } from "../lib/utils";
@@ -529,7 +530,7 @@ export function InventoryDetailPage() {
                           variant="outline"
                           onClick={() => setIsBatchRelocationDialogOpen(true)}
                         >
-                          <Package className="h-4 w-4 mr-2" />
+                          <Puzzle className="h-4 w-4 mr-2" />
                           Relocate ({selectedComponentIds.size})
 
                         </Button>

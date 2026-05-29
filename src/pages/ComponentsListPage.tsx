@@ -57,7 +57,7 @@ import {
 
   '../components/ui/Select';
 
-import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2 } from 'lucide-react';
+import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2, Puzzle } from 'lucide-react';
 
 import { getStatusColor } from '../lib/utils';
 
@@ -321,7 +321,7 @@ export function ComponentsListPage() {
               variant="outline"
               onClick={() => setShowRelocationDialog(true)}
             >
-              <Package className="h-4 w-4 mr-2" />
+              <Puzzle className="h-4 w-4 mr-2" />
               Relocate ({selectedComponentIds.size})
 
             </Button>

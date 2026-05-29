@@ -135,16 +135,18 @@ async function syncToAppStore(profile: UserProfile | null, isPasswordRecovery: b
     useStore.setState({
       isAuthenticated: true,
       currentUser: {
-        id: profile.user_id,
-        username: profile.username || profile.email,
-        email: profile.email,
-        password_hash: "",
+        id: profile.id,
+        user_id: profile.user_id,
+        name: profile.name,
         full_name: profile.name,
+        email: profile.email,
         role: profile.role as any,
-        assigned_region_ids,      //using arrays from assignments
-        assigned_warehouse_ids,   //using arrays from assignments
-        is_active: profile.status === "active",
-        last_login: profile.last_login_at ?? null,
+        region_id: null,
+        warehouse_id: null,
+        assigned_region_ids,
+        assigned_warehouse_ids,
+        status: profile.status,
+        last_login_at: profile.last_login_at ?? null,
         created_at: profile.created_at,
         updated_at: profile.updated_at,
       },

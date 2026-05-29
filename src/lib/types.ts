@@ -105,10 +105,13 @@ export interface User {
   id: string;
   user_id: string;
   name: string;
+  full_name: string;
   email: string;
   role: UserRole;
   region_id: string | null;
   warehouse_id: string | null;
+  assigned_region_ids?: string[];
+  assigned_warehouse_ids?: string[];
   status: string;
   last_login_at: string | null;
   created_at: string;
