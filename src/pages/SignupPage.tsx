@@ -128,7 +128,7 @@ export function SignupPage() {
 
             <div className="space-y-4">
               {/* Google SSO */}
-              <Button
+              {/* <Button
                 type="button"
                 variant="outline"
                 className="w-full flex items-center gap-2"
@@ -141,13 +141,13 @@ export function SignupPage() {
                   <GoogleIcon />
                 )}
                 Continue with Google
-              </Button>
+              </Button> */}
 
-              <div className="flex items-center gap-3">
+              {/* <div className="flex items-center gap-3">
                 <Separator className="flex-1" />
                 <span className="text-xs text-muted-foreground">or</span>
                 <Separator className="flex-1" />
-              </div>
+              </div> */}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">

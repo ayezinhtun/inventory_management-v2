@@ -209,7 +209,7 @@ export function LoginPage() {
 
             <div className="space-y-4">
               {/* Google SSO */}
-              <Button
+              {/* <Button
                 type="button"
                 variant="outline"
                 className="w-full flex items-center gap-2"
@@ -228,7 +228,7 @@ export function LoginPage() {
                 <Separator className="flex-1" />
                 <span className="text-xs text-muted-foreground">or</span>
                 <Separator className="flex-1" />
-              </div>
+              </div> */}
 
               {/* Email confirmation notice */}
               {emailUnconfirmed && (
