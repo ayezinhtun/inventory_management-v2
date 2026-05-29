@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { validatePassword } from '../lib/utils';
 import logo from '../assets/image/logo.png';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -24,8 +25,8 @@ export function ResetPasswordPage() {
 
   // Validation
   const passwordsMatch = newPassword === confirmPassword && newPassword !== '';
-  const isValidLength = newPassword.length >= 8;
-  const canSubmit = passwordsMatch && isValidLength;
+  const passwordValidation = validatePassword(newPassword);
+  const canSubmit = passwordsMatch && passwordValidation.isValid;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,7 +121,7 @@ export function ResetPasswordPage() {
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      At least 8 characters
+                      8+ chars, uppercase, lowercase, number, special char
                     </p>
                   </div>
 

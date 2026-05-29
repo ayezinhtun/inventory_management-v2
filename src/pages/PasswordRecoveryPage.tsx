@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
+import { validatePassword } from '../lib/utils';
 import logo from '../assets/image/logo.png';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -24,7 +25,8 @@ export function PasswordRecoveryPage() {
     setError('');
     if (!newPwd || !confirmPwd) { setError('Both fields are required'); return; }
     if (newPwd !== confirmPwd) { setError('Passwords do not match'); return; }
-    if (newPwd.length < 8) { setError('Password must be at least 8 characters'); return; }
+    const passwordValidation = validatePassword(newPwd);
+    if (!passwordValidation.isValid) { setError(passwordValidation.error); return; }
 
     setIsLoading(true);
     try {
@@ -106,7 +108,7 @@ export function PasswordRecoveryPage() {
                         {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    <p className="text-xs text-muted-foreground">At least 8 characters</p>
+                    <p className="text-xs text-muted-foreground">8+ chars, uppercase, lowercase, number, special char</p>
                   </div>
 
                   <div className="space-y-2">

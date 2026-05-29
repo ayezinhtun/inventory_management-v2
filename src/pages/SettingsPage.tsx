@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useRegionStore } from '../store/useRegionStore';
 import { useWarehouseStore } from '../store/useWarehouseStore';
+import { validatePassword } from '../lib/utils';
 import {
   Card,
   CardContent,
@@ -129,7 +130,8 @@ export function SettingsPage() {
       return;
     }
     if (newPwd !== confirmPwd) { toast.error('New passwords do not match'); return; }
-    if (newPwd.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    const passwordValidation = validatePassword(newPwd);
+    if (!passwordValidation.isValid) { toast.error(passwordValidation.error); return; }
     setPwdSaving(true);
     try {
       await updatePassword(currentPwd, newPwd);
@@ -340,7 +342,7 @@ export function SettingsPage() {
                 {showNewPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">At least 8 characters</p>
+            <p className="text-xs text-muted-foreground">8+ chars, uppercase, lowercase, number, special char</p>
           </div>
 
           <div className="space-y-2">

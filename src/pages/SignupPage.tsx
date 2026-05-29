@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStore } from '../store/useStore';
+import { validatePassword } from '../lib/utils';
 import logo from '../assets/image/logo.png';
 import { Card, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Button } from '../components/ui/Button';
-import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Separator } from '../components/ui/Separator';
 import { toast } from 'sonner';
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 
 function GoogleIcon() {
   return (
@@ -44,18 +44,17 @@ export function SignupPage() {
     password: '',
     confirmPassword: '',
   });
-  const [error, setError] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
 
-    if (!formData.name.trim()) { setError('Full name is required.'); return; }
-    if (!formData.email.trim()) { setError('Email is required.'); return; }
-    if (formData.password.length < 6) { setError('Password must be at least 6 characters.'); return; }
-    if (formData.password !== formData.confirmPassword) { setError('Passwords do not match.'); return; }
+    if (!formData.name.trim()) { toast.error('Full name is required.'); return; }
+    if (!formData.email.trim()) { toast.error('Email is required.'); return; }
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.isValid) { toast.error(passwordValidation.error); return; }
+    if (formData.password !== formData.confirmPassword) { toast.error('Passwords do not match.'); return; }
 
     try {
       await signup(formData.email, formData.password, formData.name);
@@ -64,21 +63,20 @@ export function SignupPage() {
     } catch (err: any) {
       const msg: string = err?.message ?? '';
       if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
-        setError('An account with this email already exists. Please sign in.');
+        toast.error('An account with this email already exists. Please sign in.');
       } else {
-        setError(msg || 'Failed to create account. Please try again.');
+        toast.error(msg || 'Failed to create account. Please try again.');
       }
     }
   };
 
   const handleGoogleSSO = async () => {
-    setError('');
     setSsoLoading(true);
     try {
       await signInWithGoogle();
       // Browser redirects to Google — no further action needed
     } catch (err: any) {
-      setError(err?.message || 'Google sign-in failed. Please try again.');
+      toast.error(err?.message || 'Google sign-in failed. Please try again.');
       setSsoLoading(false);
     }
   };
@@ -151,13 +149,6 @@ export function SignupPage() {
                 <Separator className="flex-1" />
               </div>
 
-              {error && (
-                <Alert variant="destructive" className="py-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="ml-2">{error}</AlertDescription>
-                </Alert>
-              )}
-
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
@@ -192,7 +183,7 @@ export function SignupPage() {
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="At least 6 characters"
+                    placeholder="8+ chars, uppercase, lowercase, number, special char"
                     disabled={isLoading}
                     required
                   />

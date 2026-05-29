@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Separator } from '../components/ui/Separator';
 import { AlertCircle, Loader2, Mail, ShieldCheck, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 
 // Inline Google icon (no extra dependency needed)
 function GoogleIcon() {
@@ -47,7 +48,6 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [emailUnconfirmed, setEmailUnconfirmed] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
@@ -58,7 +58,6 @@ export function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setEmailUnconfirmed(false);
     try {
       await login(email, password);
@@ -70,20 +69,19 @@ export function LoginPage() {
         msg.toLowerCase().includes('invalid login') ||
         msg.toLowerCase().includes('invalid credentials')
       ) {
-        setError('Invalid email or password.');
+        toast.error('Invalid email or password.');
       } else {
-        setError(msg || 'Sign in failed. Please try again.');
+        toast.error(msg || 'Sign in failed. Please try again.');
       }
     }
   };
 
   const handleVerifyMFA = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     try {
       await completeMFALogin(totpCode);
     } catch (err: any) {
-      setError(err?.message || 'Invalid code. Please try again.');
+      toast.error(err?.message || 'Invalid code. Please try again.');
       setTotpCode('');
     }
   };
@@ -112,12 +110,11 @@ export function LoginPage() {
   // };
 
   const handleGoogleSSO = async () => {
-    setError('');
     setSsoLoading(true);
     try {
       await signInWithGoogle();
     } catch (err: any) {
-      setError(err?.message || 'Google sign-in failed. Please try again.');
+      toast.error(err?.message || 'Google sign-in failed. Please try again.');
       setSsoLoading(false);
     }
   };
@@ -146,13 +143,6 @@ export function LoginPage() {
               </CardHeader>
 
               <form onSubmit={handleVerifyMFA} className="space-y-4">
-                {error && (
-                  <Alert variant="destructive" className="py-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="ml-2">{error}</AlertDescription>
-                  </Alert>
-                )}
-
                 <div className="space-y-2">
                   <Label htmlFor="totp">Authentication Code</Label>
                   <Input
@@ -187,7 +177,6 @@ export function LoginPage() {
                     // Reset mfaRequired state by clearing the auth session partially — go back to login
                     useAuthStore.setState({ mfaRequired: false });
                     setTotpCode('');
-                    setError('');
                   }}
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
@@ -249,14 +238,6 @@ export function LoginPage() {
                     Please confirm your email address first. Check your inbox for
                     the confirmation link.
                   </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Generic error */}
-              {error && (
-                <Alert variant="destructive" className="py-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="ml-2">{error}</AlertDescription>
                 </Alert>
               )}
 
