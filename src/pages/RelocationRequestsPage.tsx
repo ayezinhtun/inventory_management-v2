@@ -101,26 +101,7 @@ export function RelocationRequestsPage({
     "Approve" | "Reject" | "Complete" | null
   >(null);
 
-  // Fetch hardware inventory on component mount
-  useEffect(() => {
-    const { fetchHardwareInventory } = useHardwareInventoryStore.getState();
-    fetchHardwareInventory();
-  }, []);
-
-  useEffect(() => {
-    const { fetchComponents } = useComponentsStore.getState();
-    fetchComponents();
-  }, []);
-
-  // Fetch app data (including users) on component mount
-  useEffect(() => {
-    fetchAppData();
-  }, [fetchAppData]);
-
-  // Fetch relocation requests on component mount
-  useEffect(() => {
-    fetchRelocationRequests();
-  }, [fetchRelocationRequests]);
+  // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
   // Create Form State
   const [isCreateOpen, setIsCreateOpen] = useState(false);

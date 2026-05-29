@@ -400,6 +400,20 @@ export const useStore = create<AppState>((set, get) => ({
 
       await useReservationsStore.getState().fetchReservations();
 
+      // Regions, Warehouses, Customers - Initialize their individual stores
+      const { useRegionStore } = await import('./useRegionStore');
+      await useRegionStore.getState().fetchRegions();
+
+      const { useWarehouseStore } = await import('./useWarehouseStore');
+      await useWarehouseStore.getState().fetchWarehouses();
+
+      const { useCustomersStore } = await import('./useCustomersStore');
+      await useCustomersStore.getState().fetchCustomers();
+
+      // Relocation Requests
+      const { useRelocationStore } = await import('./useRelocationStore');
+      await useRelocationStore.getState().fetchRelocationRequests();
+
       // Audit Logs (most recent 500)
       const { data: logsRaw } = await supabase
         .from('audit_logs')

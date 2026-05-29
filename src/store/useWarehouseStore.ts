@@ -34,7 +34,7 @@ interface WarehouseState {
 
 export const useWarehouseStore = create<WarehouseState>((set, get) => ({
     warehouses: [],
-    isLoading: false,
+    isLoading: true,
 
     fetchWarehouses: async () => {
         set({ isLoading: true });

@@ -31,7 +31,7 @@ interface RegionState {
 
 export const useRegionStore = create<RegionState>((set, get) => ({
   regions: [],
-  isLoading: false,
+  isLoading: true,
 
   fetchRegions: async () => {
     set({ isLoading: true });

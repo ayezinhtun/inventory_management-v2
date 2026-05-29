@@ -29,7 +29,7 @@ interface CustomersState {
 
 export const useCustomersStore = create<CustomersState>((set, get) => ({
   customers: [],
-  isLoading: false,
+  isLoading: true,
 
   fetchCustomers: async () => {
     set({ isLoading: true });
