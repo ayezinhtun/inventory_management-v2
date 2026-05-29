@@ -85,7 +85,7 @@ export function AuditLogPage() {
 
   const filteredLogs = auditLogs.filter((log: any) => {
     // Non-admins only see their own logs; admins see all logs
-    if (!isAdmin && currentUser?.user_id && log.user_id !== currentUser.id) {
+    if (!isAdmin && currentUser?.user_id && log.user_id !== currentUser.user_id) {
       return false;
     }
     if (actionFilter !== 'all' && log.action !== actionFilter) {
