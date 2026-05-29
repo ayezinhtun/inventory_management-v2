@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
-import { Alert, AlertDescription } from '../components/ui/Alert';
-import { Loader2, KeyRound, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Loader2, KeyRound, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import logo from '../assets/image/logo.png';
 import { useStore } from '../store/useStore';
+import { toast } from 'sonner';
 
 export function VerifyCodePage() {
     const { navigate } = useStore();
@@ -14,7 +14,6 @@ export function VerifyCodePage() {
 
     const [digits, setDigits] = useState(['', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
     const [attempts, setAttempts] = useState(0);
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -52,7 +51,6 @@ export function VerifyCodePage() {
         if (enteredCode.length !== 5) return;
 
         setIsLoading(true);
-        setError('');
 
         // Verify code
         if (enteredCode === resetCode) {
@@ -63,7 +61,7 @@ export function VerifyCodePage() {
             }, 500);
         } else {
             setAttempts(prev => prev + 1);
-            setError(`Invalid code. ${3 - attempts - 1} attempts remaining.`);
+            toast.error(`Invalid code. ${3 - attempts - 1} attempts remaining.`);
             setIsLoading(false);
 
             // Clear inputs on wrong code
@@ -104,13 +102,6 @@ export function VerifyCodePage() {
                         </CardHeader>
 
                         <form onSubmit={handleSubmit} className="space-y-6">
-                            {error && (
-                                <Alert variant="destructive" className="py-2">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertDescription className="ml-2">{error}</AlertDescription>
-                                </Alert>
-                            )}
-
                             <div className="space-y-2">
                                 <Label>5-Digit Verification Code</Label>
                                 <div className="flex justify-center gap-2">

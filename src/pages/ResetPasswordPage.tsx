@@ -6,10 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
-import { Alert, AlertDescription } from '../components/ui/Alert';
-import { CheckCircle2, Loader2, Eye, EyeOff, AlertCircle, Lock } from 'lucide-react';
+import { CheckCircle2, Loader2, Eye, EyeOff, Lock } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStore } from '../store/useStore';
+import { toast } from 'sonner';
 
 export function ResetPasswordPage() {
   const { navigate } = useStore();
@@ -20,7 +20,6 @@ export function ResetPasswordPage() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
   // Validation
@@ -33,7 +32,6 @@ export function ResetPasswordPage() {
     if (!canSubmit) return;
     
     setIsLoading(true);
-    setError('');
     
     try {
       const { error: updateErr } = await supabase.auth.updateUser({ 
@@ -45,13 +43,14 @@ export function ResetPasswordPage() {
       // Clear stored reset data
       clearResetCode();
       setSuccess(true);
+      toast.success('Password reset successfully');
       
       // Redirect to login after 2 seconds
       setTimeout(() => {
         navigate('login');
       }, 2000);
     } catch (err: any) {
-      setError(err?.message || 'Failed to reset password. Please try again.');
+      toast.error(err?.message || 'Failed to reset password. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -91,13 +90,6 @@ export function ResetPasswordPage() {
                 </CardHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {error && (
-                    <Alert variant="destructive" className="py-2">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription className="ml-2">{error}</AlertDescription>
-                    </Alert>
-                  )}
-
                   <div className="space-y-2">
                     <Label htmlFor="new-password">New Password</Label>
                     <div className="relative">

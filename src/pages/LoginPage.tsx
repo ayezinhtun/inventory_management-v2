@@ -12,9 +12,8 @@ import {
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
-import { Alert, AlertDescription } from '../components/ui/Alert';
 import { Separator } from '../components/ui/Separator';
-import { AlertCircle, Loader2, Mail, ShieldCheck, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Loader2, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
@@ -48,9 +47,7 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [emailUnconfirmed, setEmailUnconfirmed] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
-  const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
 
   // TOTP step
@@ -58,13 +55,12 @@ export function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setEmailUnconfirmed(false);
     try {
       await login(email, password);
     } catch (err: any) {
       const msg: string = err?.message ?? '';
       if (msg.toLowerCase().includes('email not confirmed')) {
-        setEmailUnconfirmed(true);
+        toast.error('Please confirm your email address first. Check your inbox for the confirmation link.');
       } else if (
         msg.toLowerCase().includes('invalid login') ||
         msg.toLowerCase().includes('invalid credentials')
@@ -230,28 +226,6 @@ export function LoginPage() {
                 <Separator className="flex-1" />
               </div> */}
 
-              {/* Email confirmation notice */}
-              {emailUnconfirmed && (
-                <Alert className="border-amber-200 bg-amber-50 text-amber-800">
-                  <Mail className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="ml-2">
-                    Please confirm your email address first. Check your inbox for
-                    the confirmation link.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Forgot password success */}
-              {forgotSent && (
-                <Alert className="border-green-200 bg-green-50 text-green-800">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="ml-2">
-                    Password reset link sent. Check your inbox.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Email / password form */}
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>

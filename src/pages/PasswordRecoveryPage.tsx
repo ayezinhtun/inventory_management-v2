@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
-import { Alert, AlertDescription } from '../components/ui/Alert';
-import { CheckCircle2, Loader2, Eye, EyeOff, AlertCircle, KeyRound } from 'lucide-react';
+import { CheckCircle2, Loader2, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function PasswordRecoveryPage() {
   const { clearPasswordRecovery } = useAuthStore();
@@ -17,29 +17,28 @@ export function PasswordRecoveryPage() {
   const [confirmPwd, setConfirmPwd] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
-    if (!newPwd || !confirmPwd) { setError('Both fields are required'); return; }
-    if (newPwd !== confirmPwd) { setError('Passwords do not match'); return; }
+    if (!newPwd || !confirmPwd) { toast.error('Both fields are required'); return; }
+    if (newPwd !== confirmPwd) { toast.error('Passwords do not match'); return; }
     const passwordValidation = validatePassword(newPwd);
-    if (!passwordValidation.isValid) { setError(passwordValidation.error); return; }
+    if (!passwordValidation.isValid) { toast.error(passwordValidation.error); return; }
 
     setIsLoading(true);
     try {
       const { error: updateErr } = await supabase.auth.updateUser({ password: newPwd });
       if (updateErr) throw updateErr;
       setDone(true);
+      toast.success('Password reset successfully');
       // Sign out and return to login after 2 seconds
       setTimeout(async () => {
         await supabase.auth.signOut();
         clearPasswordRecovery();
       }, 2000);
     } catch (err: any) {
-      setError(err?.message || 'Failed to reset password. The link may have expired.');
+      toast.error(err?.message || 'Failed to reset password. The link may have expired.');
     } finally {
       setIsLoading(false);
     }
@@ -79,13 +78,6 @@ export function PasswordRecoveryPage() {
                 </CardHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {error && (
-                    <Alert variant="destructive" className="py-2">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription className="ml-2">{error}</AlertDescription>
-                    </Alert>
-                  )}
-
                   <div className="space-y-2">
                     <Label htmlFor="new">New Password</Label>
                     <div className="relative">

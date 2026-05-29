@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
-import { Alert, AlertDescription } from '../components/ui/Alert';
-import { ShieldAlert, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { ShieldAlert, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ForcePasswordChangePage() {
@@ -18,22 +17,20 @@ export function ForcePasswordChangePage() {
   const [confirmPwd, setConfirmPwd] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
-  const [error, setError] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
-    if (!currentPwd || !newPwd || !confirmPwd) { setError('All fields are required'); return; }
-    if (newPwd !== confirmPwd) { setError('New passwords do not match'); return; }
+    if (!currentPwd || !newPwd || !confirmPwd) { toast.error('All fields are required'); return; }
+    if (newPwd !== confirmPwd) { toast.error('New passwords do not match'); return; }
     const passwordValidation = validatePassword(newPwd);
-    if (!passwordValidation.isValid) { setError(passwordValidation.error); return; }
-    if (newPwd === currentPwd) { setError('New password must differ from the current one'); return; }
+    if (!passwordValidation.isValid) { toast.error(passwordValidation.error); return; }
+    if (newPwd === currentPwd) { toast.error('New password must differ from the current one'); return; }
     try {
       await updatePassword(currentPwd, newPwd);
       toast.success('Password changed successfully');
       // profile.force_password_change is now false, App.tsx will re-render to main app
     } catch (err: any) {
-      setError(err?.message || 'Failed to change password. Check your current password.');
+      toast.error(err?.message || 'Failed to change password. Check your current password.');
     }
   }
 
@@ -60,13 +57,6 @@ export function ForcePasswordChangePage() {
             </CardHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <Alert variant="destructive" className="py-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="ml-2">{error}</AlertDescription>
-                </Alert>
-              )}
-
               <div className="space-y-2">
                 <Label htmlFor="current">Temporary / Current Password</Label>
                 <div className="relative">
