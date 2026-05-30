@@ -33,7 +33,7 @@ export function ComponentsAddPage() {
     item_name: '',
     component_type_id: '',
     manufacturer: '',
-    model: '',
+    // model: '',
     part_number: '',
     region_id: '',
     warehouse_id: '',
@@ -54,10 +54,10 @@ export function ComponentsAddPage() {
   
   // Autocomplete suggestions for different fields
   const [manufacturerSuggestions, setManufacturerSuggestions] = useState<string[]>([]);
-  const [modelSuggestions, setModelSuggestions] = useState<string[]>([]);
+  // const [modelSuggestions, setModelSuggestions] = useState<string[]>([]);
   const [partNumberSuggestions, setPartNumberSuggestions] = useState<string[]>([]);
   const [showManufacturerSuggestions, setShowManufacturerSuggestions] = useState(false);
-  const [showModelSuggestions, setShowModelSuggestions] = useState(false);
+  // const [showModelSuggestions, setShowModelSuggestions] = useState(false);
   const [showPartNumberSuggestions, setShowPartNumberSuggestions] = useState(false);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export function ComponentsAddPage() {
           item_name: component.name,
           component_type_id: component.component_type_id,
           manufacturer: component.manufacturer,
-          model: component.model,
+          // model: component.model,
           part_number: component.part_number,
           compatible_with: component.compatible_with || '',
           status: component.status || 'available',
@@ -111,10 +111,6 @@ export function ComponentsAddPage() {
       const suggestions = getManufacturerSuggestions(value);
       setManufacturerSuggestions(suggestions);
       setShowManufacturerSuggestions(suggestions.length > 0);
-    } else if (field === 'model') {
-      const suggestions = getModelSuggestions(value);
-      setModelSuggestions(suggestions);
-      setShowModelSuggestions(suggestions.length > 0);
     } else if (field === 'part_number') {
       const suggestions = getPartNumberSuggestions(value);
       setPartNumberSuggestions(suggestions);
@@ -130,18 +126,6 @@ export function ComponentsAddPage() {
     
     const uniqueManufacturers = [...new Set(allComponents.map(c => c.manufacturer).filter(Boolean))];
     return uniqueManufacturers
-      .filter(name => name.toLowerCase().includes(input.toLowerCase()))
-      .slice(0, 5);
-  };
-
-  // Get suggestions for model field
-  const getModelSuggestions = (input: string) => {
-    if (!input) return [];
-    
-    const allComponents = components;
-    
-    const uniqueModels = [...new Set(allComponents.map(c => c.model).filter(Boolean))];
-    return uniqueModels
       .filter(name => name.toLowerCase().includes(input.toLowerCase()))
       .slice(0, 5);
   };
@@ -213,7 +197,7 @@ export function ComponentsAddPage() {
       item_name: component.name,
       component_type_id: component.component_type_id || '',
       manufacturer: component.manufacturer || '',
-      model: component.model || '',
+      // model: component.model || '',
       part_number: component.part_number || '',
       compatible_with: component.compatible_with || '',
       status: (component.status || 'available') as ItemStatus,
@@ -287,7 +271,7 @@ export function ComponentsAddPage() {
           component_type_id: formData.component_type_id,
           specifications: specValues,
           manufacturer: formData.manufacturer,
-          model: formData.model,
+          // model: formData.model,
           part_number: formData.part_number,
           compatible_with: formData.compatible_with,
           status: formData.status,
@@ -303,7 +287,7 @@ export function ComponentsAddPage() {
           component_type_id: formData.component_type_id,
           specifications: specValues,
           manufacturer: formData.manufacturer,
-          model: formData.model,
+          // model: formData.model,
           part_number: formData.part_number,
           compatible_with: formData.compatible_with,
           status: formData.status,
@@ -311,7 +295,7 @@ export function ComponentsAddPage() {
           region_id: formData.region_id,
           warehouse_id: formData.warehouse_id,
           installed_in_device_id: null,
-          created_by: currentUser?.id || '',
+          created_by: currentUser?.user_id || '',
           updated_by: null,
           quantity: Number(formData.quantity) || 1,
         });
@@ -458,7 +442,7 @@ export function ComponentsAddPage() {
                 )}
               </div>
             </div>
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label>Model</Label>
               <div className="relative">
                 <Input 
@@ -486,7 +470,7 @@ export function ComponentsAddPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div> */}
             <div className="space-y-2">
               <Label>Part Number</Label>
               <div className="relative">

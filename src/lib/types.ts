@@ -178,7 +178,7 @@ export interface HardwareInventory {
   item_type: string;
   specifications: Record<string, any>;
   manufacturer: string;
-  model: string;
+  model?: string;
   serial_number: string;
   asset_tag: string;
   status: 'available' | 'installed' | 'reserved';
@@ -199,7 +199,7 @@ export interface Component {
   component_type_id: string | null;
   specifications: Record<string, any>;
   manufacturer: string;
-  model: string;
+  model?: string;
   part_number: string;
   compatible_with: string;
   status: 'available' | 'installed' | 'reserved' | 'broken';

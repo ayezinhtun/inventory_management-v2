@@ -166,8 +166,8 @@ export function TypeManagementPage() {
         toast.success('Component type updated');
       } else {
         try {
-          console.log('Creating component type with user ID:', currentUser?.id);
-          await addComponentType({ ...payload, created_by: currentUser?.id ?? null });
+          console.log('Creating component type with user ID:', currentUser?.user_id);
+          await addComponentType({ ...payload, created_by: currentUser?.user_id ?? null });
           toast.success('Component type created');
         } catch (error) {
           console.error('Error creating component type:', error);

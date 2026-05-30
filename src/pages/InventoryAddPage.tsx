@@ -17,7 +17,7 @@ interface FormData {
   name: string;
   item_type: string;
   manufacturer: string;
-  model: string;
+  // model: string;
   serial_number: string;
   asset_tag: string;
   specifications: Record<string, string>;
@@ -41,7 +41,7 @@ export function InventoryAddPage() {
     name: '',
     item_type: '',
     manufacturer: '',
-    model: '',
+    // model: '',
     serial_number: '',
     asset_tag: '',
     specifications: {},
@@ -69,7 +69,7 @@ export function InventoryAddPage() {
           name: hardware.name,
           item_type: hardware.item_type,
           manufacturer: hardware.manufacturer,
-          model: hardware.model,
+          // model: hardware.model,
           serial_number: hardware.serial_number,
           asset_tag: hardware.asset_tag,
           specifications: hardware.specifications || {},
@@ -139,12 +139,14 @@ export function InventoryAddPage() {
     setSaving(true);
     try {
       const specs = buildSpecifications();
+
       const data = {
         ...formData,
         specifications: specs,
-        created_by: currentUser?.id,
-        updated_by: currentUser?.id
+        created_by: currentUser?.user_id,
+        updated_by: currentUser?.user_id
       };
+
 
       if (editMode && editingHardware) {
         await updateHardwareInventory(editingHardware.id, data);
@@ -249,14 +251,14 @@ export function InventoryAddPage() {
             />
           </div>
 
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label>Model</Label>
             <Input
               value={formData.model}
               onChange={(e) => handleChange('model', e.target.value)}
               placeholder="e.g., PowerEdge R740"
             />
-          </div>
+          </div> */}
 
           <div className="space-y-2">
             <Label>Serial Number <span className="text-destructive">*</span></Label>
@@ -324,8 +326,8 @@ export function InventoryAddPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Region</Label>
-            <Select 
-              value={formData.region_id} 
+            <Select
+              value={formData.region_id}
               onValueChange={(v) => handleChange('region_id', v)}
             >
               <SelectTrigger>
@@ -349,9 +351,9 @@ export function InventoryAddPage() {
               disabled={!formData.region_id}
             >
               <SelectTrigger>
-                <SelectValue 
-                  placeholder={formData.region_id ? "Select warehouse" : "Select region first"} 
-                  displayValue={selectedWarehouseName} 
+                <SelectValue
+                  placeholder={formData.region_id ? "Select warehouse" : "Select region first"}
+                  displayValue={selectedWarehouseName}
                 />
               </SelectTrigger>
               <SelectContent>
