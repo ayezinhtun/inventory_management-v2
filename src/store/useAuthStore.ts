@@ -232,6 +232,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         set({ user: session.user, session });
+
+        // Check if MFA is required for this session
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const hasVerifiedTOTP = factors?.totp?.some((f: any) => f.status === 'verified');
+
+        // If user has verified TOTP but current AAL is not aal2, require MFA verification
+        if (hasVerifiedTOTP && aal?.currentLevel !== 'aal2') {
+          set({ isLoading: false, mfaRequired: true, isInitializing: false });
+          return;
+        }
+
         const profile = await get().fetchProfile();
         await syncToAppStore(profile, get().isPasswordRecovery);
         await get().refreshMFAFactors();
@@ -274,6 +286,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ user: session.user, session });
 
           if (event === "SIGNED_IN") {
+
+            // Check if MFA is required for this session
+            const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+            const { data: factors } = await supabase.auth.mfa.listFactors();
+            const hasVerifiedTOTP = factors?.totp?.some((f: any) => f.status === 'verified');
+
+            // If user has verified TOTP but current AAL is not aal2, require MFA verification
+            if (hasVerifiedTOTP && aal?.currentLevel !== 'aal2') {
+              set({ isLoading: false, mfaRequired: true });
+              return;
+            }
 
             const profile = await get().fetchProfile();
 
@@ -355,12 +378,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Check if MFA step is needed
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+      console.log('MFA AAL check:', aal);
+      
+      // Fallback: Check if user has verified TOTP factors (in case AAL check fails)
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const hasVerifiedTOTP = factors?.totp?.some((f: any) => f.status === 'verified');
+
+      if ((aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) || hasVerifiedTOTP) {
         set({ isLoading: false, mfaRequired: true });
         return;
       }
 
       // No MFA required — complete login
+      console.log('No MFA required - completing login');
       recordSessionStart();
       scheduleSessionExpiry(get().logout, SESSION_DURATION_MS);
 

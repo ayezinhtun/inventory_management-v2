@@ -99,6 +99,9 @@ export function TypeManagementPage() {
   const [deleteTarget, setDeleteTarget] = useState<ComponentType | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Save loading state
+  const [saveLoading, setSaveLoading] = useState(false);
+
   if (currentUser?.role !== 'Admin') {
     return (
       <div className="p-6 text-center">
@@ -138,39 +141,44 @@ export function TypeManagementPage() {
     const resolvedFields = formData.requires_specification ? fields : [];
     const payload = { ...formData, fields: resolvedFields };
 
-    if (editingType) {
-      // Direct Supabase update with explicit error handling (no silent catch)
-      const { error } = await supabase
-        .from('component_types')
-        .update({
-          type_name: payload.type_name,
-          category: payload.category,
-          description: payload.description,
-          requires_specification: payload.requires_specification,
-          is_active: payload.is_active,
-          fields: resolvedFields,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', editingType.id);
-      if (error) {
-        toast.error(`Failed to save: ${error.message}`);
-        return;
+    setSaveLoading(true);
+    try {
+      if (editingType) {
+        // Direct Supabase update with explicit error handling (no silent catch)
+        const { error } = await supabase
+          .from('component_types')
+          .update({
+            type_name: payload.type_name,
+            category: payload.category,
+            description: payload.description,
+            requires_specification: payload.requires_specification,
+            is_active: payload.is_active,
+            fields: resolvedFields,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingType.id);
+        if (error) {
+          toast.error(`Failed to save: ${error.message}`);
+          return;
+        }
+        // Also update in-memory store
+        updateComponentType(editingType.id, payload);
+        toast.success('Component type updated');
+      } else {
+        try {
+          console.log('Creating component type with user ID:', currentUser?.id);
+          await addComponentType({ ...payload, created_by: currentUser?.id ?? null });
+          toast.success('Component type created');
+        } catch (error) {
+          console.error('Error creating component type:', error);
+          toast.error(`Failed to create: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          return;
+        }
       }
-      // Also update in-memory store
-      updateComponentType(editingType.id, payload);
-      toast.success('Component type updated');
-    } else {
-      try {
-        console.log('Creating component type with user ID:', currentUser?.id);
-        await addComponentType({ ...payload, created_by: currentUser?.id ?? null });
-        toast.success('Component type created');
-      } catch (error) {
-        console.error('Error creating component type:', error);
-        toast.error(`Failed to create: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        return;
-      }
+      setDialogOpen(false);
+    } finally {
+      setSaveLoading(false);
     }
-    setDialogOpen(false);
   }
 
   async function handleDelete() {
@@ -588,7 +596,8 @@ export function TypeManagementPage() {
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={saveLoading}>
+              {saveLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingType ? 'Update Type' : 'Create Type'}
             </Button>
           </DialogFooter>

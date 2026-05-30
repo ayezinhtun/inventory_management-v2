@@ -57,6 +57,9 @@ export function RacksPage() {
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<Rack | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Save loading state
+  const [saveLoading, setSaveLoading] = useState(false);
   // PM and Engineer can view, Admin can edit
   const canEdit = currentUser?.role === 'Admin';
   const handleOpenDialog = (rack?: Rack) => {
@@ -84,19 +87,27 @@ export function RacksPage() {
     }
     setIsDialogOpen(true);
   };
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim() || !formData.warehouse_id) {
       toast.error('Name and Warehouse are required');
       return;
     }
-    if (editingRack) {
-      updateRack(editingRack.id, formData);
-      toast.success('Rack updated successfully');
-    } else {
-      addRack(formData);
-      toast.success('Rack added successfully');
+    setSaveLoading(true);
+    try {
+      if (editingRack) {
+        await updateRack(editingRack.id, formData);
+        toast.success('Rack updated successfully');
+      } else {
+        await addRack(formData);
+        toast.success('Rack added successfully');
+      }
+      setIsDialogOpen(false);
+    } catch (error) {
+      toast.error(`Failed to ${editingRack ? 'update' : 'add'} rack`);
+      console.error('Error', error);
+    } finally {
+      setSaveLoading(false);
     }
-    setIsDialogOpen(false);
   };
   async function handleDelete() {
     if (!deleteTarget || !canEdit) return;
@@ -369,10 +380,13 @@ export function RacksPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={saveLoading}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save Rack</Button>
+            <Button onClick={handleSave} disabled={saveLoading}>
+              {saveLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Save Rack
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

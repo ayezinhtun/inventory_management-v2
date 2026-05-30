@@ -30,11 +30,12 @@ import {
   SelectTrigger,
   SelectValue } from
 '../components/ui/Select';
-import { Plus, Store, Edit, Trash2, Star, ExternalLink } from 'lucide-react';
+import { Plus, Store, Edit, Trash2, Star, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 export function VendorsPage() {
   const { vendors, currentUser, addVendor } = useStore();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
   const [formData, setFormData] = useState({
     vendor_name: '',
     vendor_code: '',
@@ -77,33 +78,41 @@ export function VendorsPage() {
       [field]: value
     }));
   };
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.vendor_name || !formData.vendor_type) {
       toast.error('Vendor Name and Type are required');
       return;
     }
-    addVendor({
-      ...formData,
-      rating: 0,
-      is_active: true
-    });
-    toast.success('Vendor added successfully');
-    setIsAddOpen(false);
-    setFormData({
-      vendor_name: '',
-      vendor_code: '',
-      contact_person: '',
-      email: '',
-      phone: '',
-      address: '',
-      website: '',
-      vendor_type: 'Hardware',
-      payment_terms: '',
-      lead_time_days: 0,
-      is_preferred: false,
-      products_services: '',
-      notes: ''
-    });
+    setSaveLoading(true);
+    try {
+      await addVendor({
+        ...formData,
+        rating: 0,
+        is_active: true
+      });
+      toast.success('Vendor added successfully');
+      setIsAddOpen(false);
+      setFormData({
+        vendor_name: '',
+        vendor_code: '',
+        contact_person: '',
+        email: '',
+        phone: '',
+        address: '',
+        website: '',
+        vendor_type: 'Hardware',
+        payment_terms: '',
+        lead_time_days: 0,
+        is_preferred: false,
+        products_services: '',
+        notes: ''
+      });
+    } catch (error) {
+      toast.error('Failed to add vendor');
+      console.error('Error adding vendor:', error);
+    } finally {
+      setSaveLoading(false);
+    }
   };
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
@@ -249,10 +258,13 @@ export function VendorsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+              <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={saveLoading}>
                 Cancel
               </Button>
-              <Button onClick={handleSave}>Save Vendor</Button>
+              <Button onClick={handleSave} disabled={saveLoading}>
+                {saveLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Save Vendor
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

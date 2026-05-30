@@ -30,7 +30,16 @@ import { Badge } from '../components/ui/Badge';
 
 import { Label } from '../components/ui/Label';
 
-import { Plus, BoxIcon, Edit, Trash2, Activity, Eye } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../components/ui/Dialog';
+
+import { Plus, BoxIcon, Edit, Trash2, Activity, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 
 import { formatDate, getStatusColor } from '../lib/utils';
 
@@ -55,6 +64,9 @@ export function ReservedStockPage() {
   const { components, fetchComponents, updateComponent } = useComponentsStore();
 
   const { hardwareInventory, fetchHardwareInventory, updateHardwareInventory } = useHardwareInventoryStore();
+
+  const [deleteTarget, setDeleteTarget] = useState<Reservation | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   if (currentUser?.role !== 'Admin') {
 
@@ -129,14 +141,21 @@ export function ReservedStockPage() {
   };
 
   const handleDelete = async (rs: Reservation) => {
-    if (window.confirm(`Are you sure you want to delete this reservation for "${getItemName(rs)}"?`)) {
-      try {
-        await deleteReservation(rs.id, rs.component_id || undefined, rs.hardware_inventory_id || undefined);
-        toast.success('Reservation deleted successfully');
-      } catch (error) {
-        console.error('Error deleting reservation:', error);
-        toast.error('Failed to delete reservation');
-      }
+    setDeleteTarget(rs);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await deleteReservation(deleteTarget.id, deleteTarget.component_id || undefined, deleteTarget.hardware_inventory_id || undefined);
+      toast.success('Reservation deleted successfully');
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Error deleting reservation:', error);
+      toast.error('Failed to delete reservation');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -300,19 +319,12 @@ export function ReservedStockPage() {
                         </Button>
 
                         <Button
-
                           size="icon"
-
                           variant="ghost"
-
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
-
-                          onClick={() => handleDelete(rs)}
-
+                          onClick={() => setDeleteTarget(rs)}
                         >
-
                           <Trash2 className="h-4 w-4" />
-
                         </Button>
 
                       </div>
@@ -346,6 +358,31 @@ export function ReservedStockPage() {
         </CardContent>
 
       </Card>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Reservation
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the reservation for{' '}
+              <strong>{deleteTarget ? getItemName(deleteTarget) : ''}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleteLoading}>
+              {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
 

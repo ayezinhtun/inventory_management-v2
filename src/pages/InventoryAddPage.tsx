@@ -207,7 +207,7 @@ export function InventoryAddPage() {
       </div>
 
       {/* Basic Information */}
-      <Card>
+      <Card className='overflow-visible'>
         <CardHeader>
           <CardTitle>Basic Information</CardTitle>
         </CardHeader>

@@ -63,6 +63,9 @@ export function WarehousesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Warehouse | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Save loading state
+  const [saveLoading, setSaveLoading] = useState(false);
+
   // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
 
@@ -121,7 +124,7 @@ export function WarehousesPage() {
       return;
     }
 
-
+    setSaveLoading(true);
     try {
       if (editingWarehouse) {
         //update existing warehouse
@@ -139,6 +142,8 @@ export function WarehousesPage() {
     } catch (error) {
       toast.error(`Failed to ${editingWarehouse ? 'update' : 'add'} warehouse`);
       console.error('Error', error);
+    } finally {
+      setSaveLoading(false);
     }
   }
   return (
@@ -317,7 +322,9 @@ export function WarehousesPage() {
             </Button>
             <Button
               onClick={handleSaveWarehouse}
+              disabled={saveLoading}
             >
+              {saveLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingWarehouse ? 'Update Warehouse' : 'Add Warehouse'}
             </Button>
           </DialogFooter>

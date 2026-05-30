@@ -50,6 +50,9 @@ export function RegionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Region | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Save loading state
+  const [saveLoading, setSaveLoading] = useState(false);
+
   // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
   // const handleAddRegion = async () => {
@@ -118,6 +121,7 @@ export function RegionsPage() {
       return;
     }
 
+    setSaveLoading(true);
     try {
       if (editingRegion) {
         //update existing region
@@ -136,6 +140,8 @@ export function RegionsPage() {
     } catch (error) {
       toast.error(`Failed to ${editingRegion ? 'update' : 'add'} region`);
       console.error('Error', error);
+    } finally {
+      setSaveLoading(false);
     }
   }
 
@@ -285,7 +291,8 @@ export function RegionsPage() {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveRegion}>
+            <Button onClick={handleSaveRegion} disabled={saveLoading}>
+              {saveLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingRegion ? 'Update Region' : 'Add Region'}
             </Button>
           </DialogFooter>

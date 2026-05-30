@@ -202,6 +202,51 @@ export function ReportsPage() {
         filename: 'pending-requests',
         title: 'Pending Requests Report'
       });
+    } else if (reportName === 'Component Installation Report') {
+      const data = components.filter(c => !c.is_deleted && c.installed_in_device_id);
+
+      const columns: ExportColumn[] = [
+        { header: 'Component Name', key: 'name' },
+        { header: 'Manufacturer', key: 'manufacturer' },
+        { header: 'Model', key: 'model' },
+        { header: 'Part Number', key: 'part_number' },
+        { header: 'Status', key: 'status' },
+        { header: 'Condition', key: 'condition' },
+        { header: 'Installed In Device', key: 'id', formatter: (value, row) => getInstalledDeviceName(row.id) },
+        { header: 'Region', key: 'region_id', formatter: (value) => getRegionName(value) },
+        { header: 'Warehouse', key: 'warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'Created Date', key: 'created_at', formatter: (value) => new Date(value).toLocaleDateString() }
+      ];
+
+      exportData(format, {
+        data,
+        columns,
+        filename: 'component-installation',
+        title: 'Component Installation Report'
+      });
+    } else if (reportName === 'Component Status Report') {
+      const data = components.filter(c => !c.is_deleted);
+
+      const columns: ExportColumn[] = [
+        { header: 'Component Name', key: 'name' },
+        { header: 'Manufacturer', key: 'manufacturer' },
+        { header: 'Model', key: 'model' },
+        { header: 'Part Number', key: 'part_number' },
+        { header: 'Status', key: 'status' },
+        { header: 'Condition', key: 'condition' },
+        { header: 'Installed In Device', key: 'id', formatter: (value, row) => getInstalledDeviceName(row.id) },
+        { header: 'Region', key: 'region_id', formatter: (value) => getRegionName(value) },
+        { header: 'Warehouse', key: 'warehouse_id', formatter: (value) => getWarehouseName(value) },
+        { header: 'Compatible With', key: 'compatible_with' },
+        { header: 'Created Date', key: 'created_at', formatter: (value) => new Date(value).toLocaleDateString() }
+      ];
+
+      exportData(format, {
+        data,
+        columns,
+        filename: 'component-status',
+        title: 'Component Status Report'
+      });
     } else {
       toast.success(`${reportName} report exported as ${format}`);
     }
@@ -234,15 +279,15 @@ export function ReportsPage() {
       icon: <FileText className="h-8 w-8 text-amber-500" />
     },
     {
-      title: 'Warranty Report',
+      title: 'Component Installation Report',
       description:
-        'Items by warranty status (active, expiring soon, expired) with details.',
-      icon: <ShieldAlert className="h-8 w-8 text-red-500" />
+        'List of all components showing which devices they are installed in.',
+      icon: <Package className="h-8 w-8 text-red-500" />
     },
     {
-      title: 'Rack Utilization',
-      description: 'Capacity usage and available space by warehouse and rack.',
-      icon: <BarChart3 className="h-8 w-8 text-indigo-500" />
+      title: 'Component Status Report',
+      description: 'Components grouped by status (Available, Installed, Damaged, etc.).',
+      icon: <Activity className="h-8 w-8 text-indigo-500" />
     }];
 
   return (

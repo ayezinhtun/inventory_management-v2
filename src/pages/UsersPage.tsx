@@ -479,14 +479,14 @@ export function UsersPage() {
                               <User className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={async () => {
+                            {/* <DropdownMenuItem onClick={async () => {
                               setSheetUser(user);
                               // will show reset in sheet
                             }}>
                               <KeyRound className="mr-2 h-4 w-4" />
                               Reset Password
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={async () => {
+                            </DropdownMenuItem> */}
+                            {/* <DropdownMenuItem onClick={async () => {
                               try {
                                 await sendPasswordResetEmail(user.email);
                                 toast.success(`Reset link sent to ${user.email}`);
@@ -494,7 +494,7 @@ export function UsersPage() {
                             }}>
                               <Mail className="mr-2 h-4 w-4" />
                               Send Reset Email
-                            </DropdownMenuItem>
+                            </DropdownMenuItem> */}
                             {user.user_id !== myProfile?.user_id && (
                               <>
                                 <DropdownMenuSeparator />
@@ -778,10 +778,10 @@ export function UsersPage() {
                     </div>
                   </div>
 
-                  <Separator />
+                  {/* <Separator /> */}
 
                   {/* Password actions */}
-                  <div className="space-y-2">
+                  {/* <div className="space-y-2">
                     <p className="text-sm font-medium">Password Actions</p>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -800,7 +800,7 @@ export function UsersPage() {
                         Send Reset Email
                       </Button>
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Save + Delete */}
                   <div className="flex gap-2 pt-2">

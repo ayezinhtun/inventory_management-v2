@@ -865,7 +865,7 @@ export function ComponentDetailPage() {
 
           <div className="flex items-center gap-3">
 
-            {component.status !== 'reserved' && (
+            {/* {component.status !== 'reserved' && (
 
               <Button
 
@@ -881,11 +881,11 @@ export function ComponentDetailPage() {
 
               </Button>
 
-            )}
+            )} */}
 
 
 
-            {component.status !== 'reserved' && (
+            {currentUser?.role === "Admin" && component.status === 'available' && (
 
               <Button onClick={() => setIsReserveDialogOpen(true)} variant="outline">
 
