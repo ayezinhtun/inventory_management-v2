@@ -14,7 +14,7 @@ import {
 import { Textarea } from '../components/ui/Textarea';
 import { Separator } from '../components/ui/Separator';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Loader2, Plus, Trash2 } from 'lucide-react';
 import type { ItemStatus, ItemCondition, FormField, Component } from '../lib/types';
 
 export function ComponentsAddPage() {
@@ -46,6 +46,9 @@ export function ComponentsAddPage() {
   // Specification field values — keyed by FormField id
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
 
+  // Custom specification fields (user-defined additional fields)
+  const [customSpecFields, setCustomSpecFields] = useState<Array<{ id: string; label: string; value: string }>>([]);
+
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<Component[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -69,6 +72,7 @@ export function ComponentsAddPage() {
   // Reset spec values when component type changes
   useEffect(() => {
     setSpecValues({});
+    setCustomSpecFields([]);
   }, [formData.component_type_id]);
 
   // Handle edit mode using selectedId from store
@@ -91,7 +95,16 @@ export function ComponentsAddPage() {
           warehouse_id: component.warehouse_id || '',
         });
         // Set specifications separately
-        setSpecValues(component.specifications || {});
+        const specs = component.specifications || {};
+        setSpecValues(specs);
+
+        // Extract custom fields (those not in the predefined fields)
+        const selectedType = componentTypes.find((ct) => ct.id === component.component_type_id);
+        const predefinedFieldIds = new Set((selectedType?.fields ?? []).map(f => f.id));
+        const customFields = Object.entries(specs)
+          .filter(([key]) => !predefinedFieldIds.has(key))
+          .map(([key, value]) => ({ id: key, label: key, value: value as string }));
+        setCustomSpecFields(customFields);
       }
     }
   }, [components, selectedId]);
@@ -105,7 +118,7 @@ export function ComponentsAddPage() {
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    
+
     // Handle autocomplete for different fields
     if (field === 'manufacturer') {
       const suggestions = getManufacturerSuggestions(value);
@@ -116,6 +129,26 @@ export function ComponentsAddPage() {
       setPartNumberSuggestions(suggestions);
       setShowPartNumberSuggestions(suggestions.length > 0);
     }
+  };
+
+  // Handler functions for custom specification fields
+  const addCustomSpecField = () => {
+    const newField = {
+      id: `custom_${Date.now()}`,
+      label: '',
+      value: ''
+    };
+    setCustomSpecFields([...customSpecFields, newField]);
+  };
+
+  const removeCustomSpecField = (id: string) => {
+    setCustomSpecFields(customSpecFields.filter(f => f.id !== id));
+  };
+
+  const updateCustomSpecField = (id: string, field: 'label' | 'value', value: string) => {
+    setCustomSpecFields(customSpecFields.map(f =>
+      f.id === id ? { ...f, [field]: value } : f
+    ));
   };
 
   // Get suggestions for manufacturer field
@@ -264,12 +297,22 @@ export function ComponentsAddPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Merge predefined spec values with custom fields
+      const allSpecs = {
+        ...specValues,
+        ...Object.fromEntries(
+          customSpecFields
+            .filter(f => f.label.trim() !== '' && f.value.trim() !== '')
+            .map(f => [f.label, f.value])
+        )
+      };
+
       if (editMode && editingComponent) {
         // Update existing component
         await updateComponent(editingComponent.id, {
           name: formData.item_name,
           component_type_id: formData.component_type_id,
-          specifications: specValues,
+          specifications: allSpecs,
           manufacturer: formData.manufacturer,
           // model: formData.model,
           part_number: formData.part_number,
@@ -285,7 +328,7 @@ export function ComponentsAddPage() {
         await createComponent({
           name: formData.item_name,
           component_type_id: formData.component_type_id,
-          specifications: specValues,
+          specifications: allSpecs,
           manufacturer: formData.manufacturer,
           // model: formData.model,
           part_number: formData.part_number,
@@ -529,45 +572,96 @@ export function ComponentsAddPage() {
         </Card>
 
         {/* ── Specification Fields (shown when type requires spec and has fields) ── */}
-        {specFields.length > 0 && (
+        {(specFields.length > 0 || customSpecFields.length > 0) && (
           <Card>
             <CardHeader>
               <CardTitle>Specifications</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {specFields.map((f) => (
-                <div key={f.id} className="space-y-2">
-                  <Label>
-                    {f.label}
-                    {f.required && <span className="text-destructive ml-1">*</span>}
-                  </Label>
-                  {f.field_type === 'dropdown' && (f.options ?? []).length > 0 ? (
-                    <Select
-                      value={specValues[f.id] ?? ''}
-                      onValueChange={(v) => setSpecValues((prev) => ({ ...prev, [f.id]: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue
-                          displayValue={specValues[f.id]}
-                          placeholder={`Select ${f.label}`}
+            <CardContent className="space-y-4">
+              {/* Predefined specification fields */}
+              {specFields.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {specFields.map((f) => (
+                    <div key={f.id} className="space-y-2">
+                      <Label>
+                        {f.label}
+                        {f.required && <span className="text-destructive ml-1">*</span>}
+                      </Label>
+                      {f.field_type === 'dropdown' && (f.options ?? []).length > 0 ? (
+                        <Select
+                          value={specValues[f.id] ?? ''}
+                          onValueChange={(v) => setSpecValues((prev) => ({ ...prev, [f.id]: v }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              displayValue={specValues[f.id]}
+                              placeholder={`Select ${f.label}`}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(f.options ?? []).map((opt) => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          type={f.field_type === 'number' ? 'number' : f.field_type === 'date' ? 'date' : f.field_type === 'time' ? 'time' : 'text'}
+                          value={specValues[f.id] ?? ''}
+                          onChange={(e) => setSpecValues((prev) => ({ ...prev, [f.id]: e.target.value }))}
+                          placeholder={f.label}
                         />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(f.options ?? []).map((opt) => (
-                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      type={f.field_type === 'number' ? 'number' : f.field_type === 'date' ? 'date' : f.field_type === 'time' ? 'time' : 'text'}
-                      value={specValues[f.id] ?? ''}
-                      onChange={(e) => setSpecValues((prev) => ({ ...prev, [f.id]: e.target.value }))}
-                      placeholder={f.label}
-                    />
-                  )}
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+
+              {/* Custom specification fields */}
+              {customSpecFields.length > 0 && (
+                <div className="space-y-3">
+                  <Separator />
+                  <div className="text-sm font-medium text-muted-foreground">Additional Specifications</div>
+                  <div className="space-y-3">
+                    {customSpecFields.map((field) => (
+                      <div key={field.id} className="flex gap-2 items-start">
+                        <Input
+                          placeholder="Field name"
+                          value={field.label}
+                          onChange={(e) => updateCustomSpecField(field.id, 'label', e.target.value)}
+                          className="flex-1"
+                        />
+                        <Input
+                          placeholder="Value"
+                          value={field.value}
+                          onChange={(e) => updateCustomSpecField(field.id, 'value', e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeCustomSpecField(field.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add custom field button */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addCustomSpecField}
+                className="w-full md:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Custom Field
+              </Button>
             </CardContent>
           </Card>
         )}

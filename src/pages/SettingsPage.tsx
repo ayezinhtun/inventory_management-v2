@@ -99,12 +99,24 @@ export function SettingsPage() {
   if (!currentUser) return null;
 
   const activeTOTP = mfaFactors.find((f) => f.status === 'verified');
-  const regionLabel = currentUser.assigned_region_id
-    ? (regions.find((r) => r.id === currentUser.assigned_region_id)?.name ?? currentUser.assigned_region_id)
-    : 'All Regions';
-  const warehouseLabel = currentUser.assigned_warehouse_id
-    ? (warehouses.find((w) => w.id === currentUser.assigned_warehouse_id)?.name ?? currentUser.assigned_warehouse_id)
-    : 'All Warehouses';
+  
+  // For Admin: show all regions/warehouses
+  // For Engineer/PM: show only their assigned locations
+  const regionLabel = currentUser.role === 'Admin'
+    ? 'All Regions'
+    : currentUser.assigned_region_ids && currentUser.assigned_region_ids.length > 0
+      ? currentUser.assigned_region_ids
+          .map(id => regions.find((r) => r.id === id)?.name ?? id)
+          .join(', ')
+      : 'No assigned regions';
+  
+  const warehouseLabel = currentUser.role === 'Admin'
+    ? 'All Warehouses'
+    : currentUser.assigned_warehouse_ids && currentUser.assigned_warehouse_ids.length > 0
+      ? currentUser.assigned_warehouse_ids
+          .map(id => warehouses.find((w) => w.id === id)?.name ?? id)
+          .join(', ')
+      : 'No assigned warehouses';
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
