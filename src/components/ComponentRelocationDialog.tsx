@@ -86,7 +86,7 @@ export function ComponentRelocationDialog({
       );
       if (componentsInSameWarehouse.length > 0) {
         const componentNames = componentsInSameWarehouse.map(c => c.name).join(', ');
-        toast.error(`The following components are already in the selected warehouse: ${componentNames}`);
+        toast.error(`The following components are already in the selected warehouse: ${componentNames}. Please select a different destination.`);
         return;
       }
     } else {
@@ -101,7 +101,7 @@ export function ComponentRelocationDialog({
       );
       if (componentsInSameHardware.length > 0) {
         const componentNames = componentsInSameHardware.map(c => c.name).join(', ');
-        toast.error(`The following components are already installed in the selected hardware: ${componentNames}`);
+        toast.error(`The following components are already installed in the selected hardware: ${componentNames}. Please select a different destination.`);
         return;
       }
     }
@@ -197,7 +197,7 @@ export function ComponentRelocationDialog({
 
           {relocationType === 'WAREHOUSE' ? (
             <div className="space-y-2">
-              <Label>Destination Warehouse *</Label>
+              <Label>Destination Warehouse <span className="text-destructive">*</span></Label>
               <Select
                 value={formData.destination_warehouse_id}
                 onValueChange={(value) => {
@@ -225,7 +225,7 @@ export function ComponentRelocationDialog({
             </div>
           ) : (
             <div className="space-y-2">
-              <Label>Destination Hardware *</Label>
+              <Label>Destination Hardware <span className="text-destructive">*</span></Label>
               <Select
                 value={formData.destination_server_id}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, destination_server_id: value }))}
@@ -248,7 +248,7 @@ export function ComponentRelocationDialog({
           )}
 
           <div className="space-y-2">
-            <Label>Reason for Relocation *</Label>
+            <Label>Reason for Relocation <span className="text-destructive">*</span></Label>
             <Textarea
               value={formData.reason}
               onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}

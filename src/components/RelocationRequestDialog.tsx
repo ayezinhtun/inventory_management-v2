@@ -73,6 +73,12 @@ export function RelocationRequestDialog({
             return;
         }
 
+        // Prevent moving to the same location
+        if (formData.destination_region_id === sourceRegionId && formData.destination_warehouse_id === sourceWarehouseId) {
+            toast.error('Cannot relocate to the same location. Please select a different destination.');
+            return;
+        }
+
         setSubmitting(true);
 
         try {
@@ -133,7 +139,7 @@ export function RelocationRequestDialog({
                 </DialogHeader>
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <Label>Destination Region *</Label>
+                        <Label>Destination Region <span className="text-destructive">*</span></Label>
                         <Select
                             value={formData.destination_region_id}
                             onValueChange={(value) => {
@@ -157,7 +163,7 @@ export function RelocationRequestDialog({
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Destination Warehouse *</Label>
+                        <Label>Destination Warehouse <span className="text-destructive">*</span></Label>
                         <Select
                             value={formData.destination_warehouse_id}
                             onValueChange={(value) => setFormData(prev => ({ ...prev, destination_warehouse_id: value }))}
@@ -180,7 +186,7 @@ export function RelocationRequestDialog({
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Reason for Relocation *</Label>
+                        <Label>Reason for Relocation <span className="text-destructive">*</span></Label>
                         <Textarea
                             value={formData.reason}
                             onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}

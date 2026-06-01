@@ -498,7 +498,7 @@ export function RelocationRequestsPage({
       </div>
 
       {/* Batch Section for PM View - Shows all statuses */}
-      {pmView && groupedPMRequests.length > 0 && (
+      {pmView && groupedPMRequests.length > 0 ? (
         <Card className="border border-0 p-0 m-0">
           <CardContent className="p-0 m-0">
             <div className="space-y-2">
@@ -681,10 +681,19 @@ export function RelocationRequestsPage({
             </div>
           </CardContent>
         </Card>
+      ) : pmView && (
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center text-muted-foreground">
+              <ArrowRightLeft className="h-12 w-12 mx-auto mb-4 opacity-20" />
+              <p>No relocation requests found.</p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Engineer View - Batch format without approve/reject buttons */}
-      {engineerView && groupedEngineerRequests.length > 0 && (
+      {engineerView && groupedEngineerRequests.length > 0 ? (
         <Card className="border border-0 p-0 m-0">
           <CardContent className="p-0 m-0">
             <div className="space-y-2">
@@ -811,6 +820,15 @@ export function RelocationRequestsPage({
                   </div>
                 );
               })}
+            </div>
+          </CardContent>
+        </Card>
+      ) : engineerView && (
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center text-muted-foreground">
+              <ArrowRightLeft className="h-12 w-12 mx-auto mb-4 opacity-20" />
+              <p>No relocation requests found.</p>
             </div>
           </CardContent>
         </Card>
