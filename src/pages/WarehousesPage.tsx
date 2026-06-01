@@ -123,6 +123,10 @@ export function WarehousesPage() {
       toast.error('Warehouse name is required');
       return;
     }
+    if (!formData.region_id) {
+      toast.error('Region is required');
+      return;
+    }
 
     setSaveLoading(true);
     try {

@@ -157,6 +157,10 @@ export function CustomersPage() {
       toast.error('Customer name is required');
       return;
     }
+    if (!form.customer_type) {
+      toast.error('Customer type is required');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
