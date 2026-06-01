@@ -86,7 +86,7 @@ const SelectValue: React.FC<SelectValueProps> = ({ placeholder, displayValue }) 
   // Use displayValue if provided, otherwise fall back to raw value
   const display = displayValue || (value && value !== 'none' ? value : undefined);
   return (
-    <span data-slot="select-value" data-placeholder={!display || undefined} className={cn(!display && "text-muted-foreground")}>
+    <span data-slot="select-value" data-placeholder={!display || undefined} className={cn(!display && "text-muted-foreground", "truncate block overflow-hidden")}>
       {display || placeholder}
     </span>);
 

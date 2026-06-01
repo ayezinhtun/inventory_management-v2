@@ -83,7 +83,7 @@ export function InventoryListPage() {
         (h) =>
           h.name.toLowerCase().includes(q) ||
           h.serial_number.toLowerCase().includes(q) ||
-          h.model.toLowerCase().includes(q) ||
+          // h.model.toLowerCase().includes(q) ||
           h.manufacturer.toLowerCase().includes(q)
       );
     }
@@ -151,7 +151,7 @@ export function InventoryListPage() {
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, serial, model..."
+                placeholder="Search by name, serial..."
                 className="pl-8"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -188,7 +188,7 @@ export function InventoryListPage() {
 
               <Select value={regionFilter} onValueChange={setRegionFilter}>
                 <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Region" />
+                  <SelectValue placeholder="Region" displayValue={regionFilter !== 'all' ? getRegionName(regionFilter) : undefined} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Regions</SelectItem>
@@ -224,7 +224,7 @@ export function InventoryListPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Manufacturer</TableHead>
-                  <TableHead>Model</TableHead>
+                  {/* <TableHead>Model</TableHead> */}
                   <TableHead>Serial Number</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Condition</TableHead>
@@ -249,7 +249,7 @@ export function InventoryListPage() {
                           <Badge variant="secondary">{hardware.item_type}</Badge>
                         </TableCell>
                         <TableCell>{hardware.manufacturer}</TableCell>
-                        <TableCell>{hardware.model}</TableCell>
+                        {/* <TableCell>{hardware.model}</TableCell> */}
                         <TableCell className="font-mono text-sm">
                           {hardware.serial_number}
                         </TableCell>
@@ -295,15 +295,15 @@ export function InventoryListPage() {
 
       {/* ── Delete Confirmation Dialog ── */}
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
+        <DialogContent className="w-full max-w-lg overflow-auto">
+          <DialogHeader className="overflow-hidden">
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
               Delete Hardware
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="break-words overflow-hidden" style={{ overflowWrap: 'anywhere' }}>
               Are you sure you want to delete{' '}
-              <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+              <strong className="break-all" style={{ overflowWrap: 'anywhere' }}>{deleteTarget?.name}</strong>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

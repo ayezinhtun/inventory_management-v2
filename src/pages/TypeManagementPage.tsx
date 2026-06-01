@@ -632,15 +632,15 @@ export function TypeManagementPage() {
 
       {/* ── Delete Confirmation Dialog ── */}
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
+        <DialogContent className="w-full max-w-lg overflow-auto">
+          <DialogHeader className="overflow-hidden">
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
               Delete Component Type
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="break-words overflow-hidden" style={{ overflowWrap: 'anywhere' }}>
               Are you sure you want to delete{' '}
-              <strong>{deleteTarget?.type_name}</strong>? This action cannot be undone.
+              <strong className="break-all" style={{ overflowWrap: 'anywhere' }}>{deleteTarget?.type_name}</strong>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

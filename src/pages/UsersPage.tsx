@@ -886,14 +886,14 @@ export function UsersPage() {
 
       {/* ── Delete Confirmation Dialog ── */}
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteInput(''); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
+        <DialogContent className="w-full max-w-lg overflow-auto">
+          <DialogHeader className="overflow-hidden">
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
               Delete User
             </DialogTitle>
-            <DialogDescription>
-              This permanently deletes <strong>{deleteTarget?.name}</strong> and all associated data. This cannot be undone.
+            <DialogDescription className="break-words overflow-hidden" style={{ overflowWrap: 'anywhere' }}>
+              This permanently deletes <strong className="break-all" style={{ overflowWrap: 'anywhere' }}>{deleteTarget?.name}</strong> and all associated data. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
