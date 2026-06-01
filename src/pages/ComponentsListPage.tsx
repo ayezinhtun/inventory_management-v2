@@ -316,7 +316,9 @@ export function ComponentsListPage() {
 
           </Button> */}
 
-          {selectedComponentIds.size > 0 && (
+          {(currentUser?.role === "Admin" ||
+            currentUser?.role === "Engineer") &&
+            selectedComponentIds.size > 0 && (
             <Button
               variant="outline"
               onClick={() => setShowRelocationDialog(true)}
@@ -467,21 +469,24 @@ export function ComponentsListPage() {
                 <TableRow>
                   <TableHead className="w-10">
                     <div className='col-span-2 flex items-center gap-2'>
-                      <Checkbox
-                        checked={
-                          selectedComponentIds.size > 0 &&
-                          selectedComponentIds.size === groupedComponents.flatMap(g => g.items).length
-                        }
-                        onCheckedChange={(checked) => {
-                          const allIds = groupedComponents.flatMap(g => g.items.map((i: any) => i.id));
-
-                          if (checked) {
-                            setSelectedComponentIds(new Set(allIds));
-                          } else {
-                            setSelectedComponentIds(new Set());
+                      {(currentUser?.role === "Admin" ||
+                        currentUser?.role === "Engineer") && (
+                        <Checkbox
+                          checked={
+                            selectedComponentIds.size > 0 &&
+                            selectedComponentIds.size === groupedComponents.flatMap(g => g.items).length
                           }
-                        }}
-                      />
+                          onCheckedChange={(checked) => {
+                            const allIds = groupedComponents.flatMap(g => g.items.map((i: any) => i.id));
+
+                            if (checked) {
+                              setSelectedComponentIds(new Set(allIds));
+                            } else {
+                              setSelectedComponentIds(new Set());
+                            }
+                          }}
+                        />
+                      )}
                       Name
                     </div>
 
@@ -618,23 +623,40 @@ export function ComponentsListPage() {
 
                                 {group.items.map((item: any) => (
 
-                                  <div key={item.id} className="grid grid-cols-7 gap-2 px-3 py-2 bg-white rounded items-center">
+                                  <div
+                                    key={item.id}
+                                    className="grid grid-cols-7 gap-2 px-3 py-2 bg-white rounded items-center cursor-pointer hover:bg-muted/50"
+                                    onClick={() => {
+                                      if (currentUser?.role === "Admin" || currentUser?.role === "Engineer") {
+                                        const newSelected = new Set(selectedComponentIds);
+                                        if (newSelected.has(item.id)) {
+                                          newSelected.delete(item.id);
+                                        } else {
+                                          newSelected.add(item.id);
+                                        }
+                                        setSelectedComponentIds(newSelected);
+                                      }
+                                    }}
+                                  >
 
-                                    <div className='col-span-2 flex items-center gap-2'>
-                                      <Checkbox
-                                        checked={selectedComponentIds.has(item.id)}
-                                        onCheckedChange={(checked) => {
-                                          const newSelected = new Set(selectedComponentIds);
+                                    <div className='col-span-2 flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
+                                      {(currentUser?.role === "Admin" ||
+                                        currentUser?.role === "Engineer") && (
+                                        <Checkbox
+                                          checked={selectedComponentIds.has(item.id)}
+                                          onCheckedChange={(checked) => {
+                                            const newSelected = new Set(selectedComponentIds);
 
-                                          if (checked) {
-                                            newSelected.add(item.id);
-                                          } else {
-                                            newSelected.delete(item.id);
-                                          }
+                                            if (checked) {
+                                              newSelected.add(item.id);
+                                            } else {
+                                              newSelected.delete(item.id);
+                                            }
 
-                                          setSelectedComponentIds(newSelected);
-                                        }}
-                                      />
+                                            setSelectedComponentIds(newSelected);
+                                          }}
+                                        />
+                                      )}
 
                                       <div className="text-sm font-medium truncate" title={group.name}>
 

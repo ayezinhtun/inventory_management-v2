@@ -625,8 +625,26 @@ export function RelocationRequestsPage({
                           </div>
                           <div>
                             <p className="font-medium">Reason</p>
-                            <p className="text-sm">{group.reason}</p>
+                            <p className="text-sm break-words">{group.reason}</p>
                           </div>
+                          {group.requests[0]?.notes && (
+                            <div>
+                              <p className="font-medium">Additional Notes</p>
+                              <p className="text-sm break-words">{group.requests[0]?.notes}</p>
+                            </div>
+                          )}
+                          {group.requests[0]?.pm_comments && (
+                            <div>
+                              <p className="font-medium">PM Comments</p>
+                              <p className="text-sm break-words">{group.requests[0]?.pm_comments}</p>
+                            </div>
+                          )}
+                          {group.requests[0]?.admin_comments && (
+                            <div>
+                              <p className="font-medium">Admin Comments</p>
+                              <p className="text-sm break-words">{group.requests[0]?.admin_comments}</p>
+                            </div>
+                          )}
                         </div>
                         {group.requests.some(
                           (r: any) => r.status === "Pending PM Approval",
@@ -743,21 +761,21 @@ export function RelocationRequestsPage({
                       <div className="border-t p-4 space-y-4">
                         {/* Individual requests list with table-like UI */}
                         <div className="space-y-2">
-                          <p className="font-medium text-sm">
+                          {/* <p className="font-medium text-sm">
                             Individual Requests
-                          </p>
+                          </p> */}
                           <div className="border rounded overflow-x-auto">
-                            <div className="grid grid-cols-5 gap-2 p-2 bg-muted text-xs font-medium text-muted-foreground min-w-[800px]">
+                            <div className="grid grid-cols-4 gap-2 p-2 bg-muted text-xs font-medium text-muted-foreground min-w-[800px]">
                               <div>Request #</div>
                               <div>Item</div>
                               <div>From → To</div>
                               <div>Status</div>
-                              <div>Comments</div>
+                              {/* <div>Comments</div> */}
                             </div>
                             {group.requests.map((req: any) => (
                               <div
                                 key={req.id}
-                                className="grid grid-cols-5 gap-2 p-2 border-t text-xs items-start min-w-[800px]"
+                                className="grid grid-cols-4 gap-2 p-2 border-t text-xs items-start min-w-[800px]"
                               >
                                 <div className="font-medium">
                                   {req.request_number}
@@ -793,7 +811,7 @@ export function RelocationRequestsPage({
                                     {req.status}
                                   </Badge>
                                 </div>
-                                <div className="text-sm">{getComment(req)}</div>
+                                {/* <div className="text-sm">{getComment(req)}</div> */}
                               </div>
                             ))}
                           </div>
@@ -812,9 +830,29 @@ export function RelocationRequestsPage({
                           </div>
                           <div>
                             <p className="font-medium">Reason</p>
-                            <p className="text-sm">{group.reason}</p>
+                            <p className="text-sm break-words">{group.reason}</p>
                           </div>
+
+                          {group.requests[0]?.notes && (
+                            <div>
+                              <p className="font-medium">Additional Notes</p>
+                              <p className="text-sm break-words">{group.requests[0]?.notes}</p>
+                            </div>
+                          )}
+                          {group.requests[0]?.pm_comments && (
+                            <div>
+                              <p className="font-medium">PM Comments</p>
+                              <p className="text-sm break-words">{group.requests[0]?.pm_comments}</p>
+                            </div>
+                          )}
+                          {group.requests[0]?.admin_comments && (
+                            <div>
+                              <p className="font-medium">Admin Comments</p>
+                              <p className="text-sm break-words">{group.requests[0]?.admin_comments}</p>
+                            </div>
+                          )}
                         </div>
+
                       </div>
                     )}
                   </div>

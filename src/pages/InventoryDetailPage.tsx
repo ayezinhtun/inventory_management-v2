@@ -276,17 +276,17 @@ export function InventoryDetailPage() {
           </div>
         </div>
 
-        {(currentUser?.role === "Admin" ||
-          currentUser?.role === "Engineer") && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => navigate("inventory-add", effectiveSelectedId)}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
+        {(currentUser?.role === "Admin" || currentUser?.role === "PM") && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate("inventory-add", effectiveSelectedId)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
 
+            {(currentUser?.role === "Admin") && (
               <AlertDialog
                 open={isDeleteDialogOpen}
                 onOpenChange={setIsDeleteDialogOpen}
@@ -316,8 +316,10 @@ export function InventoryDetailPage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </div>
-          )}
+            )}
+          </div>
+        )}
+
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -336,22 +338,25 @@ export function InventoryDetailPage() {
           </TabsList>
 
           <div className="flex items-center gap-3">
-            {item.status !== 'reserved' && (
-              <Button
-                variant="outline"
-                onClick={() => setIsRelocationDialogOpen(true)}
-              >
-                <Package className="h-4 w-4 mr-2" />
-                Relocate
-              </Button>
-            )}
+            {(currentUser?.role === "Admin" ||
+              currentUser?.role === "Engineer") &&
+              item.status !== 'reserved' && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsRelocationDialogOpen(true)}
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  Relocate
+                </Button>
+              )}
 
-            {item.status !== 'reserved' && (
-              <Button variant="outline" onClick={() => setIsReserveDialogOpen(true)}>
-                <Bookmark className="h-4 w-4 mr-2" />
-                Reserve
-              </Button>
-            )}
+            {currentUser?.role === "Admin" &&
+              item.status !== 'reserved' && (
+                <Button variant="outline" onClick={() => setIsReserveDialogOpen(true)}>
+                  <Bookmark className="h-4 w-4 mr-2" />
+                  Reserve
+                </Button>
+              )}
           </div>
         </div>
 
@@ -568,8 +573,22 @@ export function InventoryDetailPage() {
                   </TableHeader>
                   <TableBody>
                     {installedComponents.map((comp) => (
-                      <TableRow key={comp.id}>
-                        <TableCell>
+                      <TableRow
+                        key={comp.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => {
+                          if (currentUser?.role === "Admin" || currentUser?.role === "Engineer") {
+                            const newSelected = new Set(selectedComponentIds);
+                            if (newSelected.has(comp.id)) {
+                              newSelected.delete(comp.id);
+                            } else {
+                              newSelected.add(comp.id);
+                            }
+                            setSelectedComponentIds(newSelected);
+                          }
+                        }}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selectedComponentIds.has(comp.id)}
                             onCheckedChange={(checked) => {
@@ -599,7 +618,7 @@ export function InventoryDetailPage() {
                             {comp.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <Button
                             size="sm"
                             variant="outline"

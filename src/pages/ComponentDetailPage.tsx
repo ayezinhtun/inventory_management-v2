@@ -733,7 +733,7 @@ export function ComponentDetailPage() {
 
 
 
-        {currentUser?.role === "Admin" && (
+        {(currentUser?.role === "Admin" || currentUser?.role === "PM") && (
 
           <div className="flex items-center gap-2">
 
@@ -759,14 +759,7 @@ export function ComponentDetailPage() {
 
 
 
-            <AlertDialog
-
-              open={isDeleteDialogOpen}
-
-              onOpenChange={setIsDeleteDialogOpen}
-
-            >
-
+            {(currentUser?.role === "Admin") && (
               <AlertDialog
 
                 open={isDeleteDialogOpen}
@@ -775,66 +768,75 @@ export function ComponentDetailPage() {
 
               >
 
-                <AlertDialogTrigger>
+                <AlertDialog
 
-                  <Button variant="destructive">
+                  open={isDeleteDialogOpen}
 
-                    <Trash2 className="h-4 w-4 mr-2" />
+                  onOpenChange={setIsDeleteDialogOpen}
 
-                    Delete
+                >
 
-                  </Button>
+                  <AlertDialogTrigger>
 
-                </AlertDialogTrigger>
+                    <Button variant="destructive">
+
+                      <Trash2 className="h-4 w-4 mr-2" />
+
+                      Delete
+
+                    </Button>
+
+                  </AlertDialogTrigger>
+
+                </AlertDialog>
+
+
+
+                <AlertDialogContent>
+
+                  <AlertDialogHeader>
+
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+
+
+
+                    <AlertDialogDescription>
+
+                      This action cannot be undone. This will permanently delete
+
+                      the component and remove its data from our servers.
+
+                    </AlertDialogDescription>
+
+                  </AlertDialogHeader>
+
+
+
+                  <AlertDialogFooter>
+
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+
+
+
+                    <AlertDialogAction
+
+                      onClick={handleDelete}
+
+                      className="bg-destructive text-white hover:bg-destructive/90"
+
+                    >
+
+                      Delete
+
+                    </AlertDialogAction>
+
+                  </AlertDialogFooter>
+
+                </AlertDialogContent>
 
               </AlertDialog>
 
-
-
-              <AlertDialogContent>
-
-                <AlertDialogHeader>
-
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-
-
-
-                  <AlertDialogDescription>
-
-                    This action cannot be undone. This will permanently delete
-
-                    the component and remove its data from our servers.
-
-                  </AlertDialogDescription>
-
-                </AlertDialogHeader>
-
-
-
-                <AlertDialogFooter>
-
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-
-
-
-                  <AlertDialogAction
-
-                    onClick={handleDelete}
-
-                    className="bg-destructive text-white hover:bg-destructive/90"
-
-                  >
-
-                    Delete
-
-                  </AlertDialogAction>
-
-                </AlertDialogFooter>
-
-              </AlertDialogContent>
-
-            </AlertDialog>
-
+            )}
           </div>
 
         )}
@@ -1387,9 +1389,9 @@ export function ComponentDetailPage() {
 
                         const statusColor = req.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : req.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : req.status.includes('Rejected') ? 'bg-red-50 text-red-700 border-red-200'
-                          : req.status.includes('Pending') ? 'bg-amber-50 text-amber-700 border-amber-200'
-                          : 'bg-gray-50 text-gray-700 border-gray-200';
+                            : req.status.includes('Rejected') ? 'bg-red-50 text-red-700 border-red-200'
+                              : req.status.includes('Pending') ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-gray-50 text-gray-700 border-gray-200';
 
                         return (
                           <tr

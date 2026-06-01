@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "../utils";
 
@@ -90,7 +91,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
     const { open, setOpen } = React.useContext(DialogContext);
     if (!open) return null;
 
-    return (
+    return createPortal(
       <>
         <div
           className="fixed inset-0 z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[2px]"
@@ -117,7 +118,9 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
             </button>
           }
         </div>
-      </>);
+      </>,
+      document.body
+    );
 
   }
 );

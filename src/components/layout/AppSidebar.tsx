@@ -259,12 +259,12 @@ export function AppSidebar() {
           icon: Settings,
           roles: ["Admin"],
         },
-        {
-          id: "customers",
-          label: "Customers",
-          icon: Users,
-          roles: ["Admin"],
-        },
+        // {
+        //   id: "customers",
+        //   label: "Customers",
+        //   icon: Users,
+        //   roles: ["Admin"],
+        // },
         {
           id: "users",
           label: "User Management",

@@ -383,13 +383,17 @@ export function ComponentsAddPage() {
 
       // Validate field type
       const value = specValues[field.id];
-      if (value && value.trim() !== "") {
-        if (field.field_type === "number") {
-          if (isNaN(Number(value))) {
-            toast.error(`${field.label} must be a number`);
-            setSaving(false);
-            return;
-          }
+      if (field.field_type === "number") {
+        const value = specValues[field.id];
+
+        if (field.required && (!value || value.trim() === "")) {
+          toast.error(`${field.label} is required`);
+          return;
+        }
+
+        if (value && Number.isNaN(Number(value))) {
+          toast.error(`${field.label} must be a number`);
+          return;
         }
       }
     }
@@ -539,11 +543,10 @@ export function ComponentsAddPage() {
                     {suggestions.map((component, index) => (
                       <div
                         key={component.id}
-                        className={`px-3 py-2 cursor-pointer text-sm ${
-                          index === suggestionIndex
-                            ? "bg-blue-50 text-blue-700"
-                            : "hover:bg-gray-50"
-                        }`}
+                        className={`px-3 py-2 cursor-pointer text-sm ${index === suggestionIndex
+                          ? "bg-blue-50 text-blue-700"
+                          : "hover:bg-gray-50"
+                          }`}
                         onClick={() => {
                           console.log("Clicked suggestion:", component);
                           handleSuggestionSelect(component);
@@ -758,7 +761,7 @@ export function ComponentsAddPage() {
                         )}
                       </Label>
                       {f.field_type === "dropdown" &&
-                      (f.options ?? []).length > 0 ? (
+                        (f.options ?? []).length > 0 ? (
                         <Select
                           value={specValues[f.id] ?? ""}
                           onValueChange={(v) =>
@@ -783,7 +786,7 @@ export function ComponentsAddPage() {
                         <Input
                           type={
                             f.field_type === "number"
-                              ? "number"
+                              ? "text"
                               : f.field_type === "date"
                                 ? "date"
                                 : f.field_type === "time"
@@ -791,13 +794,19 @@ export function ComponentsAddPage() {
                                   : "text"
                           }
                           value={specValues[f.id] ?? ""}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            let val = e.target.value;
+
+                            // block text for number fields
+                            if (f.field_type === "number") {
+                              if (!/^\d*\.?\d*$/.test(val)) return;
+                            }
+
                             setSpecValues((prev) => ({
                               ...prev,
-                              [f.id]: e.target.value,
-                            }))
-                          }
-                          placeholder={f.label}
+                              [f.id]: val,
+                            }));
+                          }}
                         />
                       )}
                     </div>

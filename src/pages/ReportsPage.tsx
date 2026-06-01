@@ -95,7 +95,6 @@ export function ReportsPage() {
         { header: 'Name', key: 'name' },
         { header: 'Type', key: 'item_type' },
         { header: 'Manufacturer', key: 'manufacturer' },
-        { header: 'Model', key: 'model' },
         { header: 'Serial Number', key: 'serial_number' },
         { header: 'Asset Tag', key: 'asset_tag' },
         { header: 'Status', key: 'status' },
@@ -118,7 +117,6 @@ export function ReportsPage() {
       const columns: ExportColumn[] = [
         { header: 'Name', key: 'name' },
         { header: 'Manufacturer', key: 'manufacturer' },
-        { header: 'Model', key: 'model' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
@@ -185,7 +183,7 @@ export function ReportsPage() {
             const now = new Date();
             const diffTime = Math.abs(now.getTime() - created.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays;
+            return diffDays.toString();
           }
         },
         { header: 'From Region', key: 'source_region_id', formatter: (value) => getRegionName(value) },
@@ -208,7 +206,6 @@ export function ReportsPage() {
       const columns: ExportColumn[] = [
         { header: 'Component Name', key: 'name' },
         { header: 'Manufacturer', key: 'manufacturer' },
-        { header: 'Model', key: 'model' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
@@ -230,7 +227,6 @@ export function ReportsPage() {
       const columns: ExportColumn[] = [
         { header: 'Component Name', key: 'name' },
         { header: 'Manufacturer', key: 'manufacturer' },
-        { header: 'Model', key: 'model' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },

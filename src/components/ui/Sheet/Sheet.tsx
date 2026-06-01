@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "../utils";
 
@@ -72,7 +73,7 @@ const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
     const { open, setOpen } = React.useContext(SheetContext);
     if (!open) return null;
 
-    return (
+    return createPortal(
       <>
         <div className="fixed inset-0 z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[2px]" onClick={() => setOpen(false)} />
         <div
@@ -98,7 +99,9 @@ const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
             </button>
           }
         </div>
-      </>);
+      </>,
+      document.body
+    );
 
   }
 );

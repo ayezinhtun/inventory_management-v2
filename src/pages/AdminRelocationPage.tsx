@@ -208,9 +208,9 @@ export function AdminRelocationPage() {
                       <div className="border-t p-4 space-y-4">
                         {/* Individual requests list with table-like UI */}
                         <div className="space-y-2">
-                          <p className="font-medium text-sm">
+                          {/* <p className="font-medium text-sm">
                             Individual Requests
-                          </p>
+                          </p> */}
                           <div className="border rounded overflow-x-auto">
                             <div className="grid grid-cols-5 gap-2 p-2 bg-muted text-xs font-medium text-muted-foreground min-w-[800px]">
                               <div>Request #</div>
@@ -268,7 +268,7 @@ export function AdminRelocationPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                           <div>
                             <p className="font-medium">Type</p>
                             <Badge variant="outline">
@@ -281,9 +281,28 @@ export function AdminRelocationPage() {
                           </div>
                           <div>
                             <p className="font-medium">Reason</p>
-                            <p className="text-sm">{group.reason}</p>
+                            <p className="text-sm break-words">{group.reason}</p>
                           </div>
+                          {group.requests[0]?.notes && (
+                            <div>
+                              <p className="font-medium">Additional Notes</p>
+                              <p className="text-sm break-words">{group.requests[0]?.notes}</p>
+                            </div>
+                          )}
+                          {group.requests[0]?.pm_comments && (
+                            <div>
+                              <p className="font-medium">PM Comments</p>
+                              <p className="text-sm break-words">{group.requests[0]?.pm_comments}</p>
+                            </div>
+                          )}
+                          {group.requests[0]?.admin_comments && (
+                            <div>
+                              <p className="font-medium">Admin Comments</p>
+                              <p className="text-sm break-words">{group.requests[0]?.admin_comments}</p>
+                            </div>
+                          )}
                         </div>
+
 
                         {group.requests.some((r: any) => r.status === 'Pending Admin Approval') && (
                           <div className="space-y-2">
