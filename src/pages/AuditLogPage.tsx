@@ -77,7 +77,7 @@ export function AuditLogPage() {
 
   // Extract unique modules from pre-fetched audit logs
   useEffect(() => {
-    const unique = Array.from(new Set(auditLogs.map((r: any) => r.module))).sort();
+    const unique = Array.from(new Set(auditLogs.map((r: any) => r.module))).filter(m => m !== 'Customers').sort();
     setModules(unique as string[]);
   }, [auditLogs]);
 

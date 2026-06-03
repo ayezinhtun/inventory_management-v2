@@ -358,7 +358,7 @@ export function ComponentsListPage() {
 
               <Input
 
-                placeholder="Search by name, model, or part number..."
+                placeholder="Search by name, or part number..."
 
                 className="pl-8"
 
