@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Textarea } from '../components/ui/Textarea';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useHardwareInventoryStore } from '../store/useHardwareInventoryStore';
 import { useComponentsStore } from '../store/useComponentsStore';
 import { getStatusColor } from '../lib/utils';
@@ -21,7 +21,7 @@ export function AdminRelocationPage() {
     fetchRelocationRequests,
   } = useRelocationStore();
 
-  const { currentUser, getUserName, getWarehouseName, getRegionName } = useStore();
+  const { currentUser, getUserName, getWarehouseName, getRegionName, warehouses } = useStore();
   const { hardwareInventory } = useHardwareInventoryStore();
   const { components } = useComponentsStore();
 
@@ -57,21 +57,17 @@ export function AdminRelocationPage() {
 
   const getLocationDisplay = (serverId: string | null, warehouseId: string | null, regionId: string | null) => {
     if (serverId) {
-      return `Server: ${serverId}`;
+      return hardwareInventory.find((i) => i.id === serverId)?.name ?? "Unknown Device";
     } else if (warehouseId) {
       const warehouseName = getWarehouseName(warehouseId);
-      const regionName = warehouseName ? getRegionName(getWarehousesByRegion().find(w => w.id === warehouseId)?.region_id || '') : "";
+      const warehouse = warehouses.find((w: any) => w.id === warehouseId);
+      const regionName = warehouse ? getRegionName(warehouse.region_id) : "";
       return `${warehouseName}(${regionName})`;
     } else if (regionId) {
       return getRegionName(regionId);
     } else {
       return "—";
     }
-  };
-
-  const getWarehousesByRegion = () => {
-    const { warehouses } = useStore.getState();
-    return warehouses;
   };
 
   const getBatchStatus = (requests: any[]) => {

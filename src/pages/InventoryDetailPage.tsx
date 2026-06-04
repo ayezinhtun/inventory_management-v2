@@ -565,7 +565,7 @@ export function InventoryDetailPage() {
                       <TableHead>Component</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Manufacturer</TableHead>
-                      <TableHead>Model</TableHead>
+                      {/* <TableHead>Model</TableHead> */}
                       <TableHead>Part Number</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -611,7 +611,7 @@ export function InventoryDetailPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>{comp.manufacturer || "—"}</TableCell>
-                        <TableCell>{comp.model || "—"}</TableCell>
+                        {/* <TableCell>{comp.model || "—"}</TableCell> */}
                         <TableCell>{comp.part_number || "—"}</TableCell>
                         <TableCell>
                           <Badge className={getStatusColor(comp.status)}>
