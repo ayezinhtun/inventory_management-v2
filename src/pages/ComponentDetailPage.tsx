@@ -966,9 +966,9 @@ export function ComponentDetailPage() {
 
 
                   <span className="col-span-2 font-medium">
-
-                    {component.status}
-
+                    <Badge className={getStatusColor(component.status)}>
+                      {component.status}
+                    </Badge>
                   </span>
 
                 </div>

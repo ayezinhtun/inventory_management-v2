@@ -91,6 +91,8 @@ export function getStatusColor(status: string): string {
     Cancelled: 'bg-gray-100 text-gray-800',
     Draft: 'bg-gray-100 text-gray-600',
     Active: 'bg-emerald-100 text-emerald-800',
+    active: 'bg-emerald-100 text-emerald-800',
+    released: 'bg-gray-100 text-gray-800',
     Expired: 'bg-red-100 text-red-800',
     Scheduled: 'bg-blue-100 text-blue-800',
     Overdue: 'bg-red-100 text-red-800',

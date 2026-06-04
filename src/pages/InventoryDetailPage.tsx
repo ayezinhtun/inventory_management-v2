@@ -440,7 +440,11 @@ export function InventoryDetailPage() {
               <CardContent className="space-y-2">
                 <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Status:</span>
-                  <span className="col-span-2 font-medium">{item.status}</span>
+                  <span className="col-span-2 font-medium">
+                    <Badge className={getStatusColor(item.status)}>
+                      {item.status}
+                    </Badge>
+                  </span>
                 </div>
                 <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Condition:</span>

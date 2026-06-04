@@ -109,6 +109,33 @@ export const useHardwareInventoryStore = create<HardwareInventoryState>((set, ge
       ),
     }));
 
+    // Cascade status change to installed components
+    if (updates.status && existing) {
+      const { useComponentsStore } = await import('./useComponentsStore');
+      const componentsStore = useComponentsStore.getState();
+      
+      // Find all components installed in this hardware
+      const installedComponents = componentsStore.components.filter(
+        (c) => c.installed_in_device_id === id && !c.is_deleted
+      );
+
+      // Update component status based on hardware status change
+      if (updates.status === 'reserved') {
+        // When hardware is reserved, mark installed components as reserved
+        for (const component of installedComponents) {
+          await componentsStore.updateComponent(component.id, { status: 'reserved' });
+        }
+      } else if (existing.status !== updates.status) {
+        // When hardware status changes from something to something else (e.g., reserved to available)
+        // Mark installed components back to installed if they were reserved
+        for (const component of installedComponents) {
+          if (component.status === 'reserved') {
+            await componentsStore.updateComponent(component.id, { status: 'installed' });
+          }
+        }
+      }
+    }
+
     auditLog({
       action: 'UPDATE',
       module: 'HardwareInventory',

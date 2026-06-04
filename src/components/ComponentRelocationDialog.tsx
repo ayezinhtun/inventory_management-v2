@@ -73,6 +73,14 @@ export function ComponentRelocationDialog({
   );
 
   const handleSubmit = async () => {
+    // Check if any selected components are reserved
+    const reservedComponents = selectedComponents.filter(c => c.status === 'reserved');
+    if (reservedComponents.length > 0) {
+      const componentNames = reservedComponents.map(c => c.name).join(', ');
+      toast.error(`The following components are reserved and cannot be relocated: ${componentNames}. Please release the reservation first.`);
+      return;
+    }
+
     // Validate based on relocation type
     if (relocationType === 'WAREHOUSE') {
       if (!formData.destination_warehouse_id || !formData.reason) {
