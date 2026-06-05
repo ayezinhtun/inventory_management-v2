@@ -64,6 +64,8 @@ import {
   ArrowRight,
   Check,
   Puzzle,
+  PackageOpen,
+  ComponentIcon,
 } from "lucide-react";
 import { Checkbox } from "../components/ui/Checkbox";
 import { formatDate, formatCurrency, getStatusColor } from "../lib/utils";
@@ -271,7 +273,7 @@ export function InventoryDetailPage() {
               <Badge variant="secondary">{item.condition}</Badge>
             </div>
             <p className="text-muted-foreground mt-1">
-              {item.manufacturer} {item.model} • SN: {item.serial_number}
+              {item.manufacturer} • SN: {item.serial_number}
             </p>
           </div>
         </div>
@@ -386,10 +388,10 @@ export function InventoryDetailPage() {
                     {item.manufacturer}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 text-sm">
+                {/* <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Model:</span>
                   <span className="col-span-2 font-medium">{item.model}</span>
-                </div>
+                </div> */}
                 <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Serial:</span>
                   <span className="col-span-2 font-medium font-mono">
@@ -539,7 +541,7 @@ export function InventoryDetailPage() {
                           variant="outline"
                           onClick={() => setIsBatchRelocationDialogOpen(true)}
                         >
-                          <Puzzle className="h-4 w-4 mr-2" />
+                          <ComponentIcon className="h-4 w-4 mr-2" />
                           Relocate ({selectedComponentIds.size})
 
                         </Button>
@@ -554,18 +556,21 @@ export function InventoryDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={selectedComponentIds.size === installedComponents.length && installedComponents.length > 0}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedComponentIds(new Set(installedComponents.map(c => c.id)));
-                            } else {
-                              setSelectedComponentIds(new Set());
-                            }
-                          }}
-                        />
-                      </TableHead>
+                      {(currentUser?.role === "Admin" ||
+                        currentUser?.role === "Engineer") && (
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={selectedComponentIds.size === installedComponents.length && installedComponents.length > 0}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedComponentIds(new Set(installedComponents.map(c => c.id)));
+                                } else {
+                                  setSelectedComponentIds(new Set());
+                                }
+                              }}
+                            />
+                          </TableHead>
+                        )}
                       <TableHead>Component</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Manufacturer</TableHead>
@@ -592,20 +597,23 @@ export function InventoryDetailPage() {
                           }
                         }}
                       >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedComponentIds.has(comp.id)}
-                            onCheckedChange={(checked) => {
-                              const newSelected = new Set(selectedComponentIds);
-                              if (checked) {
-                                newSelected.add(comp.id);
-                              } else {
-                                newSelected.delete(comp.id);
-                              }
-                              setSelectedComponentIds(newSelected);
-                            }}
-                          />
-                        </TableCell>
+                        {(currentUser?.role === "Admin" ||
+                          currentUser?.role === "Engineer") && (
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedComponentIds.has(comp.id)}
+                                onCheckedChange={(checked) => {
+                                  const newSelected = new Set(selectedComponentIds);
+                                  if (checked) {
+                                    newSelected.add(comp.id);
+                                  } else {
+                                    newSelected.delete(comp.id);
+                                  }
+                                  setSelectedComponentIds(newSelected);
+                                }}
+                              />
+                            </TableCell>
+                          )}
                         <TableCell className="font-medium">
                           {comp.name}
                         </TableCell>

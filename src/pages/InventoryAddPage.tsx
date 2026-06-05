@@ -374,10 +374,8 @@ export function InventoryAddPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="available">Available</SelectItem>
-                <SelectItem value="assigned">Assigned</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
+                <SelectItem value="installed">Installed</SelectItem>
                 <SelectItem value="reserved">Reserved</SelectItem>
-                <SelectItem value="disposed">Disposed</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -390,7 +388,6 @@ export function InventoryAddPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="working">Working</SelectItem>
-                <SelectItem value="repairing">Repairing</SelectItem>
                 <SelectItem value="broken">Broken</SelectItem>
               </SelectContent>
             </Select>

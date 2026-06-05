@@ -60,7 +60,7 @@ import {
 
   '../components/ui/Select';
 
-import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2, Puzzle, Upload, XCircle, File, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2, Puzzle, Upload, XCircle, File, FileSpreadsheet, Component } from 'lucide-react';
 
 import { getStatusColor } from '../lib/utils';
 
@@ -103,6 +103,10 @@ export function ComponentsListPage() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showValidationErrorDialog, setShowValidationErrorDialog] = useState(false);
   const [validatedData, setValidatedData] = useState<any[]>([]);
+
+  // Define valid component status and condition values
+  const VALID_STATUSES = ['available', 'installed', 'reserved', 'broken'];
+  const VALID_CONDITIONS = ['working', 'broken'];
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<{ id: string, name: string } | null>(null);
@@ -296,7 +300,7 @@ export function ComponentsListPage() {
 
   const transformSpecificationsForExport = (specs: { [key: string]: any }, componentTypeId: string | null): { [key: string]: any } => {
     const transformedSpecs: { [key: string]: any } = {};
-    
+
     // Get the component type to access its fields
     const componentType = componentTypeId ? componentTypes.find(ct => ct.id === componentTypeId) : null;
     const fieldMap = new Map(
@@ -315,7 +319,7 @@ export function ComponentsListPage() {
 
   const transformSpecificationsForImport = (specs: { [key: string]: any }, componentTypeId: string | null, itemName: string): { [key: string]: any } => {
     const transformedSpecs: { [key: string]: any } = {};
-    
+
     // Get the component type to access its fields
     const componentType = componentTypeId ? componentTypes.find(ct => ct.id === componentTypeId) : null;
     const fieldMap = new Map(
@@ -341,7 +345,7 @@ export function ComponentsListPage() {
   const validateImportData = (importedData: any[]): { valid: boolean, errors: string[], validData: any[] } => {
     const errors: string[] = [];
     const validData: any[] = [];
-    
+
     importedData.forEach((item, index) => {
       const rowNumber = index + 2; // Excel rows are 1-indexed, header is row 1
       const itemName = (item as any).name || (item as any)['Name'] || `Row ${rowNumber}`;
@@ -357,7 +361,7 @@ export function ComponentsListPage() {
       if (!componentTypeName) {
         rowErrors.push('Missing required field: Component Type');
       } else {
-        const componentType = componentTypes.find(ct => 
+        const componentType = componentTypes.find(ct =>
           ct.type_name === componentTypeName || ct.id === componentTypeName
         );
         if (!componentType) {
@@ -370,7 +374,7 @@ export function ComponentsListPage() {
       if (!regionName) {
         rowErrors.push('Missing required field: Region');
       } else {
-        const region = regions.find(r => 
+        const region = regions.find(r =>
           r.name === regionName || r.id === regionName
         );
         if (!region) {
@@ -383,14 +387,14 @@ export function ComponentsListPage() {
       if (!warehouseName) {
         rowErrors.push('Missing required field: Warehouse');
       } else {
-        const warehouse = warehouses.find(w => 
+        const warehouse = warehouses.find(w =>
           w.name === warehouseName || w.id === warehouseName
         );
         if (!warehouse) {
           rowErrors.push(`Warehouse "${warehouseName}" not found in database`);
         } else if (regionName) {
           // Check if warehouse belongs to the selected region
-          const region = regions.find(r => 
+          const region = regions.find(r =>
             r.name === regionName || r.id === regionName
           );
           if (region && warehouse.region_id !== region.id) {
@@ -403,7 +407,7 @@ export function ComponentsListPage() {
       // Validate Specifications fields
       const specValue = (item as any).specifications || (item as any)['Specifications'] || (item as any).specification || (item as any)['Specification'] || {};
       let specsObj = typeof specValue === 'string' ? {} : specValue;
-      
+
       try {
         if (typeof specValue === 'string') {
           specsObj = JSON.parse(specValue);
@@ -412,20 +416,32 @@ export function ComponentsListPage() {
         rowErrors.push('Invalid JSON format in Specifications field');
       }
 
+      // Validate Status
+      const status = (item as any).status || (item as any)['Status'] || '';
+      if (status && !VALID_STATUSES.includes(status)) {
+        rowErrors.push(`Invalid Status "${status}". Valid statuses are: ${VALID_STATUSES.join(', ')}`);
+      }
+
+      // Validate Condition
+      const condition = (item as any).condition || (item as any)['Condition'] || '';
+      if (condition && !VALID_CONDITIONS.includes(condition)) {
+        rowErrors.push(`Invalid Condition "${condition}". Valid conditions are: ${VALID_CONDITIONS.join(', ')}`);
+      }
+
       // Check required specification fields based on component type
       if (componentTypeName) {
-        const componentType = componentTypes.find(ct => 
+        const componentType = componentTypes.find(ct =>
           ct.type_name === componentTypeName || ct.id === componentTypeName
         );
-        
+
         if (componentType && componentType.requires_specification && componentType.fields && componentType.fields.length > 0) {
           const validFieldLabels = new Set(componentType.fields.map(f => f.label));
           const validFieldIds = new Set(componentType.fields.map(f => f.id));
-          
+
           // Check for required specification fields and validate field types
           componentType.fields.forEach(field => {
             const fieldValue = specsObj[field.id] || specsObj[field.label];
-            
+
             // Check required fields
             if (field.required) {
               if (!fieldValue || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
@@ -519,7 +535,7 @@ export function ComponentsListPage() {
     setIsImporting(true);
     try {
       const importedData = await importFromExcel<any[]>(importFile);
-      
+
       if (!importedData || importedData.length === 0) {
         toast.error('No data found in the file');
         setIsImporting(false);
@@ -528,7 +544,7 @@ export function ComponentsListPage() {
 
       // Validate data first
       const validation = validateImportData(importedData);
-      
+
       if (!validation.valid) {
         // Show validation errors
         setValidationErrors(validation.errors);
@@ -552,25 +568,25 @@ export function ComponentsListPage() {
     try {
       let successCount = 0;
       const errorMessages: string[] = [];
-      
+
       for (const item of dataToImport) {
         try {
           const itemName = (item as any).name || (item as any)['Name'] || '';
-          
+
           // Map names to IDs
           const componentTypeName = (item as any).component_type_id || (item as any)['Component Type ID'] || (item as any)['Component Type'] || (item as any).component_type || '';
           const regionName = (item as any).region_id || (item as any)['Region ID'] || (item as any)['Region'] || (item as any).region || '';
           const warehouseName = (item as any).warehouse_id || (item as any)['Warehouse ID'] || (item as any)['Warehouse'] || (item as any).warehouse || '';
 
-          const componentType = componentTypeName 
+          const componentType = componentTypeName
             ? componentTypes.find(ct => ct.type_name === componentTypeName || ct.id === componentTypeName)
             : null;
-          
-          const region = regionName 
+
+          const region = regionName
             ? regions.find(r => r.name === regionName || r.id === regionName)
             : null;
-          
-          const warehouse = warehouseName 
+
+          const warehouse = warehouseName
             ? warehouses.find(w => w.name === warehouseName || w.id === warehouseName)
             : null;
 
@@ -597,7 +613,7 @@ export function ComponentsListPage() {
 
           // Save component to database
           await createComponent(componentData);
-          
+
           successCount++;
         } catch (error) {
           console.error('Error importing component:', error);
@@ -656,6 +672,20 @@ export function ComponentsListPage() {
 
           </Button> */}
 
+          {(currentUser?.role === "Admin" ||
+            currentUser?.role === "Engineer") &&
+            selectedComponentIds.size > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setShowRelocationDialog(true)}
+              >
+                <Component className="h-4 w-4 mr-2" />
+                Relocate ({selectedComponentIds.size})
+
+              </Button>
+
+            )}
+
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExportComponents}>
               <Download className="mr-2 h-4 w-4" /> Export
@@ -668,19 +698,6 @@ export function ComponentsListPage() {
             )}
           </div>
 
-          {(currentUser?.role === "Admin" ||
-            currentUser?.role === "Engineer") &&
-            selectedComponentIds.size > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => setShowRelocationDialog(true)}
-              >
-                <Puzzle className="h-4 w-4 mr-2" />
-                Relocate ({selectedComponentIds.size})
-
-              </Button>
-
-            )}
 
           {currentUser?.role === 'Admin' &&
 
@@ -1276,7 +1293,7 @@ export function ComponentsListPage() {
                 ))}
               </div>
             </div>
-            
+
             {validatedData.length > 0 && (
               <div className="bg-green-50 border border-green-200 rounded-md p-4">
                 <p className="text-sm font-medium text-green-800 mb-2">

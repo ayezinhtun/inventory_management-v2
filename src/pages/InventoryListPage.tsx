@@ -63,16 +63,16 @@ export function InventoryListPage() {
 
   // Define valid hardware types
   const VALID_HARDWARE_TYPES = ['Server', 'Laptop', 'Desktop', 'Router', 'Switch', 'Storage', 'Network', 'Other'];
+  const VALID_STATUSES = ['available', 'installed', 'reserved'];
+  const VALID_CONDITIONS = ['working', 'broken'];
 
   // Data is already fetched by fetchAppData() in useStore.ts during app initialization
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'available': return 'bg-green-100 text-green-800';
-      case 'assigned': return 'bg-blue-100 text-blue-800';
-      case 'maintenance': return 'bg-yellow-100 text-yellow-800';
+      case 'installed': return 'bg-blue-100 text-blue-800';
       case 'reserved': return 'bg-purple-100 text-purple-800';
-      case 'disposed': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -80,7 +80,6 @@ export function InventoryListPage() {
   const getConditionColor = (condition: string) => {
     switch (condition) {
       case 'working': return 'bg-green-100 text-green-800';
-      case 'repairing': return 'bg-yellow-100 text-yellow-800';
       case 'broken': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -215,6 +214,18 @@ export function InventoryListPage() {
       const serialNumber = (item as any).serial_number || (item as any)['Serial Number'] || '';
       if (!serialNumber) {
         rowErrors.push('Missing required field: Serial Number');
+      }
+
+      // Validate Status
+      const status = (item as any).status || (item as any)['Status'] || '';
+      if (status && !VALID_STATUSES.includes(status)) {
+        rowErrors.push(`Invalid Status "${status}". Valid statuses are: ${VALID_STATUSES.join(', ')}`);
+      }
+
+      // Validate Condition
+      const condition = (item as any).condition || (item as any)['Condition'] || '';
+      if (condition && !VALID_CONDITIONS.includes(condition)) {
+        rowErrors.push(`Invalid Condition "${condition}". Valid conditions are: ${VALID_CONDITIONS.join(', ')}`);
       }
 
       // Validate Specifications
@@ -454,10 +465,8 @@ export function InventoryListPage() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="assigned">Assigned</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="installed">Installed</SelectItem>
                   <SelectItem value="reserved">Reserved</SelectItem>
-                  <SelectItem value="disposed">Disposed</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -595,7 +604,12 @@ export function InventoryListPage() {
 
 
       {/* ── Import Dialog ── */}
-      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+      <Dialog open={showImportDialog} onOpenChange={(open) => {
+        setShowImportDialog(open);
+        if (!open) {
+          setImportFile(null);
+        }
+      }}>
         <DialogContent className="w-full max-w-lg overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
