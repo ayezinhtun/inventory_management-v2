@@ -1043,7 +1043,7 @@ export function ComponentDetailPage() {
 
 
 
-                <div className="grid grid-cols-3 text-sm">
+                {/* <div className="grid grid-cols-3 text-sm">
 
                   <span className="text-muted-foreground">Model:</span>
 
@@ -1055,7 +1055,7 @@ export function ComponentDetailPage() {
 
                   </span>
 
-                </div>
+                </div> */}
 
 
 

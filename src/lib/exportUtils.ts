@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
+import { error } from 'console';
 
 export interface ExportColumn<T = any> {
   header: string;
@@ -142,4 +143,28 @@ export function exportData<T>(format: 'CSV' | 'Excel' | 'PDF', options: ExportOp
     default:
       toast.error('Unsupported export format');
   }
+}
+
+// Import data from Excel file
+
+export async function importFromExcel<T>(file: File): Promise<T[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, {type: 'binary'});
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json<T>(worksheet);
+        resolve(jsonData);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    reader.onerror = (error) => reject(error);
+    reader.readAsBinaryString(file);
+  })
 }
