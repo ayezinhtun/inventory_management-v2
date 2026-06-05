@@ -60,7 +60,7 @@ import {
 
   '../components/ui/Select';
 
-import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2, Puzzle, Upload, XCircle } from 'lucide-react';
+import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2, Puzzle, Upload, XCircle, File, FileSpreadsheet } from 'lucide-react';
 
 import { getStatusColor } from '../lib/utils';
 
@@ -1175,22 +1175,72 @@ export function ComponentsListPage() {
           <DialogHeader>
             <DialogTitle>Import Components from Excel</DialogTitle>
             <DialogDescription>
-              Upload an Excel file with component data.             </DialogDescription>
+              Upload an Excel file with component data.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-            />
-            {importFile && (
-              <p className="text-sm text-muted-foreground">
-                Selected: {importFile.name}
-              </p>
+            {!importFile ? (
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-500 transition-colors cursor-pointer"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+                    setImportFile(file);
+                  }
+                }}
+                onClick={() => document.getElementById('file-input')?.click()}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <Upload className="h-12 w-12 text-gray-400" />
+                  <p className="text-gray-500 text-sm">Drag and drop file</p>
+                  <p className="text-gray-400 text-xs">or</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      document.getElementById('file-input')?.click();
+                    }}
+                  >
+                    BROWSE
+                  </Button>
+                </div>
+                <input
+                  id="file-input"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                />
+              </div>
+            ) : (
+              <div className="border-2 border-gray-300 rounded-lg p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FileSpreadsheet className="h-8 w-8 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium">{importFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{(importFile.size / 1024).toFixed(2)} KB</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setImportFile(null)}
+                >
+                  <XCircle className="h-5 w-5 text-gray-500" />
+                </Button>
+              </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowImportDialog(false);
+              setImportFile(null);
+            }}>
               Cancel
             </Button>
             <Button onClick={handleImportComponents} disabled={!importFile || isImporting}>
