@@ -237,7 +237,6 @@ export function InventoryAddPage() {
                 <SelectItem value="Switch">Switch</SelectItem>
                 <SelectItem value="Storage">Storage</SelectItem>
                 <SelectItem value="Network">Network</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
           </div>
