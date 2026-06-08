@@ -378,7 +378,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Check if MFA step is needed
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      console.log('MFA AAL check:', aal);
+      // console.log('MFA AAL check:', aal);
       
       // Fallback: Check if user has verified TOTP factors (in case AAL check fails)
       const { data: factors } = await supabase.auth.mfa.listFactors();
@@ -390,7 +390,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // No MFA required — complete login
-      console.log('No MFA required - completing login');
+      // console.log('No MFA required - completing login');
       recordSessionStart();
       scheduleSessionExpiry(get().logout, SESSION_DURATION_MS);
 
