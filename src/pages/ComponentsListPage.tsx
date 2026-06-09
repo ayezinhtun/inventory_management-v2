@@ -428,6 +428,12 @@ export function ComponentsListPage() {
         rowErrors.push(`Invalid Condition "${condition}". Valid conditions are: ${VALID_CONDITIONS.join(', ')}`);
       }
 
+      // Validate Quantity
+      const quantity = (item as any).quantity || (item as any)['Quantity'] || 1;
+      if (quantity && (isNaN(Number(quantity)) || Number(quantity) < 1)) {
+        rowErrors.push('Quantity must be a positive number');
+      }
+
       // Check required specification fields based on component type
       if (componentTypeName) {
         const componentType = componentTypes.find(ct =>
@@ -609,6 +615,7 @@ export function ComponentsListPage() {
             created_by: currentUser?.user_id || null,
             installed_in_device_id: null,
             updated_by: null,
+            quantity: Number((item as any).quantity || (item as any)['Quantity'] || 1),
           };
 
           // Save component to database
