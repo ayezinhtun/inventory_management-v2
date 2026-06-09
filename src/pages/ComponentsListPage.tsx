@@ -289,6 +289,11 @@ export function ComponentsListPage() {
       await deleteComponent(deleteTarget.id);
       toast.success(`${deleteTarget.name} deleted successfully`);
       setDeleteTarget(null);
+      setSelectedComponentIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(deleteTarget.id);
+        return newSet;
+      });
       fetchComponents();
     } catch (error) {
       console.error('Delete component error:', error);
