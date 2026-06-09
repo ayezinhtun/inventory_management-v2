@@ -1,10 +1,10 @@
 -- =============================================================
 -- Seed Super Admin account
 -- Safe to re-run (idempotent).
--- Credentials: admin@1cng.com / Admin@1CNG2027!
+-- Credentials: admin@1cng.com / Admin@1CNG2026!
 -- =============================================================
 
-`         
+         
 -- Ensure pgcrypto is available. On Supabase cloud it lives in the
 -- "extensions" schema — add that schema to the search_path so that
 -- crypt() / gen_salt() resolve without a fully-qualified prefix.
