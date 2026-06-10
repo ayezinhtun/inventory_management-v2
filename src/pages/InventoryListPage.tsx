@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '../components/ui/Select';
-import { Search, Plus, FilterX, ChevronDown, ChevronRight, Eye, Trash2, AlertTriangle, Loader2, Download, Upload, FileSpreadsheet, XCircle, File } from 'lucide-react';
+import { Search, Plus, FilterX, ChevronDown, ChevronRight, Eye, Trash2, AlertTriangle, Loader2, Download, Upload, FileSpreadsheet, XCircle, File, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import type { HardwareInventory } from '../lib/types';
 import {
@@ -35,6 +35,11 @@ import {
   DialogTitle
 } from '../components/ui/Dialog';
 import { Label } from '../components/ui/Label';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '../components/ui/Popover/Popover';
 
 export function InventoryListPage() {
   const { hardwareInventory, fetchHardwareInventory, deleteHardwareInventory, createHardwareInventory, isLoading } = useHardwareInventoryStore();
@@ -46,6 +51,10 @@ export function InventoryListPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [regionFilter, setRegionFilter] = useState<string>('all');
+  const [warehouseFilter, setWarehouseFilter] = useState<string>('all');
+  const [conditionFilter, setConditionFilter] = useState<string>('all');
+  const [manufacturerFilter, setManufacturerFilter] = useState<string>('');
+  const [serialNumberFilter, setSerialNumberFilter] = useState<string>('');
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<{ id: string, name: string } | null>(null);
@@ -114,8 +123,26 @@ export function InventoryListPage() {
       result = result.filter((h) => h.region_id === regionFilter);
     }
 
+    if (warehouseFilter !== 'all') {
+      result = result.filter((h) => h.warehouse_id === warehouseFilter);
+    }
+
+    if (conditionFilter !== 'all') {
+      result = result.filter((h) => h.condition === conditionFilter);
+    }
+
+    if (manufacturerFilter) {
+      const q = manufacturerFilter.toLowerCase();
+      result = result.filter((h) => h.manufacturer && h.manufacturer.toLowerCase().includes(q));
+    }
+
+    if (serialNumberFilter) {
+      const q = serialNumberFilter.toLowerCase();
+      result = result.filter((h) => h.serial_number && h.serial_number.toLowerCase().includes(q));
+    }
+
     return result;
-  }, [hardwareInventory, search, typeFilter, statusFilter, regionFilter]);
+  }, [hardwareInventory, search, typeFilter, statusFilter, regionFilter, warehouseFilter, conditionFilter, manufacturerFilter, serialNumberFilter]);
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -142,6 +169,25 @@ export function InventoryListPage() {
   const uniqueTypes = useMemo(() => {
     return [...new Set(hardwareInventory.map(h => h.item_type))];
   }, [hardwareInventory]);
+
+  // Derived filtered options for cascading filters
+  const availableWarehouses = useMemo(() => {
+    if (regionFilter === 'all') {
+      return warehouses;
+    }
+    // Filter warehouses that are in the selected region
+    return warehouses.filter(w => w.region_id === regionFilter);
+  }, [regionFilter, warehouses]);
+
+  // Reset warehouse filter when region changes if selected warehouse is no longer in the selected region
+  useEffect(() => {
+    if (regionFilter !== 'all' && warehouseFilter !== 'all') {
+      const warehouse = warehouses.find(w => w.id === warehouseFilter);
+      if (warehouse && warehouse.region_id !== regionFilter) {
+        setWarehouseFilter('all');
+      }
+    }
+  }, [regionFilter, warehouseFilter, warehouses]);
 
   const validateImportData = (importedData: any[]): { valid: boolean, errors: string[], validData: any[] } => {
     const errors: string[] = [];
@@ -256,8 +302,7 @@ export function InventoryListPage() {
   };
 
   const handleExportHardware = () => {
-    const exportData = hardwareInventory
-      .filter((h) => !h.is_deleted)
+    const exportData = filteredHardware
       .map((hardware) => ({
         name: hardware.name,
         item_type: hardware.item_type,
@@ -431,7 +476,7 @@ export function InventoryListPage() {
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className='overflow-visible'>
         <CardHeader className="pb-3">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
@@ -443,61 +488,156 @@ export function InventoryListPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {uniqueTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Popover>
+              <PopoverTrigger>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filter
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-4 right-0 left-auto">
+                <div className="space-y-4">
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="installed">Installed</SelectItem>
-                  <SelectItem value="reserved">Reserved</SelectItem>
-                </SelectContent>
-              </Select>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Item Type */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Item Type</label>
+                      <Select value={typeFilter} onValueChange={setTypeFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Types</SelectItem>
+                          {uniqueTypes.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <Select value={regionFilter} onValueChange={setRegionFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Region" displayValue={regionFilter !== 'all' ? getRegionName(regionFilter) : undefined} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Regions</SelectItem>
-                  {regions.filter((r) => r.status === 'active').map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {/* Region */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Region</label>
+                      <Select value={regionFilter} onValueChange={setRegionFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Region" displayValue={regionFilter !== 'all' ? getRegionName(regionFilter) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Regions</SelectItem>
+                          {regions.filter((r) => r.status === 'active').map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setSearch('');
-                  setTypeFilter('all');
-                  setStatusFilter('all');
-                  setRegionFilter('all');
-                }}
-                title="Clear filters"
-              >
-                <FilterX className="h-4 w-4" />
-              </Button>
-            </div>
+                  <div className='grid grid-cols-2 gap-3'>
+                    {/* Warehouse */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Warehouse</label>
+                      <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Warehouse" displayValue={warehouseFilter !== 'all' ? getWarehouseName(warehouseFilter) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Warehouses</SelectItem>
+                          {availableWarehouses.map((w) => (
+                            <SelectItem key={w.id} value={w.id}>
+                              {w.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Status */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Status</label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Status" displayValue={statusFilter !== 'all' ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="available">Available</SelectItem>
+                          <SelectItem value="installed">Installed</SelectItem>
+                          <SelectItem value="reserved">Reserved</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className='grid grid-cols-2 gap-3'>
+                    {/* Condition */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Condition</label>
+                      <Select value={conditionFilter} onValueChange={setConditionFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Condition" displayValue={conditionFilter !== 'all' ? conditionFilter.charAt(0).toUpperCase() + conditionFilter.slice(1) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Conditions</SelectItem>
+                          <SelectItem value="working">Working</SelectItem>
+                          <SelectItem value="broken">Broken</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className='grid grid-cols-2 gap-3'>
+                    {/* Manufacturer */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Manufacturer</label>
+                      <Input
+                        placeholder="Filter by manufacturer..."
+                        value={manufacturerFilter}
+                        onChange={(e) => setManufacturerFilter(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Serial Number */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Serial Number</label>
+                      <Input
+                        placeholder="Filter by serial number..."
+                        value={serialNumberFilter}
+                        onChange={(e) => setSerialNumberFilter(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setSearch('');
+                        setTypeFilter('all');
+                        setStatusFilter('all');
+                        setRegionFilter('all');
+                        setWarehouseFilter('all');
+                        setConditionFilter('all');
+                        setManufacturerFilter('');
+                        setSerialNumberFilter('');
+                      }}
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
