@@ -27,6 +27,7 @@ const Select: React.FC<SelectProps> = ({ children, value, defaultValue, onValueC
   const [internalValue, setInternalValue] = React.useState(defaultValue ?? "");
   const [open, setOpen] = React.useState(false);
   const controlledValue = value !== undefined ? value : internalValue;
+  const selectRef = React.useRef<HTMLDivElement>(null);
 
   const handleChange = (newValue: string) => {
     if (disabled) return;
@@ -35,9 +36,24 @@ const Select: React.FC<SelectProps> = ({ children, value, defaultValue, onValueC
     setOpen(false);
   };
 
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [open]);
+
   return (
     <SelectContext.Provider value={{ value: controlledValue, onValueChange: handleChange, open, setOpen: disabled ? () => {} : setOpen }}>
-      <div data-slot="select" className={`relative inline-block${disabled ? ' opacity-50 pointer-events-none' : ''}`}>
+      <div ref={selectRef} data-slot="select" className={`relative inline-block${disabled ? ' opacity-50 pointer-events-none' : ''}`}>
         {children}
       </div>
     </SelectContext.Provider>);

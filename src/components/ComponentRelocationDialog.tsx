@@ -68,9 +68,13 @@ export function ComponentRelocationDialog({
   const filteredWarehouses = warehouses.filter(
     (w) => w.region_id === formData.destination_region_id && w.status === 'active'
   );
+
   const filteredServers = hardwareInventory.filter(
-    (h) => h.warehouse_id === formData.destination_warehouse_id && h.status === 'available'
-  );
+    (h) => h.warehouse_id === formData.destination_warehouse_id &&
+      h.region_id === formData.destination_region_id &&
+      h.status === 'available' &&
+      !h.is_deleted
+  )
 
   const handleSubmit = async () => {
     // Check if any selected components are reserved
@@ -83,7 +87,7 @@ export function ComponentRelocationDialog({
 
     // Validate based on relocation type
     if (relocationType === 'WAREHOUSE') {
-      if (!formData.destination_warehouse_id || !formData.reason) {
+      if (!formData.destination_region_id || !formData.destination_warehouse_id || !formData.reason) {
         toast.error('Please fill in all required fields');
         return;
       }
@@ -165,14 +169,13 @@ export function ComponentRelocationDialog({
         <DialogHeader>
           <DialogTitle>Relocate {selectedComponentIds.length} Components</DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-2 mb-4">
           <Label>Selected Components</Label>
           <div className="max-h-32 overflow-y-auto border rounded p-2 space-y-1">
             {selectedComponents.map(comp => (
-              <div key={comp.id} className="text-sm flex justify-between">
+              <div key={comp.id} className="text-sm">
                 <span>{comp.name}</span>
-                <span className="text-muted-foreground">{comp.part_number}</span>
               </div>
             ))}
           </div>
@@ -204,55 +207,148 @@ export function ComponentRelocationDialog({
           </div>
 
           {relocationType === 'WAREHOUSE' ? (
-            <div className="space-y-2">
-              <Label>Destination Warehouse <span className="text-destructive">*</span></Label>
-              <Select
-                value={formData.destination_warehouse_id}
-                onValueChange={(value) => {
-                  setFormData(prev => ({
-                    ...prev,
-                    destination_warehouse_id: value,
-                    destination_server_id: ''
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  {formData.destination_warehouse_id
-                    ? warehouses.find((w) => w.id === formData.destination_warehouse_id)
-                      ?.name || "Select warehouse"
-                    : "Select warehouse"}
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.id}>
-                      {warehouse.name} ({regions.find(r => r.id === warehouse.region_id)?.name})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label>Destination Region <span className="text-destructive">*</span></Label>
+                <Select
+                  value={formData.destination_region_id}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      destination_region_id: value,
+                      destination_warehouse_id: '',
+                      destination_server_id: ''
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder="Select destination region"
+                      displayValue={formData.destination_region_id ? regions.find(r => r.id === formData.destination_region_id)?.name : undefined}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regions.map((region) => (
+                      <SelectItem key={region.id} value={region.id}>
+                        {region.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Destination Warehouse <span className="text-destructive">*</span></Label>
+                <Select
+                  value={formData.destination_warehouse_id}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      destination_warehouse_id: value,
+                      destination_server_id: ''
+                    }));
+                  }}
+                  disabled={!formData.destination_region_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder="Select destination warehouse"
+                      displayValue={formData.destination_warehouse_id ? filteredWarehouses.find(w => w.id === formData.destination_warehouse_id)?.name : undefined}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredWarehouses.map((warehouse) => (
+                      <SelectItem key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           ) : (
-            <div className="space-y-2">
-              <Label>Destination Hardware <span className="text-destructive">*</span></Label>
-              <Select
-                value={formData.destination_server_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, destination_server_id: value }))}
-              >
-                <SelectTrigger>
-                  {formData.destination_server_id
-                    ? hardwareInventory.find((h) => h.id === formData.destination_server_id)
-                      ?.name || "Select hardware"
-                    : "Select hardware"}
-                </SelectTrigger>
-                <SelectContent>
-                  {hardwareInventory.map((hardware) => (
-                    <SelectItem key={hardware.id} value={hardware.id}>
-                      {hardware.name} ({hardware.item_type})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label>Destination Region <span className="text-destructive">*</span></Label>
+                <Select
+                  value={formData.destination_region_id}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      destination_region_id: value,
+                      destination_warehouse_id: '',
+                      destination_server_id: ''
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder="Select destination region"
+                      displayValue={formData.destination_region_id ? regions.find(r => r.id === formData.destination_region_id)?.name : undefined}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regions.map((region) => (
+                      <SelectItem key={region.id} value={region.id}>
+                        {region.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Destination Warehouse <span className="text-destructive">*</span></Label>
+                <Select
+                  value={formData.destination_warehouse_id}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      destination_warehouse_id: value,
+                      destination_server_id: ''
+                    }));
+                  }}
+                  disabled={!formData.destination_region_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder="Select destination warehouse"
+                      displayValue={formData.destination_warehouse_id ? filteredWarehouses.find(w => w.id === formData.destination_warehouse_id)?.name : undefined}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredWarehouses.map((warehouse) => (
+                      <SelectItem key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Destination Hardware <span className="text-destructive">*</span></Label>
+                <Select
+                  value={formData.destination_server_id}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, destination_server_id: value }))}
+                  disabled={!formData.destination_warehouse_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder="Select destination hardware"
+                      displayValue={formData.destination_server_id ? filteredServers.find(h => h.id === formData.destination_server_id)?.name : undefined}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredServers.map((hardware) => (
+                      <SelectItem key={hardware.id} value={hardware.id}>
+                        {hardware.name} ({hardware.item_type})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
 
           <div className="space-y-2">
