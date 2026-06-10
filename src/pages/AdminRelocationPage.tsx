@@ -57,7 +57,13 @@ export function AdminRelocationPage() {
 
   const getLocationDisplay = (serverId: string | null, warehouseId: string | null, regionId: string | null) => {
     if (serverId) {
-      return hardwareInventory.find((i) => i.id === serverId)?.name ?? "Unknown Device";
+      const server = hardwareInventory.find((i) => i.id === serverId);
+      if (server) {
+        const regionName = server.region_id ? getRegionName(server.region_id) : '';
+        const warehouseName = server.warehouse_id ? getWarehouseName(server.warehouse_id) : '';
+        return `${server.name}(${regionName}, ${warehouseName})`;
+      }
+      return "Unknown Device";
     } else if (warehouseId) {
       const warehouseName = getWarehouseName(warehouseId);
       const warehouse = warehouses.find((w: any) => w.id === warehouseId);

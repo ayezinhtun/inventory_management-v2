@@ -215,7 +215,7 @@ export function InventoryAddPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Hardware Name <span className="text-destructive">*</span></Label>
+            <Label>Hardware Model <span className="text-destructive">*</span></Label>
             <Input
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
@@ -328,6 +328,7 @@ export function InventoryAddPage() {
             <Select
               value={formData.region_id}
               onValueChange={(v) => handleChange('region_id', v)}
+              disabled={editMode}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select region" displayValue={selectedRegionName} />
@@ -347,7 +348,7 @@ export function InventoryAddPage() {
             <Select
               value={formData.warehouse_id}
               onValueChange={(v) => handleChange('warehouse_id', v)}
-              disabled={!formData.region_id}
+              disabled={!formData.region_id || editMode}
             >
               <SelectTrigger>
                 <SelectValue
@@ -367,7 +368,7 @@ export function InventoryAddPage() {
 
           <div className="space-y-2">
             <Label>Status</Label>
-            <Select value={formData.status} onValueChange={(v: any) => handleChange('status', v)}>
+            <Select value={formData.status} onValueChange={(v: any) => handleChange('status', v)} disabled={editMode}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

@@ -665,9 +665,9 @@ export function ComponentDetailPage() {
 
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-start space-x-4">
 
           <Button
 
@@ -687,45 +687,48 @@ export function ComponentDetailPage() {
 
           <div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
 
-              <h1 className="text-3xl font-bold tracking-tight font-heading">
+              <div className="min-w-0">
+                <h1 className="text-3xl font-bold tracking-tight font-heading break-words max-w-[600px]">
 
-                {component.name}
+                  {component.name}
 
-              </h1>
+                </h1>
+              </div>
 
+              <div className="flex items-center gap-1">
+                <Badge variant="outline">
 
+                  {getComponentTypeName(component.component_type_id || '')}
 
-              <Badge variant="outline">
-
-                {getComponentTypeName(component.component_type_id || '')}
-
-              </Badge>
-
-
-
-              <Badge className={getStatusColor(component.status)}>
-
-                {component.status}
-
-              </Badge>
+                </Badge>
 
 
 
-              <Badge variant="secondary">{component.condition}</Badge>
+                <Badge className={getStatusColor(component.status)}>
+
+                  {component.status}
+
+                </Badge>
+
+
+
+                <Badge variant="secondary">{component.condition}</Badge>
+              </div>
 
             </div>
 
 
 
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground mt-1 break-words max-w-[600px]">
 
               {component.manufacturer} {component.model} • PN:{" "}
 
               {component.part_number || "—"}
 
             </p>
+
 
           </div>
 
@@ -741,13 +744,7 @@ export function ComponentDetailPage() {
 
               variant="outline"
 
-              onClick={() => {
-
-                window.location.href =
-
-                  "/components/add?mode=edit&componentId=" + component.id;
-
-              }}
+              onClick={() => navigate("components-add", component.id)}
 
             >
 

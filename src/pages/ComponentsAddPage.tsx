@@ -707,6 +707,7 @@ export function ComponentsAddPage() {
               <Select
                 value={formData.status}
                 onValueChange={(v) => handleChange("status", v)}
+                disabled={editMode}
               >
                 <SelectTrigger>
                   <SelectValue
@@ -893,6 +894,7 @@ export function ComponentsAddPage() {
                   handleChange("region_id", v);
                   handleChange("warehouse_id", "");
                 }}
+                disabled={editMode}
               >
                 <SelectTrigger>
                   <SelectValue
@@ -921,7 +923,7 @@ export function ComponentsAddPage() {
               <Select
                 value={formData.warehouse_id}
                 onValueChange={(v) => handleChange("warehouse_id", v)}
-                disabled={!formData.region_id}
+                disabled={!formData.region_id || editMode}
               >
                 <SelectTrigger>
                   <SelectValue
@@ -950,6 +952,7 @@ export function ComponentsAddPage() {
                 min="1"
                 value={formData.quantity}
                 onChange={(e) => handleChange("quantity", e.target.value)}
+                disabled={editMode}
               />
             </div>
           </CardContent>

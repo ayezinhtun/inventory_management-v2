@@ -280,7 +280,11 @@ export function ComponentsListPage() {
 
     componentTypes.find((ct) => ct.id === id)?.type_name || '-';
 
-
+  const getDeviceName = (deviceId: string | null) => {
+    if (!deviceId) return '-';
+    const device = hardwareInventory?.find((h: any) => h.id === deviceId);
+    return device?.name || '-';
+  };
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -843,7 +847,7 @@ export function ComponentsListPage() {
               <TableHeader>
 
                 <TableRow>
-                  <TableHead className="w-10">
+                  <TableHead className="w-10 max-w-[300px]">
                     <div className='col-span-2 flex items-center gap-2'>
                       {(currentUser?.role === "Admin" ||
                         currentUser?.role === "Engineer") && (
@@ -921,17 +925,17 @@ export function ComponentsListPage() {
 
 
 
-                          <TableCell>
+                          <TableCell className="max-w-[300px]">
 
-                            <div className="font-medium flex items-center gap-2">
+                            <div className="font-medium flex items-center gap-2 min-w-0">
 
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
 
                                 {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
 
                               </Button>
 
-                              {group.name}
+                              <span className="truncate">{group.name}</span>
 
                             </div>
 
@@ -951,7 +955,7 @@ export function ComponentsListPage() {
 
                             <div className="text-sm">
 
-                              {group.manufacturer}
+                              {group.manufacturer || '-'}
 
                             </div>
 
@@ -1001,7 +1005,7 @@ export function ComponentsListPage() {
 
                                   <div
                                     key={item.id}
-                                    className="grid grid-cols-7 gap-2 px-3 py-2 bg-white rounded items-center cursor-pointer hover:bg-muted/50"
+                                    className="grid grid-cols-8 gap-2 px-3 py-2 bg-white rounded items-center cursor-pointer hover:bg-muted/50"
                                     onClick={() => {
                                       if (currentUser?.role === "Admin" || currentUser?.role === "Engineer") {
                                         const newSelected = new Set(selectedComponentIds);
@@ -1052,6 +1056,12 @@ export function ComponentsListPage() {
                                       {getWarehouseName(item.warehouse_id)}
 
                                     </div>
+
+
+                                    <div className="text-sm truncate">
+                                      {getDeviceName(item.installed_in_device_id)}
+                                    </div>
+
 
                                     <div className="text-sm">
 

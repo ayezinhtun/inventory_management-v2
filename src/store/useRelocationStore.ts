@@ -673,11 +673,18 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
       if (request.relocation_type === 'COMPONENT' && request.component_id) {
         // Check if moving to a server (hardware inventory) or warehouse
         if (request.destination_server_id) {
+          // Get the hardware inventory item to get its region and warehouse
+          const { data: hardware } = await supabase
+            .from('hardware_inventory')
+            .select('region_id, warehouse_id')
+            .eq('id', request.destination_server_id)
+            .single();
+
           // Moving to a server - install the component
           await useComponentsStore.getState().updateComponent(request.component_id, {
             status: 'installed',
-            region_id: null,  // Clear region when installed in server
-            warehouse_id: null,  // Clear warehouse when installed in server
+            region_id: request.destination_region_id,
+            warehouse_id: request.destination_warehouse_id,
             installed_in_device_id: request.destination_server_id,
             updated_by: currentUser?.user_id || null,
           });
@@ -795,8 +802,8 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           if (request.destination_server_id) {
             await useComponentsStore.getState().updateComponent(request.component_id, {
               status: 'installed',
-              region_id: null,
-              warehouse_id: null,
+              region_id: request.destination_region_id,
+              warehouse_id: request.destination_warehouse_id,
               installed_in_device_id: request.destination_server_id,
               updated_by: currentUser?.user_id || null,
             });

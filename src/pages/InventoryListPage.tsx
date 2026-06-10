@@ -505,7 +505,7 @@ export function InventoryListPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>Model</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Manufacturer</TableHead>
                   {/* <TableHead>Model</TableHead> */}
@@ -526,15 +526,15 @@ export function InventoryListPage() {
                   filteredHardware.map((hardware) => {
                     return (
                       <TableRow key={hardware.id}>
-                        <TableCell>
-                          <div className="font-medium">{hardware.name}</div>
+                        <TableCell className="max-w-[300px]">
+                          <div className="font-medium truncate">{hardware.name}</div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary">{hardware.item_type}</Badge>
                         </TableCell>
-                        <TableCell>{hardware.manufacturer}</TableCell>
+                        <TableCell className='max-w-[300px] truncate'>{hardware.manufacturer}</TableCell>
                         {/* <TableCell>{hardware.model}</TableCell> */}
-                        <TableCell className="font-mono text-sm">
+                        <TableCell className="font-mono text-sm max-w-[300px] truncate">
                           {hardware.serial_number}
                         </TableCell>
                         <TableCell>
