@@ -21,15 +21,31 @@ interface PopoverProps {
 const Popover: React.FC<PopoverProps> = ({ children, open, defaultOpen = false, onOpenChange }) => {
   const [isOpen, setIsOpen] = React.useState(defaultOpen);
   const controlledOpen = open !== undefined ? open : isOpen;
+  const popoverRef = React.useRef<HTMLDivElement>(null);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (open === undefined) setIsOpen(newOpen);
     onOpenChange?.(newOpen);
   };
 
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        handleOpenChange(false);
+      }
+    };
+
+    if (controlledOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [controlledOpen]);
+
   return (
     <PopoverContext.Provider value={{ open: controlledOpen, setOpen: handleOpenChange }}>
-      <div className="relative inline-block">{children}</div>
+      <div ref={popoverRef} className="relative inline-block">{children}</div>
     </PopoverContext.Provider>);
 
 };

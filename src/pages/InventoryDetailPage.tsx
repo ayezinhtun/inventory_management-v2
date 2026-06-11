@@ -252,8 +252,8 @@ export function InventoryDetailPage() {
   };
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="flex items-start justify-between">
+        <div className="flex items-start space-x-4">
           <Button
             variant="ghost"
             size="icon"
@@ -262,15 +262,19 @@ export function InventoryDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight font-heading">
-                {item.name}
-              </h1>
-              <Badge variant="outline">{item.item_type}</Badge>
-              <Badge className={getStatusColor(item.status)}>
-                {item.status}
-              </Badge>
-              <Badge variant="secondary">{item.condition}</Badge>
+            <div className="flex items-start gap-3">
+              <div className="min-w-0">
+                <h1 className="text-3xl font-bold tracking-tight font-heading break-words max-w-[600px]">
+                  {item.name}
+                </h1>
+              </div>
+              <div className="flex items-center gap-1">
+                <Badge variant="outline">{item.item_type}</Badge>
+                <Badge className={getStatusColor(item.status)}>
+                  {item.status}
+                </Badge>
+                <Badge variant="secondary">{item.condition}</Badge>
+              </div>
             </div>
             <p className="text-muted-foreground mt-1">
               {item.manufacturer} • SN: {item.serial_number}
@@ -373,13 +377,20 @@ export function InventoryDetailPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="grid grid-cols-3 text-sm">
-                  <span className="text-muted-foreground">Name:</span>
+                  <span className="text-muted-foreground">Model:</span>
                   <span className="col-span-2 font-medium">{item.name}</span>
                 </div>
                 <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Type:</span>
                   <span className="col-span-2 font-medium">
                     {item.item_type}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Hostname:</span>
+                  <span className="col-span-2 font-medium">
+                    {item.hostname || '_'}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 text-sm">

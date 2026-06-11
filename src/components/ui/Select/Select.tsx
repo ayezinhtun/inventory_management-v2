@@ -27,6 +27,7 @@ const Select: React.FC<SelectProps> = ({ children, value, defaultValue, onValueC
   const [internalValue, setInternalValue] = React.useState(defaultValue ?? "");
   const [open, setOpen] = React.useState(false);
   const controlledValue = value !== undefined ? value : internalValue;
+  const selectRef = React.useRef<HTMLDivElement>(null);
 
   const handleChange = (newValue: string) => {
     if (disabled) return;
@@ -35,9 +36,24 @@ const Select: React.FC<SelectProps> = ({ children, value, defaultValue, onValueC
     setOpen(false);
   };
 
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [open]);
+
   return (
     <SelectContext.Provider value={{ value: controlledValue, onValueChange: handleChange, open, setOpen: disabled ? () => {} : setOpen }}>
-      <div data-slot="select" className={`relative inline-block${disabled ? ' opacity-50 pointer-events-none' : ''}`}>
+      <div ref={selectRef} data-slot="select" className={`relative inline-block${disabled ? ' opacity-50 pointer-events-none' : ''}`}>
         {children}
       </div>
     </SelectContext.Provider>);
@@ -61,14 +77,16 @@ const SelectTrigger = React.forwardRef<HTMLButtonElement, SelectTriggerProps>(
         aria-expanded={open}
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+          "flex items-center gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
           size === "default" ? "h-8" : "h-7 rounded-md",
           className
         )}
         {...props}>
         
-        {children}
-        <ChevronDown className="pointer-events-none size-4 text-muted-foreground" />
+        <span className="flex-1 min-w-0 overflow-hidden text-left">
+          {children}
+        </span>
+        <ChevronDown className="pointer-events-none size-4 text-muted-foreground flex-shrink-0 ml-auto" />
       </button>);
 
   }
@@ -86,7 +104,12 @@ const SelectValue: React.FC<SelectValueProps> = ({ placeholder, displayValue }) 
   // Use displayValue if provided, otherwise fall back to raw value
   const display = displayValue || (value && value !== 'none' ? value : undefined);
   return (
-    <span data-slot="select-value" data-placeholder={!display || undefined} className={cn(!display && "text-muted-foreground", "truncate block overflow-hidden")}>
+    <span 
+      data-slot="select-value" 
+      data-placeholder={!display || undefined} 
+      className={cn(!display && "text-muted-foreground", "truncate block overflow-hidden")}
+      title={display || placeholder}
+    >
       {display || placeholder}
     </span>);
 
@@ -133,15 +156,15 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
         aria-selected={isSelected}
         onClick={() => onValueChange?.(itemValue)}
         className={cn(
-          "relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-none select-none hover:bg-accent hover:text-accent-foreground",
+          "relative flex w-full cursor-default items-start gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-none select-none hover:bg-accent hover:text-accent-foreground",
           className
         )}
         {...props}>
         
-        <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
+        <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center mt-0.5">
           {isSelected && <Check className="size-4" />}
         </span>
-        <span>{children}</span>
+        <span className="whitespace-normal break-words" title={typeof children === 'string' ? children : undefined}>{children}</span>
       </div>);
 
   }

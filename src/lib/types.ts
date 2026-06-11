@@ -177,6 +177,7 @@ export interface HardwareInventory {
   name: string;
   item_type: string;
   specifications: Record<string, any>;
+  hostname: string;
   manufacturer: string;
   model?: string;
   serial_number: string;
@@ -198,6 +199,7 @@ export interface Component {
   name: string;
   component_type_id: string | null;
   specifications: Record<string, any>;
+  hostname: string;
   manufacturer: string;
   model?: string;
   part_number: string;

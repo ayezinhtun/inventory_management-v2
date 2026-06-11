@@ -60,12 +60,18 @@ import {
 
   '../components/ui/Select';
 
-import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2, Puzzle, Upload, XCircle, File, FileSpreadsheet, Component } from 'lucide-react';
+import { Search, Plus, Download, FilterX, ChevronDown, ChevronRight, Eye, Trash2, Package, AlertTriangle, Loader2, Puzzle, Upload, XCircle, File, FileSpreadsheet, Component, Filter } from 'lucide-react';
 
 import { getStatusColor } from '../lib/utils';
 
 import { toast } from 'sonner';
 import { Checkbox } from '../components/ui/Checkbox';
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '../components/ui/Popover/Popover';
 
 const getConditionColor = (condition: string) => {
 
@@ -146,7 +152,91 @@ export function ComponentsListPage() {
 
   const [regionFilter, setRegionFilter] = useState<string>('all');
 
+  const [warehouseFilter, setWarehouseFilter] = useState<string>('all');
+  const [deviceFilter, setDeviceFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [conditionFilter, setConditionFilter] = useState<string>('all');
+  const [manufacturerFilter, setManufacturerFilter] = useState<string>('');
+  const [partNumberFilter, setPartNumberFilter] = useState<string>('');
+
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Derived filtered options for cascading filters
+  const availableRegions = useMemo(() => {
+    if (typeFilter === 'all') {
+      return regions;
+    }
+    // Filter regions that have components of the selected type
+    const regionsWithComponentType = new Set(
+      components
+        .filter(c => !c.is_deleted && c.component_type_id === typeFilter)
+        .map(c => c.region_id)
+        .filter(Boolean)
+    );
+    return regions.filter(r => regionsWithComponentType.has(r.id));
+  }, [typeFilter, components, regions]);
+
+  const availableWarehouses = useMemo(() => {
+    if (regionFilter === 'all') {
+      return warehouses;
+    }
+    // Filter warehouses that are in the selected region
+    return warehouses.filter(w => w.region_id === regionFilter);
+  }, [regionFilter, warehouses]);
+
+  const availableDevices = useMemo(() => {
+    let result = hardwareInventory || [];
+    // Filter devices by selected region
+    if (regionFilter !== 'all') {
+      result = result.filter((h: any) => h.region_id === regionFilter);
+    }
+    // Filter devices by selected warehouse
+    if (warehouseFilter !== 'all') {
+      result = result.filter((h: any) => h.warehouse_id === warehouseFilter);
+    }
+    return result;
+  }, [regionFilter, warehouseFilter, hardwareInventory]);
+
+  // Reset region filter when component type changes if selected region no longer has that component type
+  useEffect(() => {
+    if (typeFilter !== 'all' && regionFilter !== 'all') {
+      const regionHasComponentType = components.some(
+        c => !c.is_deleted && c.component_type_id === typeFilter && c.region_id === regionFilter
+      );
+      if (!regionHasComponentType) {
+        setRegionFilter('all');
+      }
+    }
+  }, [typeFilter, regionFilter, components]);
+
+  // Reset warehouse filter when region changes if selected warehouse is no longer in the selected region
+  useEffect(() => {
+    if (regionFilter !== 'all' && warehouseFilter !== 'all') {
+      const warehouse = warehouses.find(w => w.id === warehouseFilter);
+      if (warehouse && warehouse.region_id !== regionFilter) {
+        setWarehouseFilter('all');
+      }
+    }
+  }, [regionFilter, warehouseFilter, warehouses]);
+
+  // Reset device filter when region or warehouse changes if selected device is no longer valid
+  useEffect(() => {
+    if (deviceFilter !== 'all') {
+      const device = hardwareInventory?.find((h: any) => h.id === deviceFilter);
+      let shouldReset = false;
+      
+      if (regionFilter !== 'all' && device?.region_id !== regionFilter) {
+        shouldReset = true;
+      }
+      if (warehouseFilter !== 'all' && device?.warehouse_id !== warehouseFilter) {
+        shouldReset = true;
+      }
+      
+      if (shouldReset) {
+        setDeviceFilter('all');
+      }
+    }
+  }, [regionFilter, warehouseFilter, deviceFilter, hardwareInventory]);
 
 
 
@@ -184,11 +274,11 @@ export function ComponentsListPage() {
 
         (c) =>
 
-          c.name.toLowerCase().includes(q) ||
+          (c.name && c.name.toLowerCase().includes(q)) ||
 
-          c.part_number.toLowerCase().includes(q) ||
+          (c.part_number && c.part_number.toLowerCase().includes(q)) ||
 
-          c.model.toLowerCase().includes(q)
+          (c.model && c.model.toLowerCase().includes(q))
 
       );
 
@@ -204,6 +294,38 @@ export function ComponentsListPage() {
 
       result = result.filter((c) => c.region_id === regionFilter);
 
+    }
+
+    // Warehouse filter
+    if (warehouseFilter !== 'all') {
+      result = result.filter((c) => c.warehouse_id === warehouseFilter);
+    }
+
+    // Installed device filter
+    if (deviceFilter !== 'all') {
+      result = result.filter((c) => c.installed_in_device_id === deviceFilter);
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter((c) => c.status === statusFilter);
+    }
+
+    // Condition filter
+    if (conditionFilter !== 'all') {
+      result = result.filter((c) => c.condition === conditionFilter);
+    }
+
+    // Manufacturer filter
+    if (manufacturerFilter) {
+      const q = manufacturerFilter.toLowerCase();
+      result = result.filter((c) => c.manufacturer && c.manufacturer.toLowerCase().includes(q));
+    }
+
+    // Part number filter
+    if (partNumberFilter) {
+      const q = partNumberFilter.toLowerCase();
+      result = result.filter((c) => c.part_number && c.part_number.toLowerCase().includes(q));
     }
 
 
@@ -244,7 +366,7 @@ export function ComponentsListPage() {
 
     return Array.from(groups.values());
 
-  }, [components, search, typeFilter, regionFilter]);
+  }, [components, search, typeFilter, regionFilter, warehouseFilter, deviceFilter, statusFilter, conditionFilter, manufacturerFilter, partNumberFilter, hardwareInventory]);
 
 
 
@@ -280,7 +402,11 @@ export function ComponentsListPage() {
 
     componentTypes.find((ct) => ct.id === id)?.type_name || '-';
 
-
+  const getDeviceName = (deviceId: string | null) => {
+    if (!deviceId) return '-';
+    const device = hardwareInventory?.find((h: any) => h.id === deviceId);
+    return device?.name || '-';
+  };
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -501,11 +627,13 @@ export function ComponentsListPage() {
   };
 
   const handleExportComponents = () => {
-    const exportData = components
-      .filter((c) => !c.is_deleted)
+    // Flatten grouped components to get individual filtered items
+    const filteredComponents = groupedComponents.flatMap(group => group.items);
+    const exportData = filteredComponents
       .map((component) => ({
         name: component.name,
         component_type: getTypeName(component.component_type_id || ''),
+        hostname: component.hostname || '',
         manufacturer: component.manufacturer,
         part_number: component.part_number,
         compatible_with: component.compatible_with || '',
@@ -521,6 +649,7 @@ export function ComponentsListPage() {
       columns: [
         { header: 'Name', key: 'name' },
         { header: 'Component Type', key: 'component_type' },
+        { header: 'Hostname', key: 'hostname' },
         { header: 'Manufacturer', key: 'manufacturer' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Compatible With', key: 'compatible_with' },
@@ -604,6 +733,7 @@ export function ComponentsListPage() {
           const componentData = {
             name: itemName,
             component_type_id: componentType?.id || null,
+            hostname: (item as any).hostname || (item as any)['Hostname'] || '',
             manufacturer: (item as any).manufacturer || (item as any)['Manufacturer'] || '',
             part_number: (item as any).part_number || (item as any)['Part Number'] || '',
             compatible_with: (item as any).compatible_with || (item as any)['Compatible With'] || '',
@@ -727,7 +857,7 @@ export function ComponentsListPage() {
 
 
 
-      <Card>
+      <Card className='overflow-visible'>
 
         <CardHeader className="pb-3">
 
@@ -749,91 +879,186 @@ export function ComponentsListPage() {
 
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <Popover>
+              <PopoverTrigger>
+                <Button
 
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  variant="outline"
 
-                <SelectTrigger className="w-[160px]">
+                  size="sm"
 
-                  <SelectValue placeholder="Component Type" />
+                  className="gap-2">
 
-                </SelectTrigger>
+                  <Filter className="h-4 w-4" />
 
-                <SelectContent>
+                  Filter
 
-                  <SelectItem value="all">All Types</SelectItem>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-4 right-0 left-auto">
+                <div className="space-y-4">
 
-                  {componentTypes.filter((ct) => ct.is_active).map((ct) =>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Component Type */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Component Type</label>
+                      <Select value={typeFilter} onValueChange={setTypeFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Component Type" displayValue={typeFilter !== 'all' ? getTypeName(typeFilter) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Types</SelectItem>
+                          {componentTypes.filter((ct) => ct.is_active).map((ct) => (
+                            <SelectItem key={ct.id} value={ct.id}>
+                              {ct.type_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                    <SelectItem key={ct.id} value={ct.id}>
+                    {/* Region */}
+                  
+                      <div className='w-full flex flex-col'>
+                        <label className="text-sm font-medium mb-1 block">Region</label>
+                        <Select value={regionFilter} onValueChange={setRegionFilter}>
+                          <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                            <SelectValue placeholder="Region" displayValue={regionFilter !== 'all' ? getRegionName(regionFilter) : undefined} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Regions</SelectItem>
+                            {availableRegions.map((r) => (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    
 
-                      {ct.type_name}
+                  </div>
 
-                    </SelectItem>
+                  <div className='grid grid-cols-2 gap-3'>
+                    {/* Warehouse */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Warehouse</label>
+                      <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Warehouse" displayValue={warehouseFilter !== 'all' ? getWarehouseName(warehouseFilter) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Warehouses</SelectItem>
+                          {availableWarehouses.map((w) => (
+                            <SelectItem key={w.id} value={w.id}>
+                              {w.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  )}
-
-                </SelectContent>
-
-              </Select>
-
-
-
-              {currentUser?.role === 'Admin' &&
-
-                <Select value={regionFilter} onValueChange={setRegionFilter}>
-
-                  <SelectTrigger className="w-[140px]">
-
-                    <SelectValue placeholder="Region" />
-
-                  </SelectTrigger>
-
-                  <SelectContent>
-
-                    <SelectItem value="all">All Regions</SelectItem>
-
-                    {regions.map((r) =>
-
-                      <SelectItem key={r.id} value={r.id}>
-
-                        {r.name}
-
-                      </SelectItem>
-
-                    )}
-
-                  </SelectContent>
-
-                </Select>
-
-              }
+                    {/* Installed Device */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Installed Device</label>
+                      <Select value={deviceFilter} onValueChange={setDeviceFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Device" displayValue={deviceFilter !== 'all' ? getDeviceName(deviceFilter) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Devices</SelectItem>
+                          {availableDevices.map((h: any) => (
+                            <SelectItem key={h.id} value={h.id}>
+                              {h.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
 
+                  <div className='grid grid-cols-2 gap-3'>
+                    {/* Status */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Status</label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Status" displayValue={statusFilter !== 'all' ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="available">Available</SelectItem>
+                          <SelectItem value="installed">Installed</SelectItem>
+                          <SelectItem value="reserved">Reserved</SelectItem>
+                          <SelectItem value="broken">Broken</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <Button
+                    {/* Condition */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Condition</label>
+                      <Select value={conditionFilter} onValueChange={setConditionFilter}>
+                        <SelectTrigger className='w-full !w-full flex justify-between items-center'>
+                          <SelectValue placeholder="Condition" displayValue={conditionFilter !== 'all' ? conditionFilter.charAt(0).toUpperCase() + conditionFilter.slice(1) : undefined} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Conditions</SelectItem>
+                          <SelectItem value="working">Working</SelectItem>
+                          <SelectItem value="broken">Broken</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-                variant="ghost"
+                  <div className='grid grid-cols-2 gap-3'>
+                    {/* Manufacturer */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Manufacturer</label>
+                      <Input
+                        placeholder="Filter by manufacturer..."
+                        value={manufacturerFilter}
+                        onChange={(e) => setManufacturerFilter(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
 
-                size="icon"
+                    {/* Part Number */}
+                    <div className='w-full flex flex-col'>
+                      <label className="text-sm font-medium mb-1 block">Part Number</label>
+                      <Input
+                        placeholder="Filter by part number..."
+                        value={partNumberFilter}
+                        onChange={(e) => setPartNumberFilter(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
 
-                onClick={() => {
-
-                  setSearch('');
-
-                  setTypeFilter('all');
-
-                  setRegionFilter('all');
-
-                }}
-
-                title="Clear filters">
-
-                <FilterX className="h-4 w-4" />
-
-              </Button>
-
-            </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setSearch('');
+                        setTypeFilter('all');
+                        setRegionFilter('all');
+                        setWarehouseFilter('all');
+                        setDeviceFilter('all');
+                        setStatusFilter('all');
+                        setConditionFilter('all');
+                        setManufacturerFilter('');
+                        setPartNumberFilter('');
+                      }}
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
 
           </div>
 
@@ -848,7 +1073,7 @@ export function ComponentsListPage() {
               <TableHeader>
 
                 <TableRow>
-                  <TableHead className="w-10">
+                  <TableHead className="w-10 max-w-[300px]">
                     <div className='col-span-2 flex items-center gap-2'>
                       {(currentUser?.role === "Admin" ||
                         currentUser?.role === "Engineer") && (
@@ -926,17 +1151,17 @@ export function ComponentsListPage() {
 
 
 
-                          <TableCell>
+                          <TableCell className="max-w-[300px]">
 
-                            <div className="font-medium flex items-center gap-2">
+                            <div className="font-medium flex items-center gap-2 min-w-0">
 
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
 
                                 {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
 
                               </Button>
 
-                              {group.name}
+                              <span className="truncate">{group.name}</span>
 
                             </div>
 
@@ -956,14 +1181,13 @@ export function ComponentsListPage() {
 
                             <div className="text-sm">
 
-                              {group.manufacturer}
+                              {group.manufacturer || '-'}
 
                             </div>
 
                           </TableCell>
 
                           {/* <TableCell>
-
                             <div className="text-sm">
 
                               {group.model}
@@ -974,9 +1198,9 @@ export function ComponentsListPage() {
 
                           <TableCell>
 
-                            <div className="text-sm">
+                            <div className="font-mono text-sm max-w-[200px]">
 
-                              {group.part_number}
+                              <span className='truncate block'>{group.part_number || '_'}</span>
 
                             </div>
 
@@ -1006,7 +1230,7 @@ export function ComponentsListPage() {
 
                                   <div
                                     key={item.id}
-                                    className="grid grid-cols-7 gap-2 px-3 py-2 bg-white rounded items-center cursor-pointer hover:bg-muted/50"
+                                    className="grid grid-cols-8 gap-2 px-3 py-2 bg-white rounded items-center cursor-pointer hover:bg-muted/50"
                                     onClick={() => {
                                       if (currentUser?.role === "Admin" || currentUser?.role === "Engineer") {
                                         const newSelected = new Set(selectedComponentIds);
@@ -1057,6 +1281,12 @@ export function ComponentsListPage() {
                                       {getWarehouseName(item.warehouse_id)}
 
                                     </div>
+
+
+                                    <div className="text-sm truncate">
+                                      {getDeviceName(item.installed_in_device_id)}
+                                    </div>
+
 
                                     <div className="text-sm">
 

@@ -148,8 +148,8 @@ export function DashboardPage() {
   const { warehouses, fetchWarehouses } = useWarehouseStore();
 
   const [userCount, setUserCount] = useState(0);
-  
-  
+
+
 
   useEffect(() => {
     fetchRegions();
@@ -171,6 +171,15 @@ export function DashboardPage() {
   const regionId = profile?.region_id ?? null;
   const firstName = (profile?.name ?? 'User').split(' ')[0];
   const isAdmin = role === 'Admin';
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000); // Update every second
+
+    return () => clearInterval(timer);
+  }, []);
 
   const refresh = useCallback(() => fetchDashboard({ role, regionId }), [role, regionId, fetchDashboard]);
   useEffect(() => { refresh(); }, [refresh]);
@@ -216,7 +225,7 @@ export function DashboardPage() {
           {lastUpdated && (
             <span className="text-xs text-muted-foreground hidden md:block flex items-center gap-1">
               <Clock className="inline h-3 w-3 mr-0.5" />
-              {lastUpdated.toLocaleTimeString()}
+              {currentTime.toLocaleTimeString()}
             </span>
           )}
           <Button variant="outline" size="sm" onClick={() => navigate('components')}>
@@ -252,13 +261,20 @@ export function DashboardPage() {
               icon={Cpu}
             />
 
-            {role === 'Admin' && (
+            {role === 'Admin' ? (
               <KpiCard
                 label="Total User"
                 value={userCount.toLocaleString()}
                 icon={Users}
               />
-            )}
+            ) : (
+              <KpiCard
+                label="Total Components"
+                value={metrics.totalComponents.toLocaleString()}
+                icon={Cpu}
+              />
+            )
+            }
           </>
         )}
       </div>
@@ -329,9 +345,9 @@ export function DashboardPage() {
                 <CardTitle className="text-base font-bold">Recent Activity</CardTitle>
                 <CardDescription className="text-xs mt-0.5">
                   {metrics.auditThisMonth} actions this month
-                  {metrics.auditLastMonth > 0 && (
+                  {/* {metrics.auditLastMonth > 0 && (
                     <> · <DeltaBadge pct={auditDelta} /></>
-                  )}
+                  )} */}
                 </CardDescription>
               </div>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
