@@ -906,7 +906,7 @@ export function ComponentDetailPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-            <Card>
+            <Card className="w-full max-w-full">
 
               <CardHeader className="pb-3">
 
@@ -1352,7 +1352,7 @@ export function ComponentDetailPage() {
 
             <CardContent>
               {componentRelocationHistory.length > 0 ? (
-                <div className="rounded-md border overflow-hidden">
+                <div className="rounded-md border overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-muted/50 border-b">
@@ -1385,17 +1385,47 @@ export function ComponentDetailPage() {
 
                     <tbody>
                       {componentRelocationHistory.map((req, idx) => {
-                        const fromLabel = req.source_server_id
-                          ? `Device: ${hardwareInventory.find((i) => i.id === req.source_server_id)?.name ?? req.source_server_id}`
-                          : req.source_warehouse_id
-                            ? `${getRegionName(req.source_region_id ?? "")} › ${getWarehouseName(req.source_warehouse_id)}`
-                            : getRegionName(req.source_region_id) || "—";
+                        const fromLabel = (() => {
+                          if (req.source_server_id) {
+                            const server = hardwareInventory.find((i) => i.id === req.source_server_id);
+                            if (server) {
+                              const regionName = server.region_id ? getRegionName(server.region_id) : '';
+                              const warehouseName = server.warehouse_id ? getWarehouseName(server.warehouse_id) : '';
+                              return `${server.name}(${regionName}, ${warehouseName})`;
+                            }
+                            return "Unknown Device";
+                          } else if (req.source_warehouse_id) {
+                            const warehouseName = getWarehouseName(req.source_warehouse_id);
+                            const warehouse = warehouses.find((w) => w.id === req.source_warehouse_id);
+                            const regionName = warehouse ? getRegionName(warehouse.region_id) : "";
+                            return `${warehouseName}(${regionName})`;
+                          } else if (req.source_region_id) {
+                            return getRegionName(req.source_region_id);
+                          } else {
+                            return "—";
+                          }
+                        })();
 
-                        const toLabel = req.destination_server_id
-                          ? `Device: ${hardwareInventory.find((i) => i.id === req.destination_server_id)?.name ?? req.destination_server_id}`
-                          : req.destination_warehouse_id
-                            ? `${getRegionName(req.destination_region_id ?? "")} › ${getWarehouseName(req.destination_warehouse_id)}`
-                            : getRegionName(req.destination_region_id) || "—";
+                        const toLabel = (() => {
+                          if (req.destination_server_id) {
+                            const server = hardwareInventory.find((i) => i.id === req.destination_server_id);
+                            if (server) {
+                              const regionName = server.region_id ? getRegionName(server.region_id) : '';
+                              const warehouseName = server.warehouse_id ? getWarehouseName(server.warehouse_id) : '';
+                              return `${server.name}(${regionName}, ${warehouseName})`;
+                            }
+                            return "Unknown Device";
+                          } else if (req.destination_warehouse_id) {
+                            const warehouseName = getWarehouseName(req.destination_warehouse_id);
+                            const warehouse = warehouses.find((w) => w.id === req.destination_warehouse_id);
+                            const regionName = warehouse ? getRegionName(warehouse.region_id) : "";
+                            return `${warehouseName}(${regionName})`;
+                          } else if (req.destination_region_id) {
+                            return getRegionName(req.destination_region_id);
+                          } else {
+                            return "—";
+                          }
+                        })();
 
                         const statusColor = req.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : req.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
@@ -1408,7 +1438,7 @@ export function ComponentDetailPage() {
                             key={req.id}
                             className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/10"}`}
                           >
-                            <td className="px-4 py-3 text-sm font-medium">
+                            <td className="px-4 py-3 text-sm font-medium break-words">
                               {req.request_number}
                             </td>
                             <td className="px-4 py-3">
