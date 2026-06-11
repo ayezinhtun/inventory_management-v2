@@ -196,12 +196,12 @@ export function InventoryListPage() {
 
     importedData.forEach((item, index) => {
       const rowNumber = index + 2; // Excel rows are 1-indexed, header is row 1
-      const itemName = (item as any).name || (item as any)['Name'] || `Row ${rowNumber}`;
+      const itemName = (item as any).name || (item as any)['Model'] || `Row ${rowNumber}`;
       const rowErrors: string[] = [];
 
       // Validate required field: Name
       if (!itemName || itemName === `Row ${rowNumber}`) {
-        rowErrors.push('Missing required field: Name');
+        rowErrors.push('Missing required field: Model');
       } else if (!itemName.trim()) {
         rowErrors.push('Name cannot be empty or whitespace only');
       } else {
@@ -321,7 +321,7 @@ export function InventoryListPage() {
     exportToExcel({
       data: exportData,
       columns: [
-        { header: 'Name', key: 'name' },
+        { header: 'Model', key: 'name' },
         { header: 'Item Type', key: 'item_type' },
         { header: 'Hostname', key: 'hostname' },
         { header: 'Manufacturer', key: 'manufacturer' },
@@ -383,7 +383,7 @@ export function InventoryListPage() {
 
       for (const item of dataToImport) {
         try {
-          const itemName = (item as any).name || (item as any)['Name'] || '';
+          const itemName = (item as any).name || (item as any)['Name'] || (item as any)['Model'] || '';
 
           // Map names to IDs
           const itemType = (item as any).item_type || (item as any)['Item Type'] || (item as any).type || '';

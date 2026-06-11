@@ -52,7 +52,7 @@ export function ReportsPage() {
   const getInstalledComponents = (devieId: string) => {
     return components
       .filter(c => c.installed_in_device_id === devieId && !c.is_deleted)
-      .map(c => `${c.name} (${c.model})`)
+      .map(c => c.name)
       .join(', ');
   };
 
@@ -92,7 +92,7 @@ export function ReportsPage() {
       const data = hardwareInventory.filter(h => !h.is_deleted);
 
       const columns: ExportColumn[] = [
-        { header: 'Name', key: 'name' },
+        { header: 'Model', key: 'name' },
         { header: 'Type', key: 'item_type' },
         { header: 'Hostname', key: 'hostname'},
         { header: 'Manufacturer', key: 'manufacturer' },
