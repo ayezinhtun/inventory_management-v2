@@ -317,13 +317,13 @@ export function NotificationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {/* {isAdmin && (
             <Button variant="outline" size="sm" onClick={() => navigate('mail')}>
               <Mail className="h-3.5 w-3.5 mr-1.5" />
               Email Logs
               <ArrowRight className="h-3 w-3 ml-1.5" />
             </Button>
-          )}
+          )} */}
           <Button variant="outline" size="sm" onClick={load} disabled={isLoading}>
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />Refresh
           </Button>
