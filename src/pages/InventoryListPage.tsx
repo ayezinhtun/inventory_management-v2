@@ -40,6 +40,7 @@ import {
   PopoverContent,
   PopoverTrigger
 } from '../components/ui/Popover/Popover';
+import { hostname } from 'os';
 
 export function InventoryListPage() {
   const { hardwareInventory, fetchHardwareInventory, deleteHardwareInventory, createHardwareInventory, isLoading } = useHardwareInventoryStore();
@@ -205,7 +206,7 @@ export function InventoryListPage() {
         rowErrors.push('Name cannot be empty or whitespace only');
       } else {
         // Check for duplicate name in existing hardware inventory
-        const existingHardware = hardwareInventory.find(h => 
+        const existingHardware = hardwareInventory.find(h =>
           h.name.toLowerCase() === itemName.toLowerCase() && !h.is_deleted
         );
         if (existingHardware) {
@@ -306,6 +307,7 @@ export function InventoryListPage() {
       .map((hardware) => ({
         name: hardware.name,
         item_type: hardware.item_type,
+        hostname: hardware.hostname,
         manufacturer: hardware.manufacturer,
         serial_number: hardware.serial_number,
         asset_tag: hardware.asset_tag || '',
@@ -321,6 +323,7 @@ export function InventoryListPage() {
       columns: [
         { header: 'Name', key: 'name' },
         { header: 'Item Type', key: 'item_type' },
+        { header: 'Hostname', key: 'hostname' },
         { header: 'Manufacturer', key: 'manufacturer' },
         { header: 'Serial Number', key: 'serial_number' },
         { header: 'Asset Tag', key: 'asset_tag' },
@@ -398,6 +401,7 @@ export function InventoryListPage() {
           const hardwareData = {
             name: itemName,
             item_type: itemType,
+            hostname: (item as any).hostname || (item as any)['Hostname'] || '',
             manufacturer: (item as any).manufacturer || (item as any)['Manufacturer'] || '',
             serial_number: (item as any).serial_number || (item as any)['Serial Number'] || '',
             asset_tag: (item as any).asset_tag || (item as any)['Asset Tag'] || '',
@@ -646,7 +650,8 @@ export function InventoryListPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Model</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Region</TableHead>
+                  <TableHead>Warehouse</TableHead>
                   <TableHead>Manufacturer</TableHead>
                   {/* <TableHead>Model</TableHead> */}
                   <TableHead>Serial Number</TableHead>
@@ -669,10 +674,23 @@ export function InventoryListPage() {
                         <TableCell className="max-w-[300px]">
                           <div className="font-medium truncate">{hardware.name}</div>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{hardware.item_type}</Badge>
+                        <TableCell className='max-w-[300px]'>
+                          <div className='truncate'>
+                            {getRegionName(hardware.region_id)}
+                          </div>
                         </TableCell>
-                        <TableCell className='max-w-[300px] truncate'>{hardware.manufacturer}</TableCell>
+
+                        <TableCell className='max-w-[300px]'>
+                          <div className='truncate'>
+                            {getWarehouseName(hardware.warehouse_id)}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className='max-w-[300px]'>
+                          <div className='truncate'>
+                            {hardware.manufacturer}
+                          </div>
+                        </TableCell>
                         {/* <TableCell>{hardware.model}</TableCell> */}
                         <TableCell className="font-mono text-sm max-w-[300px] truncate">
                           {hardware.serial_number}
@@ -756,7 +774,7 @@ export function InventoryListPage() {
               Import Hardware Inventory
             </DialogTitle>
             <DialogDescription>
-              Upload an Excel file to import hardware inventory items. 
+              Upload an Excel file to import hardware inventory items.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -861,7 +879,7 @@ export function InventoryListPage() {
                 ))}
               </div>
             </div>
-            
+
             {validatedData.length > 0 && (
               <div className="bg-green-50 border border-green-200 rounded-md p-4">
                 <p className="text-sm font-medium text-green-800 mb-2">

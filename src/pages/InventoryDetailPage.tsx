@@ -386,6 +386,13 @@ export function InventoryDetailPage() {
                     {item.item_type}
                   </span>
                 </div>
+
+                <div className="grid grid-cols-3 text-sm">
+                  <span className="text-muted-foreground">Hostname:</span>
+                  <span className="col-span-2 font-medium">
+                    {item.hostname || '_'}
+                  </span>
+                </div>
                 <div className="grid grid-cols-3 text-sm">
                   <span className="text-muted-foreground">Manufacturer:</span>
                   <span className="col-span-2 font-medium">

@@ -16,6 +16,7 @@ import type { HardwareInventory } from '../lib/types';
 interface FormData {
   name: string;
   item_type: string;
+  hostname: string;
   manufacturer: string;
   // model: string;
   serial_number: string;
@@ -40,6 +41,7 @@ export function InventoryAddPage() {
   const [formData, setFormData] = useState<FormData>({
     name: '',
     item_type: '',
+    hostname: '',
     manufacturer: '',
     // model: '',
     serial_number: '',
@@ -68,6 +70,7 @@ export function InventoryAddPage() {
         setFormData({
           name: hardware.name,
           item_type: hardware.item_type,
+          hostname: hardware.hostname || '',
           manufacturer: hardware.manufacturer,
           // model: hardware.model,
           serial_number: hardware.serial_number,
@@ -242,6 +245,25 @@ export function InventoryAddPage() {
           </div>
 
           <div className="space-y-2">
+            <Label>Serial Number <span className="text-destructive">*</span></Label>
+            <Input
+              value={formData.serial_number}
+              onChange={(e) => handleChange('serial_number', e.target.value)}
+              placeholder="Unique serial number"
+              disabled={editMode}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Hostname</Label>
+            <Input
+              value={formData.hostname}
+              onChange={(e) => handleChange('hostname', e.target.value)}
+              placeholder="e.g., server-01"
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label>Manufacturer</Label>
             <Input
               value={formData.manufacturer}
@@ -259,15 +281,7 @@ export function InventoryAddPage() {
             />
           </div> */}
 
-          <div className="space-y-2">
-            <Label>Serial Number <span className="text-destructive">*</span></Label>
-            <Input
-              value={formData.serial_number}
-              onChange={(e) => handleChange('serial_number', e.target.value)}
-              placeholder="Unique serial number"
-              disabled={editMode}
-            />
-          </div>
+
 
           <div className="space-y-2">
             <Label>Asset Tag</Label>

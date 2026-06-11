@@ -82,6 +82,8 @@ export const useComponentsStore = create<ComponentsState>((set, get) => ({
 
       specifications: data.specifications,
 
+      hostname: data.hostname,
+
       manufacturer: data.manufacturer,
 
       model: data.model,

@@ -1023,6 +1023,19 @@ export function ComponentDetailPage() {
 
 
               <CardContent className="space-y-2">
+                <div className="grid grid-cols-3 text-sm">
+
+                  <span className="text-muted-foreground">Hostname:</span>
+
+
+
+                  <span className="col-span-2 font-medium">
+
+                    {component.hostname || "_"}
+
+                  </span>
+
+                </div>
 
                 <div className="grid grid-cols-3 text-sm">
 
@@ -1032,7 +1045,7 @@ export function ComponentDetailPage() {
 
                   <span className="col-span-2 font-medium">
 
-                    {component.manufacturer}
+                    {component.manufacturer || '_'}
 
                   </span>
 

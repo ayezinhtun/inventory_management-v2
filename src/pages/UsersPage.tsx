@@ -253,7 +253,7 @@ export function UsersPage() {
         editForm.region_ids,
         editForm.warehouse_ids
       );
-      
+
       await fetchUsers();
 
       toast.success(`${editForm.name.trim()} updated successfully`);
@@ -355,7 +355,7 @@ export function UsersPage() {
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search users…"
+                placeholder="Search by name, email or role"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -719,7 +719,14 @@ export function UsersPage() {
                           <MultiSelect
                             options={regions.filter((r) => r.status === 'active').map(r => ({ id: r.id, name: r.name }))}
                             selected={editForm.region_ids}
-                            onChange={(ids) => setEditForm({ ...editForm, region_ids: ids })}
+                            onChange={(ids) => {
+                              // Auto-remove warehouses that don't belong to the selected regions
+                              const validWarehouseIds = editForm.warehouse_ids.filter(wid => {
+                                const warehouse = warehouses.find(w => w.id === wid);
+                                return warehouse && ids.includes(warehouse.region_id);
+                              });
+                              setEditForm({ ...editForm, region_ids: ids, warehouse_ids: validWarehouseIds });
+                            }}
                             placeholder="Select regions..."
                           />
                         </div>

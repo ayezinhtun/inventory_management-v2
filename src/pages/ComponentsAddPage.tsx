@@ -47,6 +47,7 @@ export function ComponentsAddPage() {
   const [formData, setFormData] = useState({
     item_name: "",
     component_type_id: "",
+    hostname: '',
     manufacturer: "",
     // model: '',
     part_number: "",
@@ -108,6 +109,7 @@ export function ComponentsAddPage() {
         setFormData({
           item_name: component.name,
           component_type_id: component.component_type_id,
+          hostname: component.hostname || "",
           manufacturer: component.manufacturer,
           // model: component.model,
           part_number: component.part_number,
@@ -276,6 +278,7 @@ export function ComponentsAddPage() {
       ...formData,
       item_name: component.name,
       component_type_id: component.component_type_id || "",
+      hostname: component.hostname || "",
       manufacturer: component.manufacturer || "",
       // model: component.model || '',
       part_number: component.part_number || "",
@@ -416,6 +419,7 @@ export function ComponentsAddPage() {
           name: formData.item_name,
           component_type_id: formData.component_type_id,
           specifications: allSpecs,
+          hostname: formData.hostname,
           manufacturer: formData.manufacturer,
           // model: formData.model,
           part_number: formData.part_number,
@@ -432,6 +436,7 @@ export function ComponentsAddPage() {
           name: formData.item_name,
           component_type_id: formData.component_type_id,
           specifications: allSpecs,
+          hostname: formData.hostname,
           manufacturer: formData.manufacturer,
           // model: formData.model,
           part_number: formData.part_number,
@@ -595,6 +600,49 @@ export function ComponentsAddPage() {
             </div>
 
             <div className="space-y-2">
+              <Label>Hostname</Label>
+              <Input
+                value={formData.hostname}
+                onChange={(e) => handleChange("hostname", e.target.value)}
+                placeholder="e.g., mem-cache-node1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Part Number</Label>
+              <div className="relative">
+                <Input
+                  value={formData.part_number}
+                  onChange={(e) => handleChange("part_number", e.target.value)}
+                  placeholder="Enter part number"
+                  onBlur={() => {
+                    setTimeout(() => setShowPartNumberSuggestions(false), 200);
+                  }}
+                />
+                {showPartNumberSuggestions &&
+                  partNumberSuggestions.length > 0 && (
+                    <div
+                      className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto"
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      {partNumberSuggestions.map((suggestion, index) => (
+                        <div
+                          key={suggestion}
+                          className="px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
+                          onClick={() => {
+                            handleChange("part_number", suggestion);
+                            setShowPartNumberSuggestions(false);
+                          }}
+                        >
+                          {suggestion}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label>Manufacturer</Label>
               <div className="relative">
                 <Input
@@ -659,39 +707,8 @@ export function ComponentsAddPage() {
                 )}
               </div>
             </div> */}
-            <div className="space-y-2">
-              <Label>Part Number</Label>
-              <div className="relative">
-                <Input
-                  value={formData.part_number}
-                  onChange={(e) => handleChange("part_number", e.target.value)}
-                  placeholder="Enter part number"
-                  onBlur={() => {
-                    setTimeout(() => setShowPartNumberSuggestions(false), 200);
-                  }}
-                />
-                {showPartNumberSuggestions &&
-                  partNumberSuggestions.length > 0 && (
-                    <div
-                      className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto"
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      {partNumberSuggestions.map((suggestion, index) => (
-                        <div
-                          key={suggestion}
-                          className="px-3 py-2 cursor-pointer text-sm hover:bg-gray-50"
-                          onClick={() => {
-                            handleChange("part_number", suggestion);
-                            setShowPartNumberSuggestions(false);
-                          }}
-                        >
-                          {suggestion}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-              </div>
-            </div>
+
+
             <div className="space-y-2">
               <Label>Compatible With</Label>
               <Input

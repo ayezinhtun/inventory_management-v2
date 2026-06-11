@@ -60,6 +60,7 @@ export const useHardwareInventoryStore = create<HardwareInventoryState>((set, ge
         name: data.name,
         item_type: data.item_type,
         specifications: data.specifications || {},
+        hostname: data.hostname || '',
         manufacturer: data.manufacturer || '',
         model: data.model || '',
         serial_number: data.serial_number || '',

@@ -94,6 +94,7 @@ export function ReportsPage() {
       const columns: ExportColumn[] = [
         { header: 'Name', key: 'name' },
         { header: 'Type', key: 'item_type' },
+        { header: 'Hostname', key: 'hostname'},
         { header: 'Manufacturer', key: 'manufacturer' },
         { header: 'Serial Number', key: 'serial_number' },
         { header: 'Asset Tag', key: 'asset_tag' },
@@ -116,6 +117,7 @@ export function ReportsPage() {
 
       const columns: ExportColumn[] = [
         { header: 'Name', key: 'name' },
+        { header: 'Hostname', key: 'hostname'},
         { header: 'Manufacturer', key: 'manufacturer' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Status', key: 'status' },
@@ -205,6 +207,7 @@ export function ReportsPage() {
 
       const columns: ExportColumn[] = [
         { header: 'Component Name', key: 'name' },
+        { header: 'Hostname', key: 'hostname' },
         { header: 'Manufacturer', key: 'manufacturer' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Status', key: 'status' },
@@ -226,6 +229,7 @@ export function ReportsPage() {
 
       const columns: ExportColumn[] = [
         { header: 'Component Name', key: 'name' },
+        { header: 'Hostname', key: 'hostname' },
         { header: 'Manufacturer', key: 'manufacturer' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Status', key: 'status' },

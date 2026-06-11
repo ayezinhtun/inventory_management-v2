@@ -628,6 +628,7 @@ export function ComponentsListPage() {
       .map((component) => ({
         name: component.name,
         component_type: getTypeName(component.component_type_id || ''),
+        hostname: component.hostname || '',
         manufacturer: component.manufacturer,
         part_number: component.part_number,
         compatible_with: component.compatible_with || '',
@@ -643,6 +644,7 @@ export function ComponentsListPage() {
       columns: [
         { header: 'Name', key: 'name' },
         { header: 'Component Type', key: 'component_type' },
+        { header: 'Hostname', key: 'hostname' },
         { header: 'Manufacturer', key: 'manufacturer' },
         { header: 'Part Number', key: 'part_number' },
         { header: 'Compatible With', key: 'compatible_with' },
@@ -726,6 +728,7 @@ export function ComponentsListPage() {
           const componentData = {
             name: itemName,
             component_type_id: componentType?.id || null,
+            hostname: (item as any).hostname || (item as any)['Hostname'] || '',
             manufacturer: (item as any).manufacturer || (item as any)['Manufacturer'] || '',
             part_number: (item as any).part_number || (item as any)['Part Number'] || '',
             compatible_with: (item as any).compatible_with || (item as any)['Compatible With'] || '',
@@ -910,7 +913,7 @@ export function ComponentsListPage() {
                     </div>
 
                     {/* Region */}
-                    {currentUser?.role === 'Admin' && (
+                  
                       <div className='w-full flex flex-col'>
                         <label className="text-sm font-medium mb-1 block">Region</label>
                         <Select value={regionFilter} onValueChange={setRegionFilter}>
@@ -927,7 +930,7 @@ export function ComponentsListPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                    )}
+                    
 
                   </div>
 
@@ -1180,7 +1183,6 @@ export function ComponentsListPage() {
                           </TableCell>
 
                           {/* <TableCell>
-
                             <div className="text-sm">
 
                               {group.model}
@@ -1191,9 +1193,9 @@ export function ComponentsListPage() {
 
                           <TableCell>
 
-                            <div className="text-sm">
+                            <div className="font-mono text-sm max-w-[200px]">
 
-                              {group.part_number}
+                              <span className='truncate block'>{group.part_number || '_'}</span>
 
                             </div>
 
