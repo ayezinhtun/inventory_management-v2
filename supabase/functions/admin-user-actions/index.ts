@@ -24,8 +24,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const supabaseAdmin = createClient(
-    Deno.env.get('VITE_SUPABASE_URL')!,
-    Deno.env.get('VITE_SUPABASE_SERVICE_ROLE_KEY')!,
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 

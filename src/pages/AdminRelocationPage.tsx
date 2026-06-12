@@ -21,7 +21,7 @@ export function AdminRelocationPage() {
     fetchRelocationRequests,
   } = useRelocationStore();
 
-  const { currentUser, getUserName, getWarehouseName, getRegionName, warehouses } = useStore();
+  const { currentUser, getUserName, getWarehouseName, getRegionName, warehouses, users } = useStore();
   const { hardwareInventory } = useHardwareInventoryStore();
   const { components } = useComponentsStore();
 
@@ -36,10 +36,18 @@ export function AdminRelocationPage() {
   console.log('AdminRelocationPage - Total relocation requests:', relocationRequests.length);
 
   const pendingAdminRequests = relocationRequests.filter(
-    req =>
-      req.status === 'Pending Admin Approval' ||
-      req.status === 'Approved' ||
-      req.status === 'Rejected by Admin'
+    req => {
+      const requester = users.find(u => u.id === req.requester_id);
+      const isRequesterAdmin = requester?.role === 'Admin';
+
+      return (
+        req.status === 'Pending Admin Approval' ||
+        req.status === 'Approved' ||
+        req.status === 'Rejected by Admin' ||
+        // Show requests created by any admin even if pending PM approval
+        (req.status === 'Pending PM Approval' && isRequesterAdmin)
+      );
+    }
   );
 
   console.log('AdminRelocationPage - Pending Admin Approval requests:', pendingAdminRequests.length);

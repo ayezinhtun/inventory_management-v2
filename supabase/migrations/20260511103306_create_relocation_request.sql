@@ -67,3 +67,56 @@ ADD COLUMN source_server_id uuid NULL;
 ALTER TABLE public.relocation_requests 
 ADD CONSTRAINT relocation_requests_source_server_id_fkey 
 FOREIGN KEY (source_server_id) REFERENCES hardware_inventory (id) ON DELETE SET NULL;
+
+
+-- for policy relocation request
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view own relocation requests" ON public.relocation_requests;
+DROP POLICY IF EXISTS "PMs and Admins can view all relocation requests" ON public.relocation_requests;
+DROP POLICY IF EXISTS "PMs and Admins can update all relocation requests" ON public.relocation_requests;
+
+-- Create corrected policies
+CREATE POLICY "Users can view own relocation requests" ON public.relocation_requests
+    FOR SELECT USING (
+        requester_id IN (
+            SELECT id FROM public.user_profiles WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "PMs and Admins can view all relocation requests" ON public.relocation_requests
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.user_profiles 
+            WHERE user_id = auth.uid() AND role IN ('PM', 'Admin')
+        )
+    );
+
+CREATE POLICY "Users and Admins can create relocation requests" ON public.relocation_requests
+    FOR INSERT WITH CHECK (
+        requester_id IN (
+            SELECT id FROM public.user_profiles WHERE user_id = auth.uid()
+        ) OR
+        EXISTS (
+            SELECT 1 FROM public.user_profiles 
+            WHERE user_id = auth.uid() AND role = 'Admin'
+        )
+    );
+
+CREATE POLICY "Users can update own relocation requests" ON public.relocation_requests
+    FOR UPDATE USING (
+        requester_id IN (
+            SELECT id FROM public.user_profiles WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "PMs and Admins can update all relocation requests" ON public.relocation_requests
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.user_profiles 
+            WHERE user_id = auth.uid() AND role IN ('PM', 'Admin')
+        )
+    );
+
+CREATE POLICY "Authenticated users can read user profiles" ON public.user_profiles
+    FOR SELECT TO authenticated
+    USING (true);
