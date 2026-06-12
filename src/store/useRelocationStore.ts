@@ -161,6 +161,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
         item_name: itemName,
         destination: destination,
         requester_name: requesterProfile?.name || 'Unknown',
+        relocation_request_id: data.id, 
       });
 
       console.log('[createRelocationRequest] Notification function called successfully');
@@ -283,6 +284,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           item_name: componentName,
           destination: destination,
           requester_name: requesterProfile?.name || 'Unknown',
+          relocation_request_id: request.id, 
         });
       });
 
@@ -374,6 +376,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           requester_id: updatedRequest.requester_id || '',
           request_number: updatedRequest.request_number || '',
           approved_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
+          relocation_request_id: id;
         });
       }
     } catch (error) {
@@ -442,6 +445,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             requester_id: request.requester_id || '',
             request_number: request.request_number || '',
             approved_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
+            relocation_request_id: request.id,
           });
         });
       } catch (notifError) {
@@ -514,6 +518,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             request_number: request.request_number || '',
             rejected_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
             comments: comments || '',
+            relocation_request_id: request.id, 
           });
         });
       } catch (notifError) {
@@ -600,6 +605,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           request_number: updatedRequest.request_number || '',
           rejected_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
           comments: comments || '',
+          relocation_request_id: id, 
         });
       }
     } catch (error) {
@@ -728,6 +734,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           requester_id: request?.requester_id || '',
           request_number: request?.request_number || '',
           approved_by_name: adminProfile?.name || currentUser?.name || 'Unknown',
+          relocation_request_id: id, 
         });
       }
     } catch (error) {
@@ -847,6 +854,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             requester_id: request.requester_id || '',
             request_number: request.request_number || '',
             approved_by_name: adminProfile?.name || currentUser?.name || 'Unknown',
+            relocation_request_id: request.id, 
           });
         });
       } catch (notifError) {
@@ -919,6 +927,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
             request_number: request.request_number || '',
             rejected_by_name: adminProfile?.name || currentUser?.name || 'Unknown',
             comments: comments || '',
+            relocation_request_id: request.id, 
           });
         });
       } catch (notifError) {
