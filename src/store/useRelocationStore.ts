@@ -376,7 +376,7 @@ export const useRelocationStore = create<RelocationState>((set, get) => ({
           requester_id: updatedRequest.requester_id || '',
           request_number: updatedRequest.request_number || '',
           approved_by_name: pmProfile?.name || currentUser?.name || 'Unknown',
-          relocation_request_id: id;
+          relocation_request_id: id,
         });
       }
     } catch (error) {
