@@ -10,6 +10,7 @@ import { CheckCircle, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useHardwareInventoryStore } from '../store/useHardwareInventoryStore';
 import { useComponentsStore } from '../store/useComponentsStore';
 import { getStatusColor } from '../lib/utils';
+import { useUsersStore } from '../store/useUsersStore';
 
 export function AdminRelocationPage() {
   console.log('AdminRelocationPage - Component mounted');
@@ -21,7 +22,8 @@ export function AdminRelocationPage() {
     fetchRelocationRequests,
   } = useRelocationStore();
 
-  const { currentUser, getUserName, getWarehouseName, getRegionName, warehouses, users } = useStore();
+  const { currentUser, getUserName, getWarehouseName, getRegionName, warehouses } = useStore();
+  const { users } = useUsersStore();
   const { hardwareInventory } = useHardwareInventoryStore();
   const { components } = useComponentsStore();
 
@@ -45,7 +47,10 @@ export function AdminRelocationPage() {
         req.status === 'Approved' ||
         req.status === 'Rejected by Admin' ||
         // Show requests created by any admin even if pending PM approval
-        (req.status === 'Pending PM Approval' && isRequesterAdmin)
+        (isRequesterAdmin && (
+          req.status === 'Pending PM Approval' ||
+          req.status === 'Rejected by PM'
+        ))
       );
     }
   );
