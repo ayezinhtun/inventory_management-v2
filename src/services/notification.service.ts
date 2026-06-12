@@ -19,6 +19,7 @@ export interface NotifyParams {
   type?: 'info' | 'warning' | 'alert' | 'success';
   category?: string;
   action_url?: string;
+  related_relocation_request_id?: string;
 }
 
 export interface EmailParams {
@@ -59,13 +60,14 @@ export function notifyUser(params: NotifyParams): void {
 
       await supabase.from('notifications').insert({
         user_id,
-        title:      params.title,
-        message:    params.message,
-        type:       params.type     ?? 'info',
-        category:   params.category ?? 'system',
-        region_id:  params.region_id ?? null,
+        title: params.title,
+        message: params.message,
+        type: params.type ?? 'info',
+        category: params.category ?? 'system',
+        region_id: params.region_id ?? null,
         action_url: params.action_url ?? null,
         sender_id,
+        related_relocation_request_id: params.related_relocation_request_id,
       });
     } catch {
       // Silent — notifications must never break main operations
@@ -91,12 +93,12 @@ export function broadcastNotification(params: Omit<NotifyParams, 'user_id'>): vo
       if (!users?.length) return;
 
       const rows = users.map((u: any) => ({
-        user_id:    u.user_id,
-        title:      params.title,
-        message:    params.message,
-        type:       params.type     ?? 'info',
-        category:   params.category ?? 'system',
-        region_id:  params.region_id ?? null,
+        user_id: u.user_id,
+        title: params.title,
+        message: params.message,
+        type: params.type ?? 'info',
+        category: params.category ?? 'system',
+        region_id: params.region_id ?? null,
         action_url: params.action_url ?? null,
         sender_id,
       }));
@@ -130,11 +132,11 @@ export function notifyLowStock(params: {
       if (!admins?.length) return;
 
       const rows = admins.map((u: any) => ({
-        user_id:    u.user_id,
-        title:      'Low Stock Alert',
-        message:    `${params.item_name} in ${params.region_name} is below minimum (${params.quantity}/${params.minimum_stock}).`,
-        type:       'warning',
-        category:   'low_stock',
+        user_id: u.user_id,
+        title: 'Low Stock Alert',
+        message: `${params.item_name} in ${params.region_name} is below minimum (${params.quantity}/${params.minimum_stock}).`,
+        type: 'warning',
+        category: 'low_stock',
         action_url: 'components',
       }));
 
@@ -204,13 +206,14 @@ export function notifyRelocationCreated(params: {
   item_name: string;
   destination: string;
   requester_name: string;
+  relocation_request_id: string;
 }): void {
   (async () => {
     try {
       console.log('[notifyRelocationCreated] Starting notification with params:', params);
 
       // Get all PMS
-      const {data: pms, error: pmError} = await supabase
+      const { data: pms, error: pmError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('role', 'PM')
@@ -223,12 +226,12 @@ export function notifyRelocationCreated(params: {
 
       console.log('[notifyRelocationCreated] Found PMs:', pms?.length);
 
-      if(!pms?.length) {
+      if (!pms?.length) {
         console.warn('[notifyRelocationCreated] No active PMs found, skipping notification');
         return;
       }
 
-      const {data: {session}} = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       const sender_id = session?.user?.id ?? null;
       console.log('[notifyRelocationCreated] Sender ID:', sender_id);
 
@@ -240,6 +243,7 @@ export function notifyRelocationCreated(params: {
         category: 'relocation',
         action_url: 'relocation-requests',
         sender_id,
+        related_relocation_request_id: params.relocation_request_id,
       }));
 
       console.log('[notifyRelocationCreated] Inserting notifications:', rows);
@@ -251,7 +255,7 @@ export function notifyRelocationCreated(params: {
       } else {
         console.log('[notifyRelocationCreated] Notifications inserted successfully');
       }
-    } catch(error: any) {
+    } catch (error: any) {
       console.error('[notifyRelocationCreated] Failed to send relocation created notification:', error);
     }
   })();
@@ -265,17 +269,18 @@ export function notifyRelocationApprovedByPM(params: {
   requester_id: string;
   request_number: string;
   approved_by_name: string;
+  relocation_request_id: string;
 }): void {
   (async () => {
     try {
       console.log('[notifyRelocationApprovedByPM] Starting notification with params:', params);
 
-      const {data: {session}} = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       const sender_id = session?.user?.id ?? null;
       console.log('[notifyRelocationApprovedByPM] Sender ID:', sender_id);
 
       // Get the requester's actual user_id from user_profiles
-      const {data: requesterProfile, error: requesterError} = await supabase
+      const { data: requesterProfile, error: requesterError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('id', params.requester_id)
@@ -290,7 +295,7 @@ export function notifyRelocationApprovedByPM(params: {
       console.log('[notifyRelocationApprovedByPM] Requester user_id:', requesterUserId);
 
       // Get all Admins
-      const {data: admins, error: adminError} = await supabase
+      const { data: admins, error: adminError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('role', 'Admin')
@@ -315,6 +320,7 @@ export function notifyRelocationApprovedByPM(params: {
         category: 'relocation',
         action_url: 'relocation-requests',
         sender_id,
+        related_relocation_request_id: params.relocation_request_id,
       }));
 
       console.log('[notifyRelocationApprovedByPM] Inserting notifications:', rows);
@@ -326,7 +332,7 @@ export function notifyRelocationApprovedByPM(params: {
       } else {
         console.log('[notifyRelocationApprovedByPM] Notifications inserted successfully');
       }
-    } catch(error: any) {
+    } catch (error: any) {
       console.error('[notifyRelocationApprovedByPM] Failed to send relocation approved notification:', error);
     }
   })();
@@ -342,13 +348,14 @@ export function notifyRelocationRejectedByPM(params: {
   request_number: string;
   rejected_by_name: string;
   comments: string;
+  relocation_request_id: string;
 }): void {
   (async () => {
     try {
       console.log('[notifyRelocationRejectedByPM] Starting notification with params:', params);
 
       // Get the requester's actual user_id from user_profiles
-      const {data: requesterProfile, error: requesterError} = await supabase
+      const { data: requesterProfile, error: requesterError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('id', params.requester_id)
@@ -369,6 +376,7 @@ export function notifyRelocationRejectedByPM(params: {
         type: 'alert',
         category: 'relocation',
         action_url: 'relocation-requests',
+        related_relocation_request_id: params.relocation_request_id,
       });
       console.log('[notifyRelocationRejectedByPM] Notification sent');
     } catch (error) {
@@ -385,17 +393,18 @@ export function notifyRelocationApprovedByAdmin(params: {
   requester_id: string;
   request_number: string;
   approved_by_name: string;
+  relocation_request_id: string;
 }): void {
   (async () => {
     try {
       console.log('[notifyRelocationApprovedByAdmin] Starting notification with params:', params);
 
-      const {data: {session}} = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       const sender_id = session?.user?.id ?? null;
       console.log('[notifyRelocationApprovedByAdmin] Sender ID:', sender_id);
 
       // Get the requester's actual user_id from user_profiles
-      const {data: requesterProfile, error: requesterError} = await supabase
+      const { data: requesterProfile, error: requesterError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('id', params.requester_id)
@@ -410,7 +419,7 @@ export function notifyRelocationApprovedByAdmin(params: {
       console.log('[notifyRelocationApprovedByAdmin] Requester user_id:', requesterUserId);
 
       // Get all PMS
-      const {data: pms, error: pmError} = await supabase
+      const { data: pms, error: pmError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('role', 'PM')
@@ -423,11 +432,11 @@ export function notifyRelocationApprovedByAdmin(params: {
 
       console.log('[notifyRelocationApprovedByAdmin] Found PMs:', pms?.length);
 
-       // Target users: Engineer (requester) + all PMs
-       const targetUserIds = [requesterUserId, ...(pms?.map((p: any) => p.user_id) || [])];
-       console.log('[notifyRelocationApprovedByAdmin] Target user IDs:', targetUserIds);
+      // Target users: Engineer (requester) + all PMs
+      const targetUserIds = [requesterUserId, ...(pms?.map((p: any) => p.user_id) || [])];
+      console.log('[notifyRelocationApprovedByAdmin] Target user IDs:', targetUserIds);
 
-       const rows = targetUserIds.map((user_id) => ({
+      const rows = targetUserIds.map((user_id) => ({
         user_id,
         title: `Relocation Request ${params.request_number} Approved by Admin`,
         message: `Approved by Admin: ${params.approved_by_name}`,
@@ -435,18 +444,19 @@ export function notifyRelocationApprovedByAdmin(params: {
         category: 'relocation',
         action_url: 'relocation-requests',
         sender_id,
-       }));
+        related_relocation_request_id: params.relocation_request_id,
+      }));
 
-       console.log('[notifyRelocationApprovedByAdmin] Inserting notifications:', rows);
+      console.log('[notifyRelocationApprovedByAdmin] Inserting notifications:', rows);
 
-       const { error: insertError } = await supabase.from('notifications').insert(rows);
+      const { error: insertError } = await supabase.from('notifications').insert(rows);
 
-       if (insertError) {
-         console.error('[notifyRelocationApprovedByAdmin] Error inserting notifications:', insertError);
-       } else {
-         console.log('[notifyRelocationApprovedByAdmin] Notifications inserted successfully');
-       }
-    } catch(error: any) {
+      if (insertError) {
+        console.error('[notifyRelocationApprovedByAdmin] Error inserting notifications:', insertError);
+      } else {
+        console.log('[notifyRelocationApprovedByAdmin] Notifications inserted successfully');
+      }
+    } catch (error: any) {
       console.error('[notifyRelocationApprovedByAdmin] Failed to send relocation approved notification:', error);
     }
   })();
@@ -462,17 +472,18 @@ export function notifyRelocationRejectedByAdmin(params: {
   request_number: string;
   rejected_by_name: string;
   comments: string;
+  relocation_request_id: string;
 }): void {
   (async () => {
     try {
       console.log('[notifyRelocationRejectedByAdmin] Starting notification with params:', params);
 
-      const {data: {session}} = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       const sender_id = session?.user?.id ?? null;
       console.log('[notifyRelocationRejectedByAdmin] Sender ID:', sender_id);
 
       // Get the requester's actual user_id from user_profiles
-      const {data: requesterProfile, error: requesterError} = await supabase
+      const { data: requesterProfile, error: requesterError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('id', params.requester_id)
@@ -487,7 +498,7 @@ export function notifyRelocationRejectedByAdmin(params: {
       console.log('[notifyRelocationRejectedByAdmin] Requester user_id:', requesterUserId);
 
       // Get all PMs
-      const {data: pms, error: pmError} = await supabase
+      const { data: pms, error: pmError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('role', 'PM')
@@ -512,6 +523,7 @@ export function notifyRelocationRejectedByAdmin(params: {
         category: 'relocation',
         action_url: 'relocation-requests',
         sender_id,
+         related_relocation_request_id: params.relocation_request_id,
       }));
 
       console.log('[notifyRelocationRejectedByAdmin] Inserting notifications:', rows);
@@ -524,7 +536,7 @@ export function notifyRelocationRejectedByAdmin(params: {
         console.log('[notifyRelocationRejectedByAdmin] Notifications inserted successfully');
       }
 
-    } catch(error: any) {
+    } catch (error: any) {
       console.error('[notifyRelocationRejectedByAdmin] Failed to send relocation rejected notification:', error);
     }
   })();
