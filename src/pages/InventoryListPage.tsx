@@ -204,15 +204,7 @@ export function InventoryListPage() {
         rowErrors.push('Missing required field: Model');
       } else if (!itemName.trim()) {
         rowErrors.push('Name cannot be empty or whitespace only');
-      } else {
-        // Check for duplicate name in existing hardware inventory
-        const existingHardware = hardwareInventory.find(h =>
-          h.name.toLowerCase() === itemName.toLowerCase() && !h.is_deleted
-        );
-        if (existingHardware) {
-          rowErrors.push(`Hardware name "${itemName}" already exists in inventory`);
-        }
-      }
+      } 
 
       // Validate required field: Item Type
       const itemType = (item as any).item_type || (item as any)['Item Type'] || (item as any).type || '';
